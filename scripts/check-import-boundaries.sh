@@ -14,7 +14,7 @@ done
 framework_pattern='^(from|import)[[:space:]]+(pulse\.)?(aether|nyx|nova|feather|atlas|aura|quartz|chronos|rune|obsidian|vault)(\.|[[:space:]]|$)'
 if [[ ${#protected_roots[@]} -gt 0 ]]; then
   framework_status=0
-  framework_matches="$(grep -ERn --include='*.nox' "$framework_pattern" "${protected_roots[@]}")" || framework_status=$?
+  framework_matches="$(git grep -En "$framework_pattern" -- "${protected_roots[@]}")" || framework_status=$?
   if [[ $framework_status -gt 1 ]]; then
     echo "framework import scan failed" >&2
     exit "$framework_status"
@@ -36,7 +36,7 @@ done
 reverse_dependency_pattern='^(from|import)[[:space:]]+(pulse\.)?(metrics|tracing|otlp|exporters|runtime|integrations)(\.|[[:space:]]|$)'
 if [[ ${#stable_roots[@]} -gt 0 ]]; then
   reverse_status=0
-  reverse_matches="$(grep -ERn --include='*.nox' "$reverse_dependency_pattern" "${stable_roots[@]}")" || reverse_status=$?
+  reverse_matches="$(git grep -En "$reverse_dependency_pattern" -- "${stable_roots[@]}")" || reverse_status=$?
   if [[ $reverse_status -gt 1 ]]; then
     echo "reverse dependency scan failed" >&2
     exit "$reverse_status"

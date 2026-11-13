@@ -23,9 +23,12 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
   that execute under both LLVM and QBE.
 - Cross-platform filesystem smoke paths and Windows executable discovery for
   build/run and golden-test harnesses.
-- Portable core scripts that use baseline `find`/`grep` instead of assuming
+- Portable core scripts that use baseline `find`/`git grep` instead of assuming
   `rg` exists on every runner, plus CRLF-normalized golden text comparison on
   Windows.
+- Source-boundary guards restricted to Git-tracked Pulse files so an extracted
+  checksum-verified NOX toolchain cannot be mistaken for project-private ABI
+  usage.
 - Package-resolution smoke metadata aligned with the manifest's `0.1.0`
   version.
 - Evidence-gated Phase 0 roadmap.
