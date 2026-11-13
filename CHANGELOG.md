@@ -12,6 +12,8 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
   issue forms, pull-request checklist and GitHub Actions dependency updates.
 - A four-target core CI matrix for macOS ARM64, Linux x64, Linux ARM64 and
   Windows x64 using checksum-verified official NOX release archives.
+- SHA-pinned `actions/checkout` v6.1.0, avoiding the retired Node.js 20 action
+  runtime.
 - Separate Unix capability jobs for runtime divergence, compiler limitations,
   HTTP/TLS behavior and backend transfer semantics, with explicit skipped and
   unsupported scope summaries.
@@ -19,6 +21,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
   that execute under both LLVM and QBE.
 - Cross-platform filesystem smoke paths and Windows executable discovery for
   build/run and golden-test harnesses.
+- Portable core scripts that use baseline `find`/`grep` instead of assuming
+  `rg` exists on every runner, plus CRLF-normalized golden text comparison on
+  Windows.
 - Package-resolution smoke metadata aligned with the manifest's `0.1.0`
   version.
 - Evidence-gated Phase 0 roadmap.

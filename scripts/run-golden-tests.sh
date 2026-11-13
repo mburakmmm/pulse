@@ -18,6 +18,7 @@ golden_binary="$output_root/attribute-snapshot"
 if [[ -f "$golden_binary.exe" ]]; then
   golden_binary="$golden_binary.exe"
 fi
-diff -u tests/golden/attribute_snapshot.expected <("$golden_binary")
+"$golden_binary" | tr -d '\r' >"$output_root/attribute-snapshot.actual"
+diff -u tests/golden/attribute_snapshot.expected "$output_root/attribute-snapshot.actual"
 
 printf 'pulse golden tests: backend=%s attribute_snapshot=pass\n' "$backend"

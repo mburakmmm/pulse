@@ -13,7 +13,7 @@ project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_root"
 while IFS= read -r source_file; do
   "$noxc_bin" check "$source_file"
-done < <(rg --files api core sdk -g '*.nox' | sort)
+done < <(find api core sdk -type f -name '*.nox' -print | sort)
 
 "$noxc_bin" test --backend "$backend" tests/unit
 "$noxc_bin" test --backend "$backend" tests/security

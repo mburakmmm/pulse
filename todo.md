@@ -186,7 +186,7 @@ Durum: Yerel faz kapısı geçti; uzak platform CI kanıtları sürüm öncesi i
 - [~] Windows x64 core workflow hedefi resmî zip/checksum kurulumu ve iki-backend suite ile eklendi; destek iddiası remote sonuç görülene kadar `PENDING`.
 - [x] Downstream dependency alias/package smoke testi ve iki backend'de çalışan `examples/hello_metrics.nox` derleme/çıktı kapısı eklendi.
 - [x] CI step summary ve platform belgesinde `SKIPPED`, `UNSUPPORTED` ve `PENDING` durumları başarıdan ayrıldı; OTLP/Prometheus interop çalıştırılmış gibi gösterilmiyor.
-- [~] İlk GitHub yayını, repository metadata ve dört-platform remote CI kanıtı hazırlanıyor; remote sonuç henüz kaydedilmedi.
+- [~] İlk GitHub yayını `3d6a89c` ile tamamlandı; ilk Windows koşusu CRLF ve runner'da eksik `rg` varsayımını yakaladı, portable `find`/`grep` + text normalization düzeltmesi remote tekrar doğrulamasını bekliyor. Repository metadata ve dört-platform nihai kanıt henüz tamamlanmadı.
 
 #### Çıkış kapısı
 
