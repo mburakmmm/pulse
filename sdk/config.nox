@@ -1,0 +1,27 @@
+from core.errors import TelemetryError
+from core.limits import AttributeLimits, MetricLimits, RecordLimits, RuntimeLimits, default_attribute_limits, default_metric_limits, default_record_limits, default_runtime_limits
+
+class PulseConfig:
+    enabled: bool
+    service_name: str
+    attribute_limits: AttributeLimits
+    record_limits: RecordLimits
+    metric_limits: MetricLimits
+    runtime_limits: RuntimeLimits
+
+    def __init__(self, enabled: bool, service_name: str, attribute_limits: AttributeLimits, record_limits: RecordLimits, metric_limits: MetricLimits, runtime_limits: RuntimeLimits) -> None:
+        if len(service_name) == 0:
+            raise TelemetryError("service_name must not be empty")
+        self.enabled = enabled
+        self.service_name = service_name
+        self.attribute_limits = attribute_limits
+        self.record_limits = record_limits
+        self.metric_limits = metric_limits
+        self.runtime_limits = runtime_limits
+
+    def redacted_summary(self) -> str:
+
+        return "PulseConfig(enabled=" + str(self.enabled) + ", service_name=" + self.service_name + ", max_series_per_instrument=" + str(self.metric_limits.max_series_per_instrument) + ", max_queue_records=" + str(self.runtime_limits.max_queue_records) + ", max_queue_bytes=" + str(self.runtime_limits.max_queue_bytes) + ")"
+
+def default_disabled_config(service_name: str) -> PulseConfig:
+    return PulseConfig(False, service_name, default_attribute_limits(), default_record_limits(), default_metric_limits(), default_runtime_limits())

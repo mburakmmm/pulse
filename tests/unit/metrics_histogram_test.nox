@@ -1,0 +1,62 @@
+import nox.test
+from core.errors import TelemetryError
+from metrics.histogram import ExplicitHistogramAggregation, HistogramSnapshot
+
+invalid_order_seen: bool = False
+try:
+    ExplicitHistogramAggregation([1.0, 1.0], 4)
+except TelemetryError as e:
+    invalid_order_seen = True
+nox.test.assert_true(invalid_order_seen, "histogram boundaries must be strictly increasing")
+
+invalid_boundary_seen: bool = False
+try:
+    ExplicitHistogramAggregation([float("inf")], 4)
+except TelemetryError as e:
+    invalid_boundary_seen = True
+nox.test.assert_true(invalid_boundary_seen, "histogram boundaries must be finite")
+
+too_many_boundaries_seen: bool = False
+try:
+    ExplicitHistogramAggregation([1.0, 2.0], 1)
+except TelemetryError as e:
+    too_many_boundaries_seen = True
+nox.test.assert_true(too_many_boundaries_seen, "histogram boundary count is bounded before allocation")
+
+source_boundaries: list[float] = [0.0, 10.0]
+histogram: ExplicitHistogramAggregation = ExplicitHistogramAggregation(source_boundaries, 4)
+source_boundaries[0] = 99.0
+histogram.record(-2.0)
+histogram.record(0.0)
+histogram.record(0.5)
+histogram.record(10.0)
+histogram.record(11.0)
+histogram_snapshot: HistogramSnapshot = histogram.snapshot()
+nox.test.assert_eq_int(histogram_snapshot.count, 5, "histogram count includes every accepted measurement")
+nox.test.assert_eq_int(len(histogram_snapshot.bucket_counts), 3, "N boundaries produce N plus one buckets")
+nox.test.assert_eq_int(histogram_snapshot.bucket_counts[0], 2, "exact boundary is counted in the lower inclusive bucket")
+nox.test.assert_eq_int(histogram_snapshot.bucket_counts[1], 2, "middle bucket is lower-exclusive and upper-inclusive")
+nox.test.assert_eq_int(histogram_snapshot.bucket_counts[2], 1, "last bucket contains measurements above the final boundary")
+nox.test.assert_eq_float(histogram_snapshot.sum, 19.5, "histogram sum matches the accepted measurements")
+
+nox.test.assert_true(histogram_snapshot.has_min_max, "non-empty histogram has min/max")
+nox.test.assert_eq_float(histogram_snapshot.minimum, -2.0, "histogram minimum is tracked")
+nox.test.assert_eq_float(histogram_snapshot.maximum, 11.0, "histogram maximum is tracked")
+
+histogram_snapshot.bucket_counts[0] = 99
+nox.test.assert_eq_int(histogram.snapshot().bucket_counts[0], 2, "histogram snapshot bucket counts are defensive copies")
+
+invalid_measurement_seen: bool = False
+before_invalid_count: int = histogram.snapshot().count
+try:
+    histogram.record(float("nan"))
+except TelemetryError as e:
+    invalid_measurement_seen = True
+nox.test.assert_true(invalid_measurement_seen, "histogram rejects non-finite measurements")
+nox.test.assert_eq_int(histogram.snapshot().count, before_invalid_count, "rejected histogram measurement does not mutate state")
+
+empty_histogram: HistogramSnapshot = ExplicitHistogramAggregation([], 4).snapshot()
+nox.test.assert_eq_int(empty_histogram.count, 0, "empty histogram count is zero")
+nox.test.assert_eq_int(len(empty_histogram.bucket_counts), 1, "empty boundary list still has the positive-infinity bucket")
+nox.test.assert_eq_float(empty_histogram.sum, 0.0, "empty histogram sum is zero")
+nox.test.assert_true(not empty_histogram.has_min_max, "empty histogram explicitly omits min/max")

@@ -1,0 +1,44 @@
+import nox.strings
+import nox.test
+from core.attributes import AttributeEntry, AttributeSet, AttributeValue, snapshot_attributes
+from core.errors import TelemetryError
+from core.limits import default_attribute_limits
+from metrics.series import canonical_series_key
+
+first_values: dict[str, AttributeValue] = {}
+first_values["z"] = AttributeValue.Text("last")
+first_values["a"] = AttributeValue.Integer(9007199254740993)
+second_values: dict[str, AttributeValue] = {}
+second_values["a"] = AttributeValue.Integer(9007199254740993)
+second_values["z"] = AttributeValue.Text("last")
+first_key: str = canonical_series_key(snapshot_attributes(first_values, default_attribute_limits(), True))
+second_key: str = canonical_series_key(snapshot_attributes(second_values, default_attribute_limits(), True))
+nox.test.assert_eq_str(first_key, second_key, "series key ignores caller dictionary insertion order")
+nox.test.assert_true(nox.strings.byte_len(first_key) > 0, "series key is a non-empty binary identity")
+
+bool_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.Boolean(True)}, default_attribute_limits(), True))
+int_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.Integer(1)}, default_attribute_limits(), True))
+float_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.Float(1.0)}, default_attribute_limits(), True))
+text_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.Text("1")}, default_attribute_limits(), True))
+nox.test.assert_true(bool_key != int_key, "boolean and integer attributes cannot collide")
+nox.test.assert_true(int_key != float_key, "integer and float attributes cannot collide")
+nox.test.assert_true(float_key != text_key, "float and text attributes cannot collide")
+
+empty_bool_array_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.BooleanArray([])}, default_attribute_limits(), True))
+empty_int_array_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.IntegerArray([])}, default_attribute_limits(), True))
+nox.test.assert_true(empty_bool_array_key != empty_int_array_key, "empty homogeneous arrays retain their element type")
+
+zero_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.Float(0.0)}, default_attribute_limits(), True))
+negative_zero_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.Float(float("-0.0"))}, default_attribute_limits(), True))
+nox.test.assert_eq_str(zero_key, negative_zero_key, "series identity follows NOX equality for signed zero")
+
+nul_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.Text("a" + chr(0) + "b")}, default_attribute_limits(), True))
+plain_key: str = canonical_series_key(snapshot_attributes({"v": AttributeValue.Text("ab")}, default_attribute_limits(), True))
+nox.test.assert_true(nul_key != plain_key, "length-delimited text prevents embedded-NUL collisions")
+
+noncanonical_seen: bool = False
+try:
+    canonical_series_key(AttributeSet([AttributeEntry("z", AttributeValue.Integer(1)), AttributeEntry("a", AttributeValue.Integer(2))], 0, 18))
+except TelemetryError as e:
+    noncanonical_seen = True
+nox.test.assert_true(noncanonical_seen, "series identity rejects unsorted attribute sets")

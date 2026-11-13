@@ -1,0 +1,17 @@
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.errors import TelemetryError
+from core.limits import AttributeLimits
+
+class InstrumentationScope:
+    name: str
+    version: str | None
+    schema_url: str | None
+    attributes: AttributeSet
+
+    def __init__(self, name: str, version: str | None, schema_url: str | None, attributes: dict[str, AttributeValue], limits: AttributeLimits) -> None:
+        if len(name) == 0:
+            raise TelemetryError("instrumentation scope name must not be empty")
+        self.name = name
+        self.version = version
+        self.schema_url = schema_url
+        self.attributes = snapshot_attributes(attributes, limits, True)

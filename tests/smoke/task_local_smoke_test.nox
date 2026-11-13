@@ -1,0 +1,64 @@
+import nox.test
+
+class ContextValue:
+    name: str
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+async def observe_child(local: TaskLocal[ContextValue], result: Channel[str]) -> None:
+    seen: ContextValue | None = local.get()
+    if seen is None:
+        await result.send("none")
+    else:
+        await result.send(seen.name)
+
+async def isolated_child(local: TaskLocal[ContextValue], name: str, ready: Channel[int], release: Channel[int], result: Channel[str]) -> None:
+    nox.test.assert_true(local.get() is None, "new child starts without an inherited TaskLocal value")
+    local.set(ContextValue(name))
+    await ready.send(1)
+    await release.recv()
+    seen: ContextValue | None = local.get()
+    if seen is None:
+        await result.send("missing")
+    else:
+        await result.send(seen.name)
+    local.clear()
+    nox.test.assert_true(local.get() is None, "clear removes the current fiber value")
+
+async def run_task_local_probe() -> None:
+    local: TaskLocal[ContextValue] = TaskLocal[ContextValue]()
+    local.set(ContextValue("parent"))
+
+    inheritance_result: Channel[str] = Channel[str](1)
+    observer: Task[None] = spawn observe_child(local, inheritance_result)
+    nox.test.assert_eq_str(await inheritance_result.recv(), "none", "TaskLocal does not inherit into a spawned child")
+    await observer
+
+    first_ready: Channel[int] = Channel[int](1)
+    second_ready: Channel[int] = Channel[int](1)
+    first_release: Channel[int] = Channel[int](1)
+    second_release: Channel[int] = Channel[int](1)
+    child_results: Channel[str] = Channel[str](2)
+    first: Task[None] = spawn isolated_child(local, "first", first_ready, first_release, child_results)
+    second: Task[None] = spawn isolated_child(local, "second", second_ready, second_release, child_results)
+    await first_ready.recv()
+    await second_ready.recv()
+    await first_release.send(1)
+    await second_release.send(1)
+    results: list[str] = [await child_results.recv(), await child_results.recv()]
+    ordered: list[str] = sorted(results)
+    nox.test.assert_eq_str(ordered[0], "first", "first child retains its isolated TaskLocal value")
+    nox.test.assert_eq_str(ordered[1], "second", "second child retains its isolated TaskLocal value")
+    await first
+    await second
+
+    parent_seen: ContextValue | None = local.get()
+    nox.test.assert_true(parent_seen is not None, "child updates do not replace the parent value")
+    if parent_seen is not None:
+        nox.test.assert_eq_str(parent_seen.name, "parent", "parent retains its own TaskLocal value")
+    local.clear()
+    nox.test.assert_true(local.get() is None, "parent explicitly clears TaskLocal before fiber exit")
+
+probe: Task[None] = spawn run_task_local_probe()
+await probe

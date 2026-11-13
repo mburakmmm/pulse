@@ -1,0 +1,4 @@
+# Package-resolution probe only. This is not a public Pulse API.
+def package_version() -> str:
+    return "0.1.0"
+

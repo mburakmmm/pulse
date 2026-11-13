@@ -1,0 +1,46 @@
+import nox.test
+
+async def producer(ch: Channel[int]) -> None:
+    i: int = 1
+    while i <= 4:
+        await ch.send(i)
+        i += 1
+
+async def consumer(ch: Channel[int]) -> int:
+    total: int = 0
+    i: int = 0
+    while i < 4:
+        total += await ch.recv()
+        i += 1
+    return total
+
+async def cancellation_point() -> int:
+    total: int = 0
+    while True:
+        step: Task[int] = spawn immediate_one()
+        total += await step
+    return total
+
+async def immediate_one() -> int:
+    return 1
+
+async def run_async_probe() -> None:
+    ch: Channel[int] = Channel[int](2)
+    producing: Task[None] = spawn producer(ch)
+    consuming: Task[int] = spawn consumer(ch)
+    await producing
+    nox.test.assert_eq_int(await consuming, 10, "bounded task channel preserves values")
+
+    cancellable: Task[int] = spawn cancellation_point()
+    cancellable.cancel()
+    cancellation_seen: bool = False
+    try:
+        result: int = await cancellable
+        nox.test.assert_true(result < 0, "cancelled task must not return normally")
+    except CancelledError as e:
+        cancellation_seen = True
+    nox.test.assert_true(cancellation_seen, "task cancellation is delivered at await")
+
+probe: Task[None] = spawn run_async_probe()
+await probe
+

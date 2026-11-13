@@ -1,0 +1,18 @@
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.limits import AttributeLimits
+
+class Resource:
+    attributes: AttributeSet
+
+    def __init__(self, attributes: AttributeSet) -> None:
+        self.attributes = attributes
+
+def resource_from_layers(safe_defaults: dict[str, AttributeValue], environment: dict[str, AttributeValue], explicit: dict[str, AttributeValue], limits: AttributeLimits) -> Resource:
+    merged: dict[str, AttributeValue] = {}
+    for key in safe_defaults:
+        merged[key] = safe_defaults[key]
+    for key in environment:
+        merged[key] = environment[key]
+    for key in explicit:
+        merged[key] = explicit[key]
+    return Resource(snapshot_attributes(merged, limits, True))

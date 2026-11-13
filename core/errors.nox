@@ -1,0 +1,42 @@
+class TelemetryError(Exception):
+    def is_telemetry_error(self) -> bool:
+        return True
+
+enum ErrorKind:
+    InvalidArgument
+    LimitExceeded
+    InvalidState
+    Timeout
+    Unavailable
+    Permanent
+
+enum ExportResult:
+    Success
+    Failure(kind: ErrorKind, message: str)
+    Partial(rejected: int, message: str)
+
+enum FlushResult:
+    Success
+    Timeout
+    Shutdown
+
+enum ShutdownResult:
+    Success
+    Timeout
+    AlreadyShutdown
+
+def export_succeeded(result: ExportResult) -> bool:
+    match result:
+        case ExportResult.Success:
+            return True
+        case _:
+            return False
+
+def export_retryable(result: ExportResult) -> bool:
+    match result:
+        case ExportResult.Failure(ErrorKind.Timeout, _):
+            return True
+        case ExportResult.Failure(ErrorKind.Unavailable, _):
+            return True
+        case _:
+            return False

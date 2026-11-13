@@ -1,0 +1,27 @@
+import nox.json
+import nox.math
+import nox.strings
+from nox.json import JsonWriter
+from nox.math import sqrt
+
+parsed_nan: float = float("nan")
+sqrt_nan: float = sqrt(-1.0)
+char_from_byte_nul: str = nox.strings.char_from_byte(0)
+embedded_nul: str = "A" + chr(0) + "B"
+
+writer: JsonWriter = JsonWriter()
+writer.begin_object()
+writer.write_key("value")
+writer.write_string("before" + chr(0) + "after")
+writer.end_object()
+encoded: str = writer.build()
+
+print("parsed_nan_self_inequality", parsed_nan != parsed_nan)
+print("sqrt_nan_self_inequality", sqrt_nan != sqrt_nan)
+print("sqrt_nan_less_than_zero", sqrt_nan < 0.0)
+print("sqrt_nan_less_equal_inf", sqrt_nan <= float("inf"))
+print("char_from_byte_nul_byte_len", nox.strings.byte_len(char_from_byte_nul))
+print("embedded_nul_byte_len", nox.strings.byte_len(embedded_nul))
+print("embedded_nul_middle_byte", nox.strings.byte_at(embedded_nul, 1))
+print("json_retains_after_nul", nox.strings.contains(encoded, "after"))
+print("json_escapes_nul", nox.strings.contains(encoded, "\\u0000"))

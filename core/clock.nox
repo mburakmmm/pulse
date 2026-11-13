@@ -1,0 +1,40 @@
+import nox.time
+
+protocol Clock:
+    def wall_time_ns(self) -> int:
+        pass
+
+    def monotonic_time_ns(self) -> int:
+
+        pass
+
+class SystemClock:
+    def wall_time_ns(self) -> int:
+        return nox.time.now_ns()
+
+    def monotonic_time_ns(self) -> int:
+
+        return nox.time.monotonic_ns()
+
+class TestClock:
+    wall_ns: int
+    monotonic_ns: int
+
+    def __init__(self, wall_ns: int, monotonic_ns: int) -> None:
+        self.wall_ns = wall_ns
+        self.monotonic_ns = monotonic_ns
+
+    def wall_time_ns(self) -> int:
+
+        return self.wall_ns
+
+    def monotonic_time_ns(self) -> int:
+
+        return self.monotonic_ns
+
+    def advance(self, wall_delta_ns: int, monotonic_delta_ns: int) -> None:
+
+        if wall_delta_ns < 0 or monotonic_delta_ns < 0:
+            raise ValueError("clock deltas must be nonnegative")
+        self.wall_ns += wall_delta_ns
+        self.monotonic_ns += monotonic_delta_ns

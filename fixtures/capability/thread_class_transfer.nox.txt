@@ -1,0 +1,18 @@
+import nox.test
+import nox.thread
+
+class Payload:
+    value: int
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+async def read_payload(payload: Payload) -> int:
+    return payload.value
+
+async def run_probe() -> None:
+    worker: ThreadHandle[int] = nox.thread.start(read_payload, Payload(34))
+    nox.test.assert_eq_int(await worker.join(), 34, "class payload crosses thread boundary")
+
+probe: Task[None] = spawn run_probe()
+await probe

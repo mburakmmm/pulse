@@ -1,0 +1,57 @@
+from core.attributes import AttributeValue
+
+class Counter:
+    def add(self, value: int, attributes: dict[str, AttributeValue]) -> None:
+        return
+
+class UpDownCounter:
+    def add(self, value: int, attributes: dict[str, AttributeValue]) -> None:
+        return
+
+class Histogram:
+    def record(self, value: float, attributes: dict[str, AttributeValue]) -> None:
+        return
+
+class Meter:
+    def create_counter(self, name: str, unit: str, description: str) -> Counter:
+        return Counter()
+
+    def create_up_down_counter(self, name: str, unit: str, description: str) -> UpDownCounter:
+
+        return UpDownCounter()
+
+    def create_histogram(self, name: str, unit: str, description: str) -> Histogram:
+
+        return Histogram()
+
+class MeterProvider:
+    def get_meter(self, name: str, version: str | None, schema_url: str | None) -> Meter:
+        return Meter()
+
+class NoopCounter(Counter):
+    def add(self, value: int, attributes: dict[str, AttributeValue]) -> None:
+        return
+
+class NoopUpDownCounter(UpDownCounter):
+    def add(self, value: int, attributes: dict[str, AttributeValue]) -> None:
+        return
+
+class NoopHistogram(Histogram):
+    def record(self, value: float, attributes: dict[str, AttributeValue]) -> None:
+        return
+
+class NoopMeter(Meter):
+    def create_counter(self, name: str, unit: str, description: str) -> Counter:
+        return NoopCounter()
+
+    def create_up_down_counter(self, name: str, unit: str, description: str) -> UpDownCounter:
+
+        return NoopUpDownCounter()
+
+    def create_histogram(self, name: str, unit: str, description: str) -> Histogram:
+
+        return NoopHistogram()
+
+class NoopMeterProvider(MeterProvider):
+    def get_meter(self, name: str, version: str | None, schema_url: str | None) -> Meter:
+        return NoopMeter()

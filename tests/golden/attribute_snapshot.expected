@@ -1,0 +1,2 @@
+{"a.int":9007199254740993,"b.bool":true,"c.float":1.5,"d.bools":[true,false],"e.ints":[1,-2,9007199254740993],"f.floats":[1.25,-2.5],"g.texts":["x","line\n"],"z.text":"quote=\" newline=\n"}
+dropped_count=1

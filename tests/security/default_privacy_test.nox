@@ -1,0 +1,15 @@
+import nox.test
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.limits import default_attribute_limits
+
+untrusted: dict[str, AttributeValue] = {"safe.operation": AttributeValue.Text("SELECT"), "authorization": AttributeValue.Text("Bearer secret"), "http.request.body": AttributeValue.Text("private body"), "db.query.parameters": AttributeValue.Text("card=4111111111111111"), "user.id": AttributeValue.Text("person-123"), "session.id": AttributeValue.Text("session-secret"), "account.password": AttributeValue.Text("password-secret")}
+sanitized: AttributeSet = snapshot_attributes(untrusted, default_attribute_limits(), True)
+nox.test.assert_eq_int(sanitized.len(), 1, "default privacy policy retains only explicitly safe test data")
+nox.test.assert_eq_int(sanitized.dropped_count, 6, "default privacy policy reports every dropped sensitive entry")
+nox.test.assert_eq_str(sanitized.entries[0].key, "safe.operation", "safe low-cardinality operation metadata survives")
+
+match sanitized.entries[0].value:
+    case AttributeValue.Text(safe_value):
+        nox.test.assert_eq_str(safe_value, "SELECT", "safe operation value is unchanged")
+    case _:
+        nox.test.assert_true(False, "expected safe operation text")

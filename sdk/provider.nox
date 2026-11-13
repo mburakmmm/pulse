@@ -1,0 +1,50 @@
+from api.metrics import Meter, NoopMeterProvider
+from api.tracing import NoopTracerProvider, Tracer
+from core.errors import FlushResult, ShutdownResult, TelemetryError
+from sdk.config import PulseConfig
+
+enum ProviderState:
+    Active
+    Shutdown
+
+class DisabledPulseProvider:
+    config: PulseConfig
+    state: ProviderState
+    meter_provider: NoopMeterProvider
+    tracer_provider: NoopTracerProvider
+
+    def __init__(self, config: PulseConfig) -> None:
+        if config.enabled:
+            raise TelemetryError("enabled SDK provider is not implemented yet")
+        self.config = config
+        self.state = ProviderState.Active
+        self.meter_provider = NoopMeterProvider()
+        self.tracer_provider = NoopTracerProvider()
+
+    def get_meter(self, name: str, version: str | None, schema_url: str | None) -> Meter:
+
+        return self.meter_provider.get_meter(name, version, schema_url)
+
+    def get_tracer(self, name: str, version: str | None, schema_url: str | None) -> Tracer:
+
+        return self.tracer_provider.get_tracer(name, version, schema_url)
+
+    def force_flush(self) -> FlushResult:
+
+        match self.state:
+            case ProviderState.Active:
+                return FlushResult.Success
+            case ProviderState.Shutdown:
+                return FlushResult.Shutdown
+
+    def shutdown(self) -> ShutdownResult:
+
+        match self.state:
+            case ProviderState.Active:
+                self.state = ProviderState.Shutdown
+                return ShutdownResult.Success
+            case ProviderState.Shutdown:
+                return ShutdownResult.AlreadyShutdown
+
+def create_disabled_provider(config: PulseConfig) -> DisabledPulseProvider:
+    return DisabledPulseProvider(config)

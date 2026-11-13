@@ -1,0 +1,58 @@
+from api.context import SpanContext, TelemetryContext
+from core.attributes import AttributeValue
+
+class Span:
+    def span_context(self) -> SpanContext | None:
+        return None
+
+    def is_recording(self) -> bool:
+
+        return False
+
+    def set_attribute(self, key: str, value: AttributeValue) -> None:
+
+        return
+
+    def end(self) -> None:
+
+        return
+
+class Tracer:
+    def start_span(self, name: str, parent: TelemetryContext) -> Span:
+        return Span()
+
+class TracerProvider:
+    def get_tracer(self, name: str, version: str | None, schema_url: str | None) -> Tracer:
+        return Tracer()
+
+class NoopSpan(Span):
+    inherited_context: SpanContext | None
+    ended: bool
+
+    def __init__(self, inherited_context: SpanContext | None) -> None:
+        self.inherited_context = inherited_context
+        self.ended = False
+
+    def span_context(self) -> SpanContext | None:
+
+        return self.inherited_context
+
+    def is_recording(self) -> bool:
+
+        return False
+
+    def set_attribute(self, key: str, value: AttributeValue) -> None:
+
+        return
+
+    def end(self) -> None:
+
+        self.ended = True
+
+class NoopTracer(Tracer):
+    def start_span(self, name: str, parent: TelemetryContext) -> Span:
+        return NoopSpan(parent.span)
+
+class NoopTracerProvider(TracerProvider):
+    def get_tracer(self, name: str, version: str | None, schema_url: str | None) -> Tracer:
+        return NoopTracer()

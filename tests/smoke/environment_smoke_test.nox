@@ -1,0 +1,14 @@
+import nox.os
+import nox.test
+from nox.os import OsError
+
+missing_raised: bool = False
+try:
+    nox.os.getenv("PULSE_PHASE0_SURELY_UNSET_7E4BB6D8")
+except OsError as e:
+    missing_raised = True
+nox.test.assert_true(missing_raised, "missing environment variable raises OsError")
+
+nox.os.set_var("PULSE_PHASE0_ENV_PROBE", "synthetic-value")
+nox.test.assert_eq_str(nox.os.getenv("PULSE_PHASE0_ENV_PROBE"), "synthetic-value", "set environment variable is readable")
+

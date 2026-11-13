@@ -1,0 +1,22 @@
+from api.metrics import Counter, Histogram
+from core.attributes import AttributeValue
+from core.limits import default_attribute_limits, default_metric_limits, default_record_limits
+from metrics.counter_storage import CounterStorageSnapshot
+from metrics.histogram_storage import HistogramStorageSnapshot
+from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
+
+provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(default_attribute_limits(), default_metric_limits(), default_record_limits())
+meter: RecordingMeter = provider.get_recording_meter("pulse.example", "0.1.0", None)
+
+requests: Counter = meter.create_counter("checkout.requests", "1", "completed requests")
+requests.add(1, {"route": AttributeValue.Text("/checkout")})
+requests.add(2, {"route": AttributeValue.Text("/checkout")})
+
+duration: Histogram = meter.create_histogram("checkout.duration", "ms", "checkout duration")
+duration.record(12.5, {"route": AttributeValue.Text("/checkout")})
+
+request_snapshot: CounterStorageSnapshot = meter.counter_snapshot("checkout.requests", "1", "completed requests")
+duration_snapshot: HistogramStorageSnapshot = meter.histogram_snapshot("checkout.duration", "ms", "checkout duration")
+
+print("checkout.requests total", request_snapshot.points[0].total)
+print("checkout.duration count", duration_snapshot.points[0].data.count)

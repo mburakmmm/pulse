@@ -1,0 +1,42 @@
+from nox.json import JsonWriter
+from core.attributes import AttributeSet, AttributeValue
+
+def write_attribute_value(writer: JsonWriter, value: AttributeValue) -> None:
+    match value:
+        case AttributeValue.Boolean(bool_value):
+            writer.write_bool(bool_value)
+        case AttributeValue.Integer(int_value):
+            writer.write_int(int_value)
+        case AttributeValue.Float(float_value):
+            writer.write_float(float_value)
+        case AttributeValue.Text(text_value):
+            writer.write_string(text_value)
+        case AttributeValue.BooleanArray(bool_values):
+            writer.begin_array()
+            for bool_item in bool_values:
+                writer.write_bool(bool_item)
+            writer.end_array()
+        case AttributeValue.IntegerArray(int_values):
+            writer.begin_array()
+            for int_item in int_values:
+                writer.write_int(int_item)
+            writer.end_array()
+        case AttributeValue.FloatArray(float_values):
+            writer.begin_array()
+            for float_item in float_values:
+                writer.write_float(float_item)
+            writer.end_array()
+        case AttributeValue.TextArray(text_values):
+            writer.begin_array()
+            for text_item in text_values:
+                writer.write_string(text_item)
+            writer.end_array()
+
+def canonical_attributes_json(attributes: AttributeSet) -> str:
+    writer: JsonWriter = JsonWriter()
+    writer.begin_object()
+    for entry in attributes.entries:
+        writer.write_key(entry.key)
+        write_attribute_value(writer, entry.value)
+    writer.end_object()
+    return writer.build()

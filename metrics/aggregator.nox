@@ -1,0 +1,53 @@
+from core.errors import TelemetryError
+
+MAX_INT: int = 9223372036854775807
+MIN_INT: int = -9223372036854775807 - 1
+
+def checked_add_int(current: int, delta: int) -> int:
+    if delta > 0 and current > MAX_INT - delta:
+        raise TelemetryError("integer aggregation overflow")
+    if delta < 0 and current < MIN_INT - delta:
+        raise TelemetryError("integer aggregation underflow")
+    return current + delta
+
+class CounterSnapshot:
+    total: int
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+
+class CounterAggregation:
+    total: int
+
+    def __init__(self) -> None:
+        self.total = 0
+
+    def record(self, value: int) -> None:
+
+        if value < 0:
+            raise TelemetryError("counter additions must be nonnegative")
+        self.total = checked_add_int(self.total, value)
+
+    def snapshot(self) -> CounterSnapshot:
+
+        return CounterSnapshot(self.total)
+
+class UpDownCounterSnapshot:
+    total: int
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+
+class UpDownCounterAggregation:
+    total: int
+
+    def __init__(self) -> None:
+        self.total = 0
+
+    def record(self, value: int) -> None:
+
+        self.total = checked_add_int(self.total, value)
+
+    def snapshot(self) -> UpDownCounterSnapshot:
+
+        return UpDownCounterSnapshot(self.total)

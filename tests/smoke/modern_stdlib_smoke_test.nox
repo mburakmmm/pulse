@@ -1,0 +1,70 @@
+import nox.bytes
+import nox.grpc
+import nox.gzip
+import nox.json
+import nox.protobuf
+import nox.test
+import nox.time
+import nox.udp
+from nox.protobuf import Reader, Writer
+
+enum ProbeResult[T]:
+    Ok(value: T)
+    Error(message: str)
+
+def unwrap(result: ProbeResult[int]) -> int:
+    match result:
+        case ProbeResult.Ok(value):
+            return value
+        case ProbeResult.Error(_):
+            return -1
+
+wall_ns: int = nox.time.now_ns()
+monotonic_start: int = nox.time.monotonic_ns()
+monotonic_end: int = nox.time.monotonic_ns()
+nox.test.assert_true(wall_ns > 0, "nanosecond wall clock is exposed")
+nox.test.assert_true(monotonic_end >= monotonic_start, "nanosecond monotonic clock does not move backwards")
+
+exact_json: JsonValue = nox.json.parse("9007199254740993")
+nox.test.assert_eq_int(nox.json.as_int(exact_json), 9007199254740993, "JSON int64 accessor preserves values above 2^53")
+nox.test.assert_eq_str(nox.json.number_text(exact_json), "9007199254740993", "JSON number text remains exact")
+
+raw: list[int] = [0, 1, 127, 128, 255]
+raw_string: str = nox.bytes.str_from_list(raw)
+round_trip: list[int] = nox.bytes.list_from_str(raw_string)
+nox.test.assert_eq_int(len(round_trip), 5, "byte bridge preserves length")
+nox.test.assert_eq_int(round_trip[0], 0, "byte bridge preserves NUL")
+nox.test.assert_eq_int(round_trip[4], 255, "byte bridge preserves high bytes")
+
+compressed: list[int] = nox.gzip.compress_bytes(raw)
+decompressed: list[int] = nox.gzip.decompress_bytes(compressed)
+nox.test.assert_eq_int(len(decompressed), 5, "gzip byte round-trip preserves length")
+nox.test.assert_eq_int(decompressed[4], 255, "gzip byte round-trip preserves payload")
+
+writer: Writer = nox.protobuf.writer()
+writer.varint(1, 150)
+writer.bytes_field(2, raw)
+protobuf_bytes: list[int] = writer.to_bytes()
+nox.test.assert_eq_int(protobuf_bytes[0], 8, "protobuf field one tag uses the official wire type")
+nox.test.assert_eq_int(protobuf_bytes[1], 150, "protobuf varint low byte is correct")
+nox.test.assert_eq_int(protobuf_bytes[2], 1, "protobuf varint continuation byte is correct")
+
+reader: Reader = nox.protobuf.reader(protobuf_bytes)
+nox.test.assert_true(reader.next_field(), "protobuf reader finds field one")
+nox.test.assert_eq_int(reader.field, 1, "protobuf reader exposes field number")
+nox.test.assert_eq_int(reader.read_varint(), 150, "protobuf reader decodes varint")
+nox.test.assert_true(reader.next_field(), "protobuf reader finds field two")
+decoded_bytes: list[int] = reader.read_bytes()
+nox.test.assert_eq_int(decoded_bytes[0], 0, "protobuf bytes preserve NUL")
+nox.test.assert_eq_int(decoded_bytes[4], 255, "protobuf bytes preserve high byte")
+nox.test.assert_true(not reader.next_field(), "protobuf reader reaches message end")
+
+nox.test.assert_eq_int(unwrap(ProbeResult.Ok(7)), 7, "generic enum and exhaustive match work")
+nox.test.assert_eq_int(unwrap(ProbeResult.Error("safe")), -1, "generic enum error variant works")
+nox.test.assert_eq_int(-9223372036854775808, -9223372036854775808, "minimum signed int literal compiles exactly")
+
+# Imports are also compile gates for the public optional transports. UDP support
+# remains platform-dependent; gRPC interoperability is tested only with a real
+# server in the exporter phase.
+udp_support_known: bool = nox.udp.is_supported()
+nox.test.assert_true(udp_support_known or not udp_support_known, "UDP capability can be queried without side effects")

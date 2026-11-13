@@ -1,0 +1,149 @@
+import nox.strings
+from core.errors import TelemetryError
+from core.limits import AttributeLimits
+
+enum AttributeValue:
+    Boolean(value: bool)
+    Integer(value: int)
+    Float(value: float)
+    Text(value: str)
+    BooleanArray(values: list[bool])
+    IntegerArray(values: list[int])
+    FloatArray(values: list[float])
+    TextArray(values: list[str])
+
+class AttributeEntry:
+    key: str
+    value: AttributeValue
+
+    def __init__(self, key: str, value: AttributeValue) -> None:
+        self.key = key
+        self.value = value
+
+class AttributeSet:
+    entries: list[AttributeEntry]
+    dropped_count: int
+    estimated_bytes: int
+
+    def __init__(self, entries: list[AttributeEntry], dropped_count: int, estimated_bytes: int) -> None:
+        self.entries = entries
+        self.dropped_count = dropped_count
+        self.estimated_bytes = estimated_bytes
+
+    def len(self) -> int:
+
+        return len(self.entries)
+
+def is_finite(value: float) -> bool:
+    return value == value and value != float("inf") and value != float("-inf")
+
+def is_sensitive_key(key: str) -> bool:
+    normalized: str = key.lower()
+    return normalized == "authorization" or normalized == "proxy-authorization" or normalized == "cookie" or normalized == "set-cookie" or normalized == "password" or normalized == "passwd" or normalized == "api_key" or normalized == "api.key" or normalized == "access_token" or normalized == "refresh_token" or normalized == "http.request.body" or normalized == "http.response.body" or normalized == "db.statement" or normalized == "db.query.text" or normalized == "db.query.parameters" or normalized == "user.id" or normalized == "enduser.id" or normalized == "session.id" or normalized == "email" or normalized.endswith(".password") or normalized.endswith(".token") or normalized.endswith(".authorization") or normalized.endswith(".cookie") or normalized.endswith(".parameter") or normalized.endswith(".parameters")
+
+def snapshot_attribute_value(value: AttributeValue, limits: AttributeLimits) -> AttributeValue:
+    match value:
+        case AttributeValue.Boolean(bool_value):
+            return AttributeValue.Boolean(bool_value)
+        case AttributeValue.Integer(int_value):
+            return AttributeValue.Integer(int_value)
+        case AttributeValue.Float(float_value):
+            if not is_finite(float_value):
+                raise TelemetryError("attribute float must be finite")
+            return AttributeValue.Float(float_value)
+        case AttributeValue.Text(text_value):
+            if nox.strings.byte_len(text_value) > limits.max_string_bytes:
+                raise TelemetryError("attribute string exceeds max_string_bytes")
+            return AttributeValue.Text(text_value)
+        case AttributeValue.BooleanArray(bool_values):
+            if len(bool_values) > limits.max_array_elements:
+                raise TelemetryError("attribute array exceeds max_array_elements")
+            bool_copy: list[bool] = []
+            for bool_item in bool_values:
+                bool_copy.append(bool_item)
+            return AttributeValue.BooleanArray(bool_copy)
+        case AttributeValue.IntegerArray(int_values):
+            if len(int_values) > limits.max_array_elements:
+                raise TelemetryError("attribute array exceeds max_array_elements")
+            int_copy: list[int] = []
+            for int_item in int_values:
+                int_copy.append(int_item)
+            return AttributeValue.IntegerArray(int_copy)
+        case AttributeValue.FloatArray(float_values):
+            if len(float_values) > limits.max_array_elements:
+                raise TelemetryError("attribute array exceeds max_array_elements")
+            float_copy: list[float] = []
+            for float_item in float_values:
+                if not is_finite(float_item):
+                    raise TelemetryError("attribute float array must contain only finite values")
+                float_copy.append(float_item)
+            return AttributeValue.FloatArray(float_copy)
+        case AttributeValue.TextArray(text_values):
+            if len(text_values) > limits.max_array_elements:
+                raise TelemetryError("attribute array exceeds max_array_elements")
+            text_copy: list[str] = []
+            for text_item in text_values:
+                if nox.strings.byte_len(text_item) > limits.max_string_array_element_bytes:
+                    raise TelemetryError("attribute string array element exceeds max_string_array_element_bytes")
+                text_copy.append(text_item)
+            return AttributeValue.TextArray(text_copy)
+
+def estimated_attribute_value_bytes(value: AttributeValue) -> int:
+    match value:
+        case AttributeValue.Boolean(_):
+            return 1
+        case AttributeValue.Integer(_):
+            return 8
+        case AttributeValue.Float(_):
+            return 8
+        case AttributeValue.Text(size_text):
+            return nox.strings.byte_len(size_text)
+        case AttributeValue.BooleanArray(size_bools):
+            return len(size_bools)
+        case AttributeValue.IntegerArray(size_ints):
+            return len(size_ints) * 8
+        case AttributeValue.FloatArray(size_floats):
+            return len(size_floats) * 8
+        case AttributeValue.TextArray(size_texts):
+            total: int = 0
+            for size_item in size_texts:
+                total += nox.strings.byte_len(size_item)
+            return total
+
+def snapshot_attributes(values: dict[str, AttributeValue], limits: AttributeLimits, drop_sensitive: bool) -> AttributeSet:
+    keys: list[str] = []
+    for key in values:
+        keys.append(key)
+    keys.sort()
+
+    entries: list[AttributeEntry] = []
+    dropped: int = 0
+    owned_bytes: int = 0
+    for key in keys:
+        key_bytes: int = nox.strings.byte_len(key)
+        if key_bytes == 0 or key_bytes > limits.max_key_bytes:
+            dropped += 1
+            continue
+        if drop_sensitive and is_sensitive_key(key):
+            dropped += 1
+            continue
+        if len(entries) >= limits.max_attributes:
+            dropped += 1
+            continue
+
+        copied: AttributeValue = AttributeValue.Boolean(False)
+        try:
+            copied = snapshot_attribute_value(values[key], limits)
+        except TelemetryError as e:
+            dropped += 1
+            continue
+
+        value_bytes: int = estimated_attribute_value_bytes(copied)
+        entry_bytes: int = key_bytes + value_bytes
+        if entry_bytes > limits.max_total_bytes - owned_bytes:
+            dropped += 1
+            continue
+        entries.append(AttributeEntry(key, copied))
+        owned_bytes += entry_bytes
+
+    return AttributeSet(entries, dropped, owned_bytes)

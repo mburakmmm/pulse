@@ -1,0 +1,34 @@
+import nox.test
+from api.context import SpanContext, TelemetryContext, TraceFlags, empty_context
+from api.metrics import Counter, Histogram, Meter, MeterProvider, NoopMeterProvider, UpDownCounter
+from api.tracing import NoopTracerProvider, Span, Tracer, TracerProvider
+from core.attributes import AttributeValue
+from core.ids import SpanId, TraceId
+
+metric_provider: MeterProvider = NoopMeterProvider()
+meter: Meter = metric_provider.get_meter("pulse.tests", None, None)
+counter: Counter = meter.create_counter("test.requests", "1", "test counter")
+counter.add(1, {"safe": AttributeValue.Integer(1)})
+up_down_counter: UpDownCounter = meter.create_up_down_counter("test.active", "1", "test up/down counter")
+up_down_counter.add(-1, {"safe": AttributeValue.Integer(1)})
+histogram: Histogram = meter.create_histogram("test.duration", "ms", "test histogram")
+histogram.record(1.5, {"safe": AttributeValue.Integer(1)})
+
+trace_provider: TracerProvider = NoopTracerProvider()
+tracer: Tracer = trace_provider.get_tracer("pulse.tests", None, None)
+root_context: TelemetryContext = empty_context()
+root_span: Span = tracer.start_span("noop-root", root_context)
+nox.test.assert_true(not root_span.is_recording(), "no-op root span never records")
+nox.test.assert_true(root_span.span_context() is None, "no-op root has no fabricated identifiers")
+root_span.set_attribute("ignored", AttributeValue.Text("safe"))
+root_span.end()
+root_span.end()
+
+parent_span_context: SpanContext = SpanContext(TraceId("00000000000000000000000000000001"), SpanId("0000000000000001"), TraceFlags.Sampled, "", True)
+parent_context: TelemetryContext = root_context.with_span(parent_span_context)
+child_span: Span = tracer.start_span("noop-child", parent_context)
+inherited: SpanContext | None = child_span.span_context()
+nox.test.assert_true(inherited is not None, "no-op span preserves a valid parent context for propagation")
+if inherited is not None:
+    nox.test.assert_eq_str(inherited.trace_id.value, parent_span_context.trace_id.value, "no-op propagation preserves trace ID")
+    nox.test.assert_eq_str(inherited.span_id.value, parent_span_context.span_id.value, "no-op propagation preserves span ID")

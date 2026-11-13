@@ -1,0 +1,45 @@
+name: Feature proposal
+description: Propose a scoped addition consistent with the active Pulse phase
+title: "proposal: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check todo.md and AGENTS.md first. Pulse does not accept features that bypass the current phase gates or weaken resource and privacy guarantees.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete observability problem should Pulse solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed contract
+      description: Describe the typed public behavior, not only an implementation idea.
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: Limits, privacy and failure behavior
+      description: State resource bounds, sensitive-data handling, timeout/cancellation and graceful-degradation behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: standards
+    attributes:
+      label: Standards and interoperability
+      description: Link applicable pinned OpenTelemetry, OTLP, W3C or Prometheus requirements, or write “Not applicable”.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance evidence
+      description: Which behavioral and cross-platform tests would prove this complete?
+    validations:
+      required: true

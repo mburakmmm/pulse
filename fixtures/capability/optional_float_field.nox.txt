@@ -1,0 +1,13 @@
+class OptionalFloatState:
+    value: float | None
+
+    def __init__(self) -> None:
+        self.value = None
+
+    def observe(self, value: float) -> None:
+        current: float | None = self.value
+        if current is None or value < current:
+            self.value = value
+
+state: OptionalFloatState = OptionalFloatState()
+state.observe(1.0)

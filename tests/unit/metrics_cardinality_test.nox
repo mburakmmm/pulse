@@ -1,0 +1,66 @@
+import nox.test
+from core.errors import TelemetryError
+from core.limits import MetricLimits, default_attribute_limits
+from metrics.cardinality import CardinalityTracker, MetricBudget, SeriesRoute, estimated_series_bytes, overflow_attribute_set
+from metrics.series import canonical_series_key
+
+metric_limits: MetricLimits = MetricLimits(2, 4, 4096, 4096)
+budget: MetricBudget = MetricBudget(metric_limits)
+overflow_key: str = canonical_series_key(overflow_attribute_set(default_attribute_limits()))
+tracker: CardinalityTracker = CardinalityTracker(2, budget, overflow_key, 300)
+
+match tracker.route("series-a", 300):
+    case SeriesRoute.New:
+        nox.test.assert_true(True, "first series reserves storage")
+    case _:
+        nox.test.assert_true(False, "first series must be new")
+
+match tracker.route("series-a", 300):
+    case SeriesRoute.Existing:
+        nox.test.assert_true(True, "known series reuses its aggregator")
+    case _:
+        nox.test.assert_true(False, "known series must route to existing")
+
+match tracker.route("series-b", 300):
+    case SeriesRoute.New:
+        nox.test.assert_true(True, "second regular series reaches the configured limit")
+    case _:
+        nox.test.assert_true(False, "second series must be new")
+
+match tracker.route("series-c", 300):
+    case SeriesRoute.Overflow:
+        nox.test.assert_true(True, "new series beyond the instrument limit routes to overflow")
+    case _:
+        nox.test.assert_true(False, "limit overflow must not allocate a regular series")
+
+match tracker.route(overflow_key, 300):
+    case SeriesRoute.Overflow:
+        nox.test.assert_true(True, "the reserved overflow attribute set always uses overflow")
+    case _:
+        nox.test.assert_true(False, "overflow identity cannot become a regular series")
+
+nox.test.assert_eq_int(tracker.regular_series_count(), 2, "overflow traffic does not grow regular cardinality")
+nox.test.assert_eq_int(tracker.overflow_measurements, 2, "overflow diagnostic counts routed measurements")
+nox.test.assert_eq_int(budget.reserved_series, 3, "budget includes two regular series and the reserved overflow series")
+
+second_tracker: CardinalityTracker = CardinalityTracker(2, budget, overflow_key, 300)
+match second_tracker.route("provider-full", 300):
+    case SeriesRoute.Overflow:
+        nox.test.assert_true(True, "provider-wide limit routes new series to the pre-reserved overflow")
+    case _:
+        nox.test.assert_true(False, "provider budget must apply before allocation")
+nox.test.assert_eq_int(budget.reserved_series, 4, "provider series reservation never exceeds its cap")
+
+third_tracker_rejected: bool = False
+try:
+    CardinalityTracker(2, budget, overflow_key, 300)
+except TelemetryError as e:
+    third_tracker_rejected = True
+nox.test.assert_true(third_tracker_rejected, "instrument cannot start without reserving its overflow aggregator")
+
+invalid_estimate_seen: bool = False
+try:
+    estimated_series_bytes("key", overflow_attribute_set(default_attribute_limits()), 0)
+except TelemetryError as e:
+    invalid_estimate_seen = True
+nox.test.assert_true(invalid_estimate_seen, "series allocation requires a positive conservative byte estimate")

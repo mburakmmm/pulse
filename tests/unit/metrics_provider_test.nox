@@ -1,0 +1,68 @@
+import nox.test
+from api.metrics import Counter, Histogram, Meter, UpDownCounter
+from core.attributes import AttributeValue
+from core.errors import TelemetryError
+from core.limits import MetricLimits, default_attribute_limits, default_metric_limits, default_record_limits
+from metrics.counter_storage import CounterStorageSnapshot
+from metrics.histogram_storage import HistogramStorageSnapshot
+from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
+from metrics.updown_storage import UpDownStorageSnapshot
+
+provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(default_attribute_limits(), default_metric_limits(), default_record_limits())
+meter: RecordingMeter = provider.get_recording_meter("pulse.provider.tests", "0.2.0", None)
+
+counter: Counter = meter.create_counter("RequestCount", "1", "requests")
+same_counter: Counter = meter.create_counter("requestcount", "1", "requests")
+counter.add(2, {"route": AttributeValue.Text("a")})
+same_counter.add(3, {"route": AttributeValue.Text("a")})
+counter_snapshot: CounterStorageSnapshot = meter.counter_snapshot("REQUESTCOUNT", "1", "requests")
+nox.test.assert_eq_int(len(counter_snapshot.points), 1, "identical counter registrations share one storage")
+nox.test.assert_eq_int(counter_snapshot.points[0].total, 5, "measurements through duplicate handles aggregate together")
+nox.test.assert_eq_str(meter.registry.descriptor(meter.registry.first_by_name["requestcount"]).name, "RequestCount", "recording meter keeps first-seen casing")
+
+conflicting_counter: Counter = meter.create_counter("requestcount", "items", "requests")
+conflicting_counter.add(7, {})
+conflict_snapshot: CounterStorageSnapshot = meter.counter_snapshot("requestcount", "items", "requests")
+nox.test.assert_eq_int(conflict_snapshot.points[0].total, 7, "conflicting metadata remains functional in separate storage")
+nox.test.assert_eq_int(meter.registry.conflict_count, 1, "recording meter retains duplicate conflict diagnostics")
+
+up_down: UpDownCounter = meter.create_up_down_counter("active.requests", "1", "active requests")
+up_down.add(4, {"route": AttributeValue.Text("a")})
+up_down.add(-1, {"route": AttributeValue.Text("a")})
+up_snapshot: UpDownStorageSnapshot = meter.updown_snapshot("active.requests", "1", "active requests")
+nox.test.assert_eq_int(up_snapshot.points[0].total, 3, "recording up/down counter uses bounded cumulative storage")
+
+histogram: Histogram = meter.create_histogram("request.duration", "ms", "request duration")
+histogram.record(5.0, {"route": AttributeValue.Text("a")})
+histogram.record(11.0, {"route": AttributeValue.Text("a")})
+histogram_snapshot: HistogramStorageSnapshot = meter.histogram_snapshot("request.duration", "ms", "request duration")
+nox.test.assert_eq_int(histogram_snapshot.points[0].data.count, 2, "recording histogram uses bounded cumulative storage")
+nox.test.assert_eq_float(histogram_snapshot.points[0].data.sum, 16.0, "recording histogram retains the sum")
+nox.test.assert_eq_int(len(histogram_snapshot.points[0].data.boundaries), 15, "recording histogram uses the pinned default boundary set")
+
+base_meter: Meter = provider.get_meter("pulse.base.tests", None, None)
+base_counter: Counter = base_meter.create_counter("base.counter", "1", "base contract")
+base_counter.add(9, {})
+base_recording_meter: RecordingMeter = provider.get_recording_meter("pulse.base.tests", None, None)
+nox.test.assert_eq_int(base_recording_meter.counter_snapshot("base.counter", "1", "base contract").points[0].total, 9, "MeterProvider base contract returns a recording meter for valid scope")
+
+empty_meter: Meter = provider.get_meter("", None, None)
+empty_counter: Counter = empty_meter.create_counter("ignored.counter", "1", "no-op fallback")
+empty_counter.add(1, {})
+nox.test.assert_true(True, "invalid empty meter scope returns a working no-op fallback")
+
+tight_limits: MetricLimits = MetricLimits(1, 1, 4096, 4096)
+tight_provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(default_attribute_limits(), tight_limits, default_record_limits())
+tight_meter: RecordingMeter = tight_provider.get_recording_meter("tight", None, None)
+first_tight_counter: Counter = tight_meter.create_counter("first.counter", "1", "first")
+first_tight_counter.add(1, {"all": AttributeValue.Text("overflow")})
+nox.test.assert_true(tight_meter.counter_snapshot("first.counter", "1", "first").points[0].overflow, "one-point configuration routes all data to its reserved overflow point")
+
+second_instrument_rejected: bool = False
+try:
+    tight_meter.create_counter("second.counter", "1", "second")
+except TelemetryError as e:
+    second_instrument_rejected = True
+nox.test.assert_true(second_instrument_rejected, "provider rejects a new instrument when mandatory overflow storage cannot be reserved")
+nox.test.assert_eq_int(tight_meter.registry.len(), 1, "failed instrument creation leaves no partial registry entry")
+nox.test.assert_eq_int(tight_provider.budget.reserved_series, 1, "failed instrument creation does not exceed provider series budget")

@@ -1,0 +1,2 @@
+value: float = 1.0e300
+print(value)

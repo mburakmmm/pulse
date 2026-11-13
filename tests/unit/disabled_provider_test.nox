@@ -1,0 +1,97 @@
+import nox.test
+from api.metrics import Counter, Meter
+from api.tracing import Span, Tracer
+from api.context import empty_context
+from core.attributes import AttributeValue
+from core.errors import FlushResult, ShutdownResult, TelemetryError
+from core.limits import MetricLimits, RecordLimits, RuntimeLimits, default_attribute_limits, default_metric_limits, default_record_limits, default_runtime_limits
+from sdk.config import PulseConfig, default_disabled_config
+from sdk.provider import DisabledPulseProvider, create_disabled_provider
+
+runtime_limits: RuntimeLimits = default_runtime_limits()
+record_limits: RecordLimits = default_record_limits()
+metric_limits: MetricLimits = default_metric_limits()
+nox.test.assert_eq_int(runtime_limits.max_queue_records, 2048, "queue record default is bounded")
+nox.test.assert_eq_int(runtime_limits.max_queue_bytes, 33554432, "queue byte default is bounded")
+nox.test.assert_eq_int(runtime_limits.max_batch_records, 512, "batch is bounded below queue capacity")
+nox.test.assert_eq_int(runtime_limits.max_payload_bytes, 4194304, "payload default is bounded")
+nox.test.assert_eq_int(record_limits.max_events, 64, "span event count is bounded")
+nox.test.assert_eq_int(record_limits.max_links, 32, "span link count is bounded")
+nox.test.assert_eq_int(record_limits.max_span_bytes, 262144, "span snapshot bytes are bounded")
+nox.test.assert_eq_int(metric_limits.max_series_per_instrument, 2000, "instrument series are bounded")
+nox.test.assert_eq_int(metric_limits.max_total_series, 20000, "provider series are bounded")
+nox.test.assert_eq_int(metric_limits.max_aggregation_bytes, 67108864, "aggregation bytes are bounded")
+nox.test.assert_eq_int(metric_limits.max_instrument_description_bytes, 4096, "instrument descriptions are bounded")
+
+invalid_runtime_seen: bool = False
+try:
+    RuntimeLimits(10, 1024, 11, 512, 1, 1, 1, 10, 0, 5)
+except TelemetryError as e:
+    invalid_runtime_seen = True
+nox.test.assert_true(invalid_runtime_seen, "batch larger than queue is rejected")
+
+config: PulseConfig = default_disabled_config("pulse-tests")
+provider: DisabledPulseProvider = create_disabled_provider(config)
+nox.test.assert_true(not config.enabled, "disabled config is explicit")
+nox.test.assert_true(config.redacted_summary().find("pulse-tests") >= 0, "config summary includes safe service identity")
+
+meter: Meter = provider.get_meter("tests", None, None)
+counter: Counter = meter.create_counter("disabled.counter", "1", "disabled")
+counter.add(1, {"ignored": AttributeValue.Integer(1)})
+tracer: Tracer = provider.get_tracer("tests", None, None)
+span: Span = tracer.start_span("disabled-span", empty_context())
+nox.test.assert_true(not span.is_recording(), "disabled provider never records")
+span.end()
+
+match provider.force_flush():
+    case FlushResult.Success:
+        nox.test.assert_true(True, "disabled flush succeeds immediately")
+    case _:
+        nox.test.assert_true(False, "expected immediate disabled flush success")
+
+match provider.shutdown():
+    case ShutdownResult.Success:
+        nox.test.assert_true(True, "first shutdown succeeds")
+    case _:
+        nox.test.assert_true(False, "expected first shutdown success")
+
+match provider.shutdown():
+    case ShutdownResult.AlreadyShutdown:
+        nox.test.assert_true(True, "second shutdown is idempotent")
+    case _:
+        nox.test.assert_true(False, "expected idempotent shutdown state")
+
+match provider.force_flush():
+    case FlushResult.Shutdown:
+        nox.test.assert_true(True, "flush after shutdown reports shutdown")
+    case _:
+        nox.test.assert_true(False, "expected shutdown flush result")
+
+enabled_rejected: bool = False
+try:
+    enabled_config: PulseConfig = PulseConfig(True, "pulse-tests", default_attribute_limits(), default_record_limits(), default_metric_limits(), default_runtime_limits())
+    DisabledPulseProvider(enabled_config)
+except TelemetryError as e:
+    enabled_rejected = True
+nox.test.assert_true(enabled_rejected, "disabled provider refuses to masquerade as an enabled SDK")
+
+invalid_record_seen: bool = False
+try:
+    RecordLimits(1, 1, 1, 1, 2048, 2048, 1024, 1)
+except TelemetryError as e:
+    invalid_record_seen = True
+nox.test.assert_true(invalid_record_seen, "event/link byte ceilings cannot exceed the span ceiling")
+
+invalid_metric_seen: bool = False
+try:
+    MetricLimits(100, 99, 1024, 4096)
+except TelemetryError as e:
+    invalid_metric_seen = True
+nox.test.assert_true(invalid_metric_seen, "provider series limit cannot be below the per-instrument limit")
+
+invalid_description_limit_seen: bool = False
+try:
+    MetricLimits(10, 10, 1024, 1022)
+except TelemetryError as e:
+    invalid_description_limit_seen = True
+nox.test.assert_true(invalid_description_limit_seen, "description configuration preserves the OTel minimum supported size")

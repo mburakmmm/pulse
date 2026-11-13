@@ -1,0 +1,6 @@
+import nox.test
+import pulse._internal.build_info
+
+nox.test.assert_eq_str(pulse._internal.build_info.package_version(), "0.1.0", "dependency alias resolves a root package module")
+print("pulse-package-smoke-ok")
+

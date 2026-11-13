@@ -1,0 +1,2 @@
+value: str = "A\x00B"
+print(len(value))

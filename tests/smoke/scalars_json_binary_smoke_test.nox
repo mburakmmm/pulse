@@ -1,0 +1,52 @@
+import nox.bytes
+import nox.json
+import nox.strings
+import nox.test
+from nox.buffer import Buffer
+from nox.json import JsonWriter
+
+max_int: int = 9223372036854775807
+wrapped: int = max_int + 1
+min_int: int = -9223372036854775807 - 1
+nox.test.assert_eq_int(wrapped, min_int, "plain int wraps at signed 64-bit boundary")
+
+positive_inf: float = float("inf")
+nox.test.assert_true(positive_inf > float(max_int), "float supports positive infinity")
+
+binary: str = "A" + chr(0) + nox.strings.char_from_byte(255)
+nox.test.assert_eq_int(nox.strings.byte_len(binary), 3, "str preserves binary byte length")
+nox.test.assert_eq_int(nox.strings.byte_at(binary, 0), 65, "str preserves ASCII byte")
+nox.test.assert_eq_int(nox.strings.byte_at(binary, 1), 0, "str preserves embedded NUL")
+nox.test.assert_eq_int(nox.strings.byte_at(binary, 2), 255, "str preserves non-UTF8 byte")
+binary_buffer: Buffer = nox.bytes.from_str(binary)
+nox.test.assert_eq_int(binary_buffer.len(), 3, "nox.bytes copies the complete binary string")
+nox.test.assert_eq_int(int(binary_buffer.get(1)), 0, "nox.bytes preserves embedded NUL")
+nox.test.assert_eq_int(int(binary_buffer.get(2)), 255, "nox.bytes preserves the high byte")
+nox.test.assert_eq_int(nox.strings.byte_len("hé"), 3, "byte length differs from code-point length")
+nox.test.assert_eq_int(len("hé"), 2, "str length counts code points")
+
+writer: JsonWriter = JsonWriter()
+writer.begin_object()
+writer.write_key("n")
+writer.write_int(max_int)
+writer.write_key("escaped")
+writer.write_string("quote=\" newline=\n")
+writer.end_object()
+encoded: str = writer.build()
+nox.test.assert_true(nox.strings.contains(encoded, "\"n\":9223372036854775807"), "JsonWriter preserves signed 64-bit integer text")
+nox.test.assert_true(nox.strings.contains(encoded, "\\\""), "JsonWriter escapes quotes")
+nox.test.assert_true(nox.strings.contains(encoded, "\\n"), "JsonWriter escapes newlines")
+
+lossy_tree: JsonValue = nox.json.parse("{\"n\":9007199254740993}")
+lossy_number: JsonValue = nox.json.object_value(lossy_tree, 0)
+nox.test.assert_eq_int(int(nox.json.as_number(lossy_number)), 9007199254740992, "JsonValue numbers expose the documented double precision limit")
+
+first: dict[str, int] = {}
+first["b"] = 2
+first["a"] = 1
+keys: list[str] = list(first)
+nox.test.assert_eq_str(keys[0], "b", "dict iteration retains insertion order")
+nox.test.assert_eq_str(keys[1], "a", "dict iteration retains insertion order")
+sorted_keys: list[str] = sorted(keys)
+nox.test.assert_eq_str(sorted_keys[0], "a", "canonical output can sort keys explicitly")
+nox.test.assert_eq_str(sorted_keys[1], "b", "canonical output can sort keys explicitly")

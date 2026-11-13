@@ -1,0 +1,32 @@
+from core.ids import SpanId, TraceId
+
+enum TraceFlags:
+    Default
+    Sampled
+
+class SpanContext:
+    trace_id: TraceId
+    span_id: SpanId
+    trace_flags: TraceFlags
+    tracestate: str
+    remote: bool
+
+    def __init__(self, trace_id: TraceId, span_id: SpanId, trace_flags: TraceFlags, tracestate: str, remote: bool) -> None:
+        self.trace_id = trace_id
+        self.span_id = span_id
+        self.trace_flags = trace_flags
+        self.tracestate = tracestate
+        self.remote = remote
+
+class TelemetryContext:
+    span: SpanContext | None
+
+    def __init__(self, span: SpanContext | None) -> None:
+        self.span = span
+
+    def with_span(self, span: SpanContext) -> TelemetryContext:
+
+        return TelemetryContext(span)
+
+def empty_context() -> TelemetryContext:
+    return TelemetryContext(None)

@@ -1,0 +1,92 @@
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.limits import AttributeLimits, MetricLimits
+from metrics.aggregator import MAX_INT, UpDownCounterAggregation
+from metrics.cardinality import CardinalityTracker, MetricBudget, SeriesRoute, estimated_series_bytes, overflow_attribute_set
+from metrics.series import canonical_series_key, copy_attribute_set
+
+UPDOWN_AGGREGATION_ESTIMATED_BYTES: int = 256
+
+class UpDownSeries:
+    attributes: AttributeSet
+    aggregation: UpDownCounterAggregation
+
+    def __init__(self, attributes: AttributeSet) -> None:
+        self.attributes = attributes
+        self.aggregation = UpDownCounterAggregation()
+
+class UpDownPointSnapshot:
+    attributes: AttributeSet
+    total: int
+    overflow: bool
+
+    def __init__(self, attributes: AttributeSet, total: int, overflow: bool) -> None:
+        self.attributes = attributes
+        self.total = total
+        self.overflow = overflow
+
+class UpDownStorageSnapshot:
+    points: list[UpDownPointSnapshot]
+    dropped_attributes: int
+    overflow_measurements: int
+
+    def __init__(self, points: list[UpDownPointSnapshot], dropped_attributes: int, overflow_measurements: int) -> None:
+        self.points = points
+        self.dropped_attributes = dropped_attributes
+        self.overflow_measurements = overflow_measurements
+
+class UpDownStorage:
+    attribute_limits: AttributeLimits
+    tracker: CardinalityTracker
+    series: dict[str, UpDownSeries]
+    overflow_series: UpDownSeries
+    dropped_attributes: int
+
+    def __init__(self, attribute_limits: AttributeLimits, metric_limits: MetricLimits, budget: MetricBudget) -> None:
+        overflow_attributes: AttributeSet = overflow_attribute_set(attribute_limits)
+        overflow_key: str = canonical_series_key(overflow_attributes)
+        overflow_bytes: int = estimated_series_bytes(overflow_key, overflow_attributes, UPDOWN_AGGREGATION_ESTIMATED_BYTES)
+        self.attribute_limits = attribute_limits
+        self.tracker = CardinalityTracker(metric_limits.max_series_per_instrument - 1, budget, overflow_key, overflow_bytes)
+        self.series = {}
+        self.overflow_series = UpDownSeries(overflow_attributes)
+        self.dropped_attributes = 0
+
+    def record(self, value: int, values: dict[str, AttributeValue]) -> None:
+
+        attributes: AttributeSet = snapshot_attributes(values, self.attribute_limits, True)
+        self.note_dropped_attributes(attributes.dropped_count)
+        key: str = canonical_series_key(attributes)
+        series_bytes: int = estimated_series_bytes(key, attributes, UPDOWN_AGGREGATION_ESTIMATED_BYTES)
+        route: SeriesRoute = self.tracker.route(key, series_bytes)
+        match route:
+            case SeriesRoute.Existing:
+                self.series[key].aggregation.record(value)
+            case SeriesRoute.New:
+                new_series: UpDownSeries = UpDownSeries(attributes)
+                new_series.aggregation.record(value)
+                self.series[key] = new_series
+            case SeriesRoute.Overflow:
+                self.overflow_series.aggregation.record(value)
+
+    def note_dropped_attributes(self, count: int) -> None:
+
+        if count <= 0:
+            return
+        if count > MAX_INT - self.dropped_attributes:
+            self.dropped_attributes = MAX_INT
+        else:
+            self.dropped_attributes += count
+
+    def snapshot(self) -> UpDownStorageSnapshot:
+
+        keys: list[str] = []
+        for key in self.series:
+            keys.append(key)
+        keys.sort()
+        points: list[UpDownPointSnapshot] = []
+        for key in keys:
+            series: UpDownSeries = self.series[key]
+            points.append(UpDownPointSnapshot(copy_attribute_set(series.attributes), series.aggregation.snapshot().total, False))
+        if self.tracker.overflow_measurements > 0:
+            points.append(UpDownPointSnapshot(copy_attribute_set(self.overflow_series.attributes), self.overflow_series.aggregation.snapshot().total, True))
+        return UpDownStorageSnapshot(points, self.dropped_attributes, self.tracker.overflow_measurements)

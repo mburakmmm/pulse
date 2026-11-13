@@ -1,0 +1,26 @@
+import nox.test
+import nox.thread
+
+class ContextValue:
+    name: str
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+async def observe_task_local(local: TaskLocal[ContextValue]) -> int:
+    seen: ContextValue | None = local.get()
+    if seen is None:
+        return 1
+    return 0
+
+async def run_probe() -> None:
+    local: TaskLocal[ContextValue] = TaskLocal[ContextValue]()
+    local.set(ContextValue("parent"))
+    worker: ThreadHandle[int] = nox.thread.start(observe_task_local, local)
+    nox.test.assert_eq_int(await worker.join(), 1, "thread worker does not inherit caller TaskLocal value")
+    parent_seen: ContextValue | None = local.get()
+    nox.test.assert_true(parent_seen is not None, "thread worker does not replace caller TaskLocal value")
+    local.clear()
+
+probe: Task[None] = spawn run_probe()
+await probe

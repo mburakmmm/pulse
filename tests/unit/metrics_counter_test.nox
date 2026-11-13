@@ -1,0 +1,38 @@
+import nox.test
+from core.errors import TelemetryError
+from metrics.aggregator import MAX_INT, MIN_INT, CounterAggregation, CounterSnapshot, UpDownCounterAggregation, UpDownCounterSnapshot, checked_add_int
+
+counter: CounterAggregation = CounterAggregation()
+counter.record(0)
+counter.record(2)
+counter.record(9007199254740993)
+counter_snapshot: CounterSnapshot = counter.snapshot()
+nox.test.assert_eq_int(counter_snapshot.total, 9007199254740995, "counter retains exact integer totals above 2^53")
+
+negative_counter_seen: bool = False
+try:
+    counter.record(-1)
+except TelemetryError as e:
+    negative_counter_seen = True
+nox.test.assert_true(negative_counter_seen, "counter rejects negative additions")
+nox.test.assert_eq_int(counter.snapshot().total, 9007199254740995, "rejected counter addition does not mutate state")
+
+overflow_seen: bool = False
+try:
+    checked_add_int(MAX_INT, 1)
+except TelemetryError as e:
+    overflow_seen = True
+nox.test.assert_true(overflow_seen, "integer aggregation rejects overflow instead of wrapping")
+
+underflow_seen: bool = False
+try:
+    checked_add_int(MIN_INT, -1)
+except TelemetryError as e:
+    underflow_seen = True
+nox.test.assert_true(underflow_seen, "integer aggregation rejects underflow instead of wrapping")
+
+up_down: UpDownCounterAggregation = UpDownCounterAggregation()
+up_down.record(8)
+up_down.record(-11)
+up_down_snapshot: UpDownCounterSnapshot = up_down.snapshot()
+nox.test.assert_eq_int(up_down_snapshot.total, -3, "up/down counter accepts signed changes")

@@ -1,0 +1,65 @@
+import nox.test
+from core.attributes import AttributeValue
+from core.errors import TelemetryError
+from core.limits import MetricLimits, default_attribute_limits, default_record_limits
+from metrics.cardinality import MetricBudget
+from metrics.histogram_storage import HistogramStorage, HistogramStorageSnapshot
+from metrics.updown_storage import UpDownStorage, UpDownStorageSnapshot
+
+up_limits: MetricLimits = MetricLimits(3, 3, 4096, 4096)
+up_budget: MetricBudget = MetricBudget(up_limits)
+up_storage: UpDownStorage = UpDownStorage(default_attribute_limits(), up_limits, up_budget)
+up_storage.record(5, {"route": AttributeValue.Text("a")})
+up_storage.record(-2, {"route": AttributeValue.Text("a")})
+up_storage.record(-4, {"route": AttributeValue.Text("b")})
+up_storage.record(7, {"route": AttributeValue.Text("c")})
+up_storage.record(-1, {"route": AttributeValue.Text("d")})
+up_snapshot: UpDownStorageSnapshot = up_storage.snapshot()
+nox.test.assert_eq_int(len(up_snapshot.points), 3, "up/down storage respects two regular points plus overflow")
+nox.test.assert_eq_int(up_snapshot.points[0].total + up_snapshot.points[1].total + up_snapshot.points[2].total, 5, "up/down overflow preserves the signed total")
+nox.test.assert_true(up_snapshot.points[2].overflow, "up/down overflow point is explicit")
+nox.test.assert_eq_int(up_snapshot.points[2].total, 6, "excess signed measurements share the overflow aggregation")
+nox.test.assert_eq_int(up_snapshot.overflow_measurements, 2, "up/down overflow diagnostics count measurements")
+nox.test.assert_eq_int(up_budget.reserved_series, 3, "up/down allocation remains at the hard point cap")
+
+histogram_limits: MetricLimits = MetricLimits(3, 3, 8192, 4096)
+histogram_budget: MetricBudget = MetricBudget(histogram_limits)
+source_boundaries: list[float] = [0.0, 10.0]
+histogram_storage: HistogramStorage = HistogramStorage(default_attribute_limits(), histogram_limits, default_record_limits(), histogram_budget, source_boundaries)
+source_boundaries[0] = 99.0
+histogram_storage.record(0.0, {"route": AttributeValue.Text("a")})
+histogram_storage.record(11.0, {"route": AttributeValue.Text("a")})
+histogram_storage.record(5.0, {"route": AttributeValue.Text("b")})
+histogram_storage.record(-1.0, {"route": AttributeValue.Text("c")})
+histogram_storage.record(10.0, {"route": AttributeValue.Text("d")})
+histogram_snapshot: HistogramStorageSnapshot = histogram_storage.snapshot()
+nox.test.assert_eq_int(len(histogram_snapshot.points), 3, "histogram storage respects two regular points plus overflow")
+nox.test.assert_true(histogram_snapshot.points[2].overflow, "histogram overflow point is explicit")
+nox.test.assert_eq_int(histogram_snapshot.points[2].data.count, 2, "histogram excess measurements share overflow")
+nox.test.assert_eq_float(histogram_snapshot.points[2].data.sum, 9.0, "histogram overflow retains its sum")
+nox.test.assert_eq_int(histogram_snapshot.points[2].data.bucket_counts[0], 1, "overflow lower bucket includes the negative value")
+nox.test.assert_eq_int(histogram_snapshot.points[2].data.bucket_counts[1], 1, "overflow exact upper boundary uses the inclusive bucket")
+
+total_count: int = 0
+total_sum: float = 0.0
+for point in histogram_snapshot.points:
+    total_count += point.data.count
+    total_sum += point.data.sum
+nox.test.assert_eq_int(total_count, 5, "every histogram measurement is counted exactly once")
+nox.test.assert_eq_float(total_sum, 25.0, "histogram overflow preserves the total sum")
+nox.test.assert_eq_float(histogram_snapshot.points[0].data.boundaries[0], 0.0, "histogram storage snapshots constructor boundaries")
+nox.test.assert_eq_int(histogram_budget.reserved_series, 3, "histogram allocation remains at the hard point cap")
+
+histogram_snapshot.points[0].data.bucket_counts[0] = 99
+nox.test.assert_true(histogram_storage.snapshot().points[0].data.bucket_counts[0] != 99, "histogram collection data is a defensive copy")
+
+invalid_histogram_limits: MetricLimits = MetricLimits(3, 3, 8192, 4096)
+invalid_histogram_budget: MetricBudget = MetricBudget(invalid_histogram_limits)
+invalid_histogram: HistogramStorage = HistogramStorage(default_attribute_limits(), invalid_histogram_limits, default_record_limits(), invalid_histogram_budget, [0.0])
+invalid_seen: bool = False
+try:
+    invalid_histogram.record(float("nan"), {"would.allocate": AttributeValue.Text("no")})
+except TelemetryError as e:
+    invalid_seen = True
+nox.test.assert_true(invalid_seen, "invalid histogram values fail before attribute-series allocation")
+nox.test.assert_eq_int(invalid_histogram_budget.reserved_series, 1, "invalid histogram value leaves only overflow reservation")

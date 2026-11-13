@@ -1,0 +1,94 @@
+import nox.strings
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.errors import TelemetryError
+from core.limits import AttributeLimits, MetricLimits
+from metrics.aggregator import MAX_INT
+from metrics.series import canonical_series_key
+
+enum SeriesRoute:
+    Existing
+    New
+    Overflow
+
+class MetricBudget:
+    limits: MetricLimits
+    reserved_series: int
+    reserved_bytes: int
+
+    def __init__(self, limits: MetricLimits) -> None:
+        self.limits = limits
+        self.reserved_series = 0
+        self.reserved_bytes = 0
+
+    def try_reserve(self, estimated_bytes: int) -> bool:
+
+        if estimated_bytes <= 0:
+            raise TelemetryError("series estimated bytes must be positive")
+        if self.reserved_series >= self.limits.max_total_series:
+            return False
+        if estimated_bytes > self.limits.max_aggregation_bytes - self.reserved_bytes:
+            return False
+        self.reserved_series += 1
+        self.reserved_bytes += estimated_bytes
+        return True
+
+class CardinalityTracker:
+    max_regular_series: int
+    budget: MetricBudget
+    regular_keys: dict[str, bool]
+    overflow_key: str
+    overflow_measurements: int
+
+    def __init__(self, max_regular_series: int, budget: MetricBudget, overflow_key: str, overflow_estimated_bytes: int) -> None:
+        if max_regular_series < 0:
+            raise TelemetryError("max_regular_series must be nonnegative")
+        if not budget.try_reserve(overflow_estimated_bytes):
+            raise TelemetryError("provider budget cannot reserve mandatory overflow series")
+        self.max_regular_series = max_regular_series
+        self.budget = budget
+        self.regular_keys = {}
+        self.overflow_key = overflow_key
+        self.overflow_measurements = 0
+
+    def route(self, key: str, estimated_bytes: int) -> SeriesRoute:
+
+        if key == self.overflow_key:
+            self.note_overflow_measurement()
+            return SeriesRoute.Overflow
+        if key in self.regular_keys:
+            return SeriesRoute.Existing
+        if len(self.regular_keys) < self.max_regular_series and self.budget.try_reserve(estimated_bytes):
+            self.regular_keys[key] = True
+            return SeriesRoute.New
+        self.note_overflow_measurement()
+        return SeriesRoute.Overflow
+
+    def note_overflow_measurement(self) -> None:
+
+        if self.overflow_measurements < MAX_INT:
+            self.overflow_measurements += 1
+
+    def regular_series_count(self) -> int:
+
+        return len(self.regular_keys)
+
+def overflow_attribute_set(limits: AttributeLimits) -> AttributeSet:
+    values: dict[str, AttributeValue] = {"otel.metric.overflow": AttributeValue.Boolean(True)}
+    attributes: AttributeSet = snapshot_attributes(values, limits, False)
+    if attributes.len() != 1 or attributes.dropped_count != 0:
+        raise TelemetryError("attribute limits cannot represent the required metric overflow series")
+    return attributes
+
+def estimated_series_bytes(key: str, attributes: AttributeSet, aggregation_bytes: int) -> int:
+    if aggregation_bytes <= 0:
+        raise TelemetryError("aggregation byte estimate must be positive")
+    key_bytes: int = nox.strings.byte_len(key)
+    if key_bytes > MAX_INT - attributes.estimated_bytes:
+        raise TelemetryError("series byte estimate overflow")
+    subtotal: int = key_bytes + attributes.estimated_bytes
+    if aggregation_bytes > MAX_INT - subtotal:
+        raise TelemetryError("series byte estimate overflow")
+    return subtotal + aggregation_bytes
+
+def overflow_series_key(limits: AttributeLimits) -> str:
+    return canonical_series_key(overflow_attribute_set(limits))

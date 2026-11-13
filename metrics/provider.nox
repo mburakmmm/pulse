@@ -1,0 +1,192 @@
+import nox.protobuf
+from nox.protobuf import Writer
+from api.metrics import Counter, Histogram, Meter, MeterProvider, NoopMeter, UpDownCounter
+from core.attributes import AttributeValue
+from core.errors import TelemetryError
+from core.limits import AttributeLimits, MetricLimits, RecordLimits
+from core.scope import InstrumentationScope
+from metrics.cardinality import MetricBudget
+from metrics.counter_storage import CounterStorage, CounterStorageSnapshot
+from metrics.histogram_storage import HistogramStorage, HistogramStorageSnapshot
+from metrics.instruments import InstrumentDescriptor, InstrumentKind, InstrumentRegistry, RegistrationResult
+from metrics.updown_storage import UpDownStorage, UpDownStorageSnapshot
+
+def default_histogram_boundaries() -> list[float]:
+    return [0.0, 5.0, 10.0, 25.0, 50.0, 75.0, 100.0, 250.0, 500.0, 750.0, 1000.0, 2500.0, 5000.0, 7500.0, 10000.0]
+
+def scope_key(name: str, version: str | None, schema_url: str | None) -> str:
+    writer: Writer = nox.protobuf.writer()
+    writer.string(1, name)
+    if version is None:
+        writer.boolean(2, False)
+    else:
+        writer.boolean(2, True)
+        writer.string(3, version)
+    if schema_url is None:
+        writer.boolean(4, False)
+    else:
+        writer.boolean(4, True)
+        writer.string(5, schema_url)
+    return writer.to_str()
+
+class RecordingCounter(Counter):
+    storage: CounterStorage
+
+    def __init__(self, storage: CounterStorage) -> None:
+        self.storage = storage
+
+    def add(self, value: int, attributes: dict[str, AttributeValue]) -> None:
+
+        self.storage.record(value, attributes)
+
+class RecordingUpDownCounter(UpDownCounter):
+    storage: UpDownStorage
+
+    def __init__(self, storage: UpDownStorage) -> None:
+        self.storage = storage
+
+    def add(self, value: int, attributes: dict[str, AttributeValue]) -> None:
+
+        self.storage.record(value, attributes)
+
+class RecordingHistogram(Histogram):
+    storage: HistogramStorage
+
+    def __init__(self, storage: HistogramStorage) -> None:
+        self.storage = storage
+
+    def record(self, value: float, attributes: dict[str, AttributeValue]) -> None:
+
+        self.storage.record(value, attributes)
+
+class RecordingMeter(Meter):
+    scope: InstrumentationScope
+    attribute_limits: AttributeLimits
+    metric_limits: MetricLimits
+    record_limits: RecordLimits
+    budget: MetricBudget
+    registry: InstrumentRegistry
+    counter_storages: dict[str, CounterStorage]
+    updown_storages: dict[str, UpDownStorage]
+    histogram_storages: dict[str, HistogramStorage]
+
+    def __init__(self, scope: InstrumentationScope, attribute_limits: AttributeLimits, metric_limits: MetricLimits, record_limits: RecordLimits, budget: MetricBudget) -> None:
+        self.scope = scope
+        self.attribute_limits = attribute_limits
+        self.metric_limits = metric_limits
+        self.record_limits = record_limits
+        self.budget = budget
+        self.registry = InstrumentRegistry()
+        self.counter_storages = {}
+        self.updown_storages = {}
+        self.histogram_storages = {}
+
+    def create_counter(self, name: str, unit: str, description: str) -> Counter:
+
+        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Counter, unit, description, self.metric_limits)
+        classification: RegistrationResult = self.registry.classify(descriptor)
+        match classification:
+            case RegistrationResult.Existing(existing_key):
+                return RecordingCounter(self.counter_storages[existing_key])
+            case RegistrationResult.New(new_key):
+                storage: CounterStorage = CounterStorage(self.attribute_limits, self.metric_limits, self.budget)
+                self.counter_storages[new_key] = storage
+                self.registry.commit(descriptor)
+                return RecordingCounter(storage)
+            case RegistrationResult.Conflict(conflict_key):
+                conflict_storage: CounterStorage = CounterStorage(self.attribute_limits, self.metric_limits, self.budget)
+                self.counter_storages[conflict_key] = conflict_storage
+                self.registry.commit(descriptor)
+                return RecordingCounter(conflict_storage)
+
+    def create_up_down_counter(self, name: str, unit: str, description: str) -> UpDownCounter:
+
+        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.UpDownCounter, unit, description, self.metric_limits)
+        classification: RegistrationResult = self.registry.classify(descriptor)
+        match classification:
+            case RegistrationResult.Existing(existing_key):
+                return RecordingUpDownCounter(self.updown_storages[existing_key])
+            case RegistrationResult.New(new_key):
+                storage: UpDownStorage = UpDownStorage(self.attribute_limits, self.metric_limits, self.budget)
+                self.updown_storages[new_key] = storage
+                self.registry.commit(descriptor)
+                return RecordingUpDownCounter(storage)
+            case RegistrationResult.Conflict(conflict_key):
+                conflict_storage: UpDownStorage = UpDownStorage(self.attribute_limits, self.metric_limits, self.budget)
+                self.updown_storages[conflict_key] = conflict_storage
+                self.registry.commit(descriptor)
+                return RecordingUpDownCounter(conflict_storage)
+
+    def create_histogram(self, name: str, unit: str, description: str) -> Histogram:
+
+        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Histogram, unit, description, self.metric_limits)
+        classification: RegistrationResult = self.registry.classify(descriptor)
+        match classification:
+            case RegistrationResult.Existing(existing_key):
+                return RecordingHistogram(self.histogram_storages[existing_key])
+            case RegistrationResult.New(new_key):
+                storage: HistogramStorage = HistogramStorage(self.attribute_limits, self.metric_limits, self.record_limits, self.budget, default_histogram_boundaries())
+                self.histogram_storages[new_key] = storage
+                self.registry.commit(descriptor)
+                return RecordingHistogram(storage)
+            case RegistrationResult.Conflict(conflict_key):
+                conflict_storage: HistogramStorage = HistogramStorage(self.attribute_limits, self.metric_limits, self.record_limits, self.budget, default_histogram_boundaries())
+                self.histogram_storages[conflict_key] = conflict_storage
+                self.registry.commit(descriptor)
+                return RecordingHistogram(conflict_storage)
+
+    def counter_snapshot(self, name: str, unit: str, description: str) -> CounterStorageSnapshot:
+
+        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Counter, unit, description, self.metric_limits)
+        key: str = descriptor.key()
+        if key not in self.counter_storages:
+            raise TelemetryError("counter is not registered in this meter")
+        return self.counter_storages[key].snapshot()
+
+    def updown_snapshot(self, name: str, unit: str, description: str) -> UpDownStorageSnapshot:
+
+        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.UpDownCounter, unit, description, self.metric_limits)
+        key: str = descriptor.key()
+        if key not in self.updown_storages:
+            raise TelemetryError("up/down counter is not registered in this meter")
+        return self.updown_storages[key].snapshot()
+
+    def histogram_snapshot(self, name: str, unit: str, description: str) -> HistogramStorageSnapshot:
+
+        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Histogram, unit, description, self.metric_limits)
+        key: str = descriptor.key()
+        if key not in self.histogram_storages:
+            raise TelemetryError("histogram is not registered in this meter")
+        return self.histogram_storages[key].snapshot()
+
+class SingleOwnerMeterProvider(MeterProvider):
+    attribute_limits: AttributeLimits
+    metric_limits: MetricLimits
+    record_limits: RecordLimits
+    budget: MetricBudget
+    meters: dict[str, RecordingMeter]
+
+    def __init__(self, attribute_limits: AttributeLimits, metric_limits: MetricLimits, record_limits: RecordLimits) -> None:
+        self.attribute_limits = attribute_limits
+        self.metric_limits = metric_limits
+        self.record_limits = record_limits
+        self.budget = MetricBudget(metric_limits)
+        self.meters = {}
+
+    def get_meter(self, name: str, version: str | None, schema_url: str | None) -> Meter:
+
+        if len(name) == 0:
+            return NoopMeter()
+        return self.get_recording_meter(name, version, schema_url)
+
+    def get_recording_meter(self, name: str, version: str | None, schema_url: str | None) -> RecordingMeter:
+
+        if len(name) == 0:
+            raise TelemetryError("recording meter scope name must not be empty")
+        key: str = scope_key(name, version, schema_url)
+        if key in self.meters:
+            return self.meters[key]
+        scope: InstrumentationScope = InstrumentationScope(name, version, schema_url, {}, self.attribute_limits)
+        meter: RecordingMeter = RecordingMeter(scope, self.attribute_limits, self.metric_limits, self.record_limits, self.budget)
+        self.meters[key] = meter
+        return meter

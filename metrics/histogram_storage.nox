@@ -1,0 +1,109 @@
+from core.attributes import AttributeSet, AttributeValue, is_finite, snapshot_attributes
+from core.errors import TelemetryError
+from core.limits import AttributeLimits, MetricLimits, RecordLimits
+from metrics.aggregator import MAX_INT
+from metrics.cardinality import CardinalityTracker, MetricBudget, SeriesRoute, estimated_series_bytes, overflow_attribute_set
+from metrics.histogram import ExplicitHistogramAggregation, HistogramSnapshot
+from metrics.series import canonical_series_key, copy_attribute_set
+
+HISTOGRAM_AGGREGATION_BASE_BYTES: int = 264
+
+def histogram_aggregation_estimated_bytes(boundary_count: int) -> int:
+    return HISTOGRAM_AGGREGATION_BASE_BYTES + boundary_count * 16
+
+class HistogramSeries:
+    attributes: AttributeSet
+    aggregation: ExplicitHistogramAggregation
+
+    def __init__(self, attributes: AttributeSet, boundaries: list[float], max_boundaries: int) -> None:
+        self.attributes = attributes
+        self.aggregation = ExplicitHistogramAggregation(boundaries, max_boundaries)
+
+class HistogramPointSnapshot:
+    attributes: AttributeSet
+    data: HistogramSnapshot
+    overflow: bool
+
+    def __init__(self, attributes: AttributeSet, data: HistogramSnapshot, overflow: bool) -> None:
+        self.attributes = attributes
+        self.data = data
+        self.overflow = overflow
+
+class HistogramStorageSnapshot:
+    points: list[HistogramPointSnapshot]
+    dropped_attributes: int
+    overflow_measurements: int
+
+    def __init__(self, points: list[HistogramPointSnapshot], dropped_attributes: int, overflow_measurements: int) -> None:
+        self.points = points
+        self.dropped_attributes = dropped_attributes
+        self.overflow_measurements = overflow_measurements
+
+class HistogramStorage:
+    attribute_limits: AttributeLimits
+    record_limits: RecordLimits
+    boundaries: list[float]
+    tracker: CardinalityTracker
+    series: dict[str, HistogramSeries]
+    overflow_series: HistogramSeries
+    dropped_attributes: int
+
+    def __init__(self, attribute_limits: AttributeLimits, metric_limits: MetricLimits, record_limits: RecordLimits, budget: MetricBudget, boundaries: list[float]) -> None:
+        overflow_attributes: AttributeSet = overflow_attribute_set(attribute_limits)
+        overflow_key: str = canonical_series_key(overflow_attributes)
+        overflow_series: HistogramSeries = HistogramSeries(overflow_attributes, boundaries, record_limits.max_histogram_boundaries)
+        boundary_copy: list[float] = []
+        for boundary in overflow_series.aggregation.boundaries:
+            boundary_copy.append(boundary)
+        aggregation_bytes: int = histogram_aggregation_estimated_bytes(len(boundary_copy))
+        overflow_bytes: int = estimated_series_bytes(overflow_key, overflow_attributes, aggregation_bytes)
+        self.attribute_limits = attribute_limits
+        self.record_limits = record_limits
+        self.boundaries = boundary_copy
+        self.tracker = CardinalityTracker(metric_limits.max_series_per_instrument - 1, budget, overflow_key, overflow_bytes)
+        self.series = {}
+        self.overflow_series = overflow_series
+        self.dropped_attributes = 0
+
+    def record(self, value: float, values: dict[str, AttributeValue]) -> None:
+
+        if not is_finite(value):
+            raise TelemetryError("histogram measurements must be finite")
+        attributes: AttributeSet = snapshot_attributes(values, self.attribute_limits, True)
+        self.note_dropped_attributes(attributes.dropped_count)
+        key: str = canonical_series_key(attributes)
+        aggregation_bytes: int = histogram_aggregation_estimated_bytes(len(self.boundaries))
+        series_bytes: int = estimated_series_bytes(key, attributes, aggregation_bytes)
+        route: SeriesRoute = self.tracker.route(key, series_bytes)
+        match route:
+            case SeriesRoute.Existing:
+                self.series[key].aggregation.record(value)
+            case SeriesRoute.New:
+                new_series: HistogramSeries = HistogramSeries(attributes, self.boundaries, self.record_limits.max_histogram_boundaries)
+                new_series.aggregation.record(value)
+                self.series[key] = new_series
+            case SeriesRoute.Overflow:
+                self.overflow_series.aggregation.record(value)
+
+    def note_dropped_attributes(self, count: int) -> None:
+
+        if count <= 0:
+            return
+        if count > MAX_INT - self.dropped_attributes:
+            self.dropped_attributes = MAX_INT
+        else:
+            self.dropped_attributes += count
+
+    def snapshot(self) -> HistogramStorageSnapshot:
+
+        keys: list[str] = []
+        for key in self.series:
+            keys.append(key)
+        keys.sort()
+        points: list[HistogramPointSnapshot] = []
+        for key in keys:
+            series: HistogramSeries = self.series[key]
+            points.append(HistogramPointSnapshot(copy_attribute_set(series.attributes), series.aggregation.snapshot(), False))
+        if self.tracker.overflow_measurements > 0:
+            points.append(HistogramPointSnapshot(copy_attribute_set(self.overflow_series.attributes), self.overflow_series.aggregation.snapshot(), True))
+        return HistogramStorageSnapshot(points, self.dropped_attributes, self.tracker.overflow_measurements)

@@ -1,0 +1,38 @@
+import nox.crypto
+import nox.fs
+import nox.os
+import nox.path
+import nox.strings
+import nox.test
+from nox.fs import FileReader
+from nox.os import OsError
+
+def run_filesystem_probe() -> None:
+    test_root: str = ""
+    try:
+        test_root = nox.os.getenv("PULSE_TEST_TMP_DIR")
+    except OsError as e:
+        test_root = nox.os.current_dir()
+    path: str = nox.path.join(test_root, "pulse-phase0-fs-" + nox.crypto.secure_random_hex(12) + ".bin")
+    nox.fs.write_string_atomic(path, "A" + chr(0) + "B")
+    defer nox.fs.remove_file(path)
+
+    nox.test.assert_true(nox.fs.exists(path), "atomic write creates the target")
+    nox.test.assert_true(nox.fs.is_file(path), "atomic target is a regular file")
+    nox.test.assert_true(not nox.fs.exists(path + ".nox-tmp"), "successful atomic replace removes the temporary path")
+
+    nox.fs.append_string(path, "C")
+    with nox.fs.open_append(path) as writer:
+        writer.write("D")
+
+    reader: FileReader = nox.fs.open_read(path)
+    nox.test.assert_eq_int(reader.size(), 5, "atomic and append writes preserve exact byte size")
+    content: str = reader.read_chunk(5)
+    nox.test.assert_eq_int(nox.strings.byte_len(content), 5, "streaming read returns the requested binary bytes")
+    nox.test.assert_eq_int(nox.strings.byte_at(content, 1), 0, "filesystem round-trip preserves embedded NUL")
+    nox.test.assert_eq_int(nox.strings.byte_at(content, 4), 68, "open_append writes at the end")
+    nox.test.assert_eq_str(reader.read_chunk(1), "", "streaming read returns empty string at EOF")
+    reader.close()
+    reader.close()
+
+run_filesystem_probe()

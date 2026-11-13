@@ -1,0 +1,85 @@
+import nox.bytes
+import nox.crypto
+import nox.strings
+from core.errors import TelemetryError
+
+def is_lower_hex(value: str, expected_bytes: int) -> bool:
+    if nox.strings.byte_len(value) != expected_bytes * 2:
+        return False
+    i: int = 0
+    all_zero: bool = True
+    while i < nox.strings.byte_len(value):
+        b: int = nox.strings.byte_at(value, i)
+        if not (b >= 48 and b <= 57 or b >= 97 and b <= 102):
+            return False
+        if b != 48:
+            all_zero = False
+        i += 1
+    return not all_zero
+
+def hex_nibble(byte_value: int) -> int:
+    if byte_value >= 48 and byte_value <= 57:
+        return byte_value - 48
+    return byte_value - 87
+
+def raw_bytes_from_lower_hex(value: str) -> str:
+    raw_values: list[int] = []
+    i: int = 0
+    while i < nox.strings.byte_len(value):
+        high: int = hex_nibble(nox.strings.byte_at(value, i))
+        low: int = hex_nibble(nox.strings.byte_at(value, i + 1))
+        raw_values.append(high * 16 + low)
+        i += 2
+    return nox.bytes.str_from_list(raw_values)
+
+class TraceId:
+    value: str
+    raw: str
+
+    def __init__(self, value: str) -> None:
+        if not is_lower_hex(value, 16):
+            raise TelemetryError("trace ID must be 16 nonzero bytes encoded as lowercase hex")
+        self.value = value
+        self.raw = raw_bytes_from_lower_hex(value)
+
+class SpanId:
+    value: str
+    raw: str
+
+    def __init__(self, value: str) -> None:
+        if not is_lower_hex(value, 8):
+            raise TelemetryError("span ID must be 8 nonzero bytes encoded as lowercase hex")
+        self.value = value
+        self.raw = raw_bytes_from_lower_hex(value)
+
+def generate_trace_id() -> TraceId:
+    return TraceId(nox.crypto.secure_random_hex(16))
+
+def generate_span_id() -> SpanId:
+    return SpanId(nox.crypto.secure_random_hex(8))
+
+class SequenceIdGenerator:
+    trace_index: int
+    span_index: int
+
+    def __init__(self, trace_index: int, span_index: int) -> None:
+        if trace_index < 0 or span_index < 0:
+            raise TelemetryError("deterministic ID sequence indexes must be nonnegative")
+        self.trace_index = trace_index
+        self.span_index = span_index
+
+    def next_trace_id(self) -> TraceId:
+
+        if self.trace_index == 9223372036854775807:
+            raise TelemetryError("deterministic trace ID sequence exhausted")
+        self.trace_index += 1
+        value: str = f"{self.trace_index:032x}"
+        return TraceId(value)
+
+    def next_span_id(self) -> SpanId:
+
+        if self.span_index == 9223372036854775807:
+            raise TelemetryError("deterministic span ID sequence exhausted")
+        self.span_index += 1
+        value: str = f"{self.span_index:016x}"
+        return SpanId(value)

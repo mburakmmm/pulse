@@ -1,0 +1,24 @@
+import nox.test
+from core.attributes import AttributeValue
+from core.limits import MetricLimits, default_attribute_limits
+from metrics.cardinality import MetricBudget
+from metrics.counter_storage import CounterStorage, CounterStorageSnapshot
+
+limits: MetricLimits = MetricLimits(1000, 1000, 1048576, 4096)
+budget: MetricBudget = MetricBudget(limits)
+storage: CounterStorage = CounterStorage(default_attribute_limits(), limits, budget)
+
+index: int = 0
+while index < 100000:
+    storage.record(1, {"test.series": AttributeValue.Text(str(index))})
+    index += 1
+
+snapshot: CounterStorageSnapshot = storage.snapshot()
+nox.test.assert_eq_int(len(snapshot.points), 1000, "100000 unique labels remain bounded to 1000 metric points")
+nox.test.assert_eq_int(budget.reserved_series, 1000, "provider allocation remains at the hard series cap")
+nox.test.assert_eq_int(snapshot.overflow_measurements, 99001, "all measurements beyond 999 regular points route to overflow")
+
+total: int = 0
+for point in snapshot.points:
+    total += point.total
+nox.test.assert_eq_int(total, 100000, "cardinality overflow preserves every measurement exactly once")

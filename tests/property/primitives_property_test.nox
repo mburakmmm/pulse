@@ -1,0 +1,25 @@
+import nox.property
+import nox.strings
+from nox.property import Rng
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.ids import SequenceIdGenerator, is_lower_hex
+from core.limits import AttributeLimits
+
+def bounded_array_snapshot(rng: Rng) -> bool:
+    source: list[int] = rng.int_list(20, -1000, 1000)
+    values: dict[str, AttributeValue] = {"numbers": AttributeValue.IntegerArray(source)}
+    limits: AttributeLimits = AttributeLimits(2, 32, 32, 10, 16, 96)
+    snapshot: AttributeSet = snapshot_attributes(values, limits, True)
+    if len(source) > 10:
+        return snapshot.len() == 0 and snapshot.dropped_count == 1
+    return snapshot.len() == 1 and snapshot.dropped_count == 0 and snapshot.estimated_bytes <= 96
+
+def deterministic_ids_are_fixed_width(rng: Rng) -> bool:
+    start: int = rng.int_range(0, 1000000)
+    generator: SequenceIdGenerator = SequenceIdGenerator(start, start)
+    trace_value: str = generator.next_trace_id().value
+    span_value: str = generator.next_span_id().value
+    return is_lower_hex(trace_value, 16) and is_lower_hex(span_value, 8) and nox.strings.byte_len(trace_value) == 32 and nox.strings.byte_len(span_value) == 16
+
+nox.property.check("bounded attribute array snapshot", bounded_array_snapshot, 100, 41001, 20)
+nox.property.check("deterministic IDs stay fixed width", deterministic_ids_are_fixed_width, 100, 41002, 100)

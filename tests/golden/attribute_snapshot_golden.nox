@@ -1,0 +1,18 @@
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.limits import default_attribute_limits
+from tests.support.attribute_json import canonical_attributes_json
+
+values: dict[str, AttributeValue] = {}
+values["z.text"] = AttributeValue.Text("quote=\" newline=\n")
+values["g.texts"] = AttributeValue.TextArray(["x", "line\n"])
+values["f.floats"] = AttributeValue.FloatArray([1.25, -2.5])
+values["e.ints"] = AttributeValue.IntegerArray([1, -2, 9007199254740993])
+values["d.bools"] = AttributeValue.BooleanArray([True, False])
+values["c.float"] = AttributeValue.Float(1.5)
+values["b.bool"] = AttributeValue.Boolean(True)
+values["a.int"] = AttributeValue.Integer(9007199254740993)
+values["authorization"] = AttributeValue.Text("Bearer must-never-be-recorded")
+
+snapshot: AttributeSet = snapshot_attributes(values, default_attribute_limits(), True)
+print(canonical_attributes_json(snapshot))
+print("dropped_count=" + str(snapshot.dropped_count))

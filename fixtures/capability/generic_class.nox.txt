@@ -1,0 +1,13 @@
+import nox.test
+
+class Box[T]:
+    value: T
+
+    def __init__(self, value: T) -> None:
+        self.value = value
+
+    def get(self) -> T:
+        return self.value
+
+boxed: Box[int] = Box[int](41)
+nox.test.assert_eq_int(boxed.get(), 41, "generic class retains its concrete value")

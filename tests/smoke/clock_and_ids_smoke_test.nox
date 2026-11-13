@@ -1,0 +1,32 @@
+import nox.crypto
+import nox.test
+import nox.time
+from nox.crypto import CryptoError
+
+start: nox.time.Instant = nox.time.instant_now()
+elapsed_ms: int = start.elapsed_ms()
+wall_ms: int = nox.time.now_ms()
+trace_hex: str = nox.crypto.secure_random_hex(16)
+span_hex: str = nox.crypto.secure_random_hex(8)
+
+nox.test.assert_true(elapsed_ms >= 0, "monotonic elapsed time is nonnegative")
+nox.test.assert_true(wall_ms > 0, "wall clock returns epoch milliseconds")
+nox.test.assert_eq_int(len(trace_hex), 32, "trace entropy is 16 bytes as hex")
+nox.test.assert_eq_int(len(span_hex), 16, "span entropy is 8 bytes as hex")
+nox.test.assert_true(trace_hex != "00000000000000000000000000000000", "trace entropy is not all zero")
+nox.test.assert_true(span_hex != "0000000000000000", "span entropy is not all zero")
+
+zero_size_rejected: bool = False
+try:
+    nox.crypto.secure_random_hex(0)
+except CryptoError as e:
+    zero_size_rejected = True
+nox.test.assert_true(zero_size_rejected, "zero-byte secure entropy request raises CryptoError")
+
+negative_size_rejected: bool = False
+try:
+    nox.crypto.secure_random_hex(-1)
+except CryptoError as e:
+    negative_size_rejected = True
+nox.test.assert_true(negative_size_rejected, "negative secure entropy request raises CryptoError")
+

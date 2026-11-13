@@ -1,0 +1,7 @@
+{
+  "name": "pulse",
+  "version": "0.1.0",
+  "entry": "tests/smoke/project_smoke_test.nox",
+  "requires": []
+}
+

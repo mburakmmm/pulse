@@ -1,0 +1,69 @@
+import nox.http
+import nox.os
+import nox.strings
+import nox.test
+from nox.http import HttpError, HttpResponse, HttpTimeoutError
+
+def header_value(headers: dict[str, str], wanted: str) -> str:
+    normalized: str = wanted.lower()
+    for name in headers:
+        if name.lower() == normalized:
+            return headers[name]
+    return ""
+
+base_url: str = nox.os.getenv("PULSE_HTTP_BASE_URL")
+self_signed_url: str = nox.os.getenv("PULSE_HTTPS_SELF_SIGNED_URL")
+binary_body: str = "A" + chr(0) + nox.strings.char_from_byte(255) + "B"
+
+echo: HttpResponse = nox.http.request("POST", base_url + "/echo", binary_body, {"Content-Type": "application/x-protobuf", "X-Pulse-Probe": "safe-value"}, 1000)
+nox.test.assert_eq_int(echo.status, 201, "POST returns the server status")
+nox.test.assert_eq_int(nox.strings.byte_len(echo.body), 4, "POST response preserves binary body length")
+nox.test.assert_eq_int(nox.strings.byte_at(echo.body, 1), 0, "POST response preserves embedded NUL")
+nox.test.assert_eq_int(nox.strings.byte_at(echo.body, 2), 255, "POST response preserves high byte")
+nox.test.assert_eq_str(header_value(echo.headers, "x-seen-method"), "POST", "response headers expose the observed method")
+nox.test.assert_eq_str(header_value(echo.headers, "x-seen-probe"), "safe-value", "custom request header reaches the server")
+
+binary: HttpResponse = nox.http.request("GET", base_url + "/binary", "", {}, 1000)
+nox.test.assert_eq_int(nox.strings.byte_len(binary.body), 4, "binary response retains exact byte length")
+nox.test.assert_eq_int(nox.strings.byte_at(binary.body, 1), 0, "binary response retains NUL")
+nox.test.assert_eq_int(nox.strings.byte_at(binary.body, 2), 255, "binary response retains high byte")
+
+redirect: HttpResponse = nox.http.request("GET", base_url + "/redirect", "", {}, 1000)
+nox.test.assert_eq_int(redirect.status, 302, "redirect is returned instead of followed")
+nox.test.assert_eq_str(redirect.body, "redirect-not-followed", "redirect target body is not fetched")
+nox.test.assert_eq_str(header_value(redirect.headers, "location"), "/final", "redirect Location remains available")
+
+unavailable: HttpResponse = nox.http.request("GET", base_url + "/status", "", {}, 1000)
+nox.test.assert_eq_int(unavailable.status, 503, "non-2xx response is returned without a transport exception")
+nox.test.assert_eq_str(header_value(unavailable.headers, "retry-after"), "1", "Retry-After response header remains available")
+
+compressed: HttpResponse = nox.http.request("GET", base_url + "/gzip", "", {}, 1000)
+nox.test.assert_eq_str(compressed.body, "gzip-decoded", "gzip response is decoded by the HTTP client")
+
+timeout_seen: bool = False
+try:
+    nox.http.request("GET", base_url + "/slow", "", {}, 25)
+except HttpTimeoutError as e:
+    timeout_seen = True
+nox.test.assert_true(timeout_seen, "positive timeout produces HttpTimeoutError")
+
+unsupported_method_seen: bool = False
+try:
+    nox.http.request("TRACE", base_url + "/binary", "", {}, 1000)
+except HttpError as e:
+    unsupported_method_seen = True
+nox.test.assert_true(unsupported_method_seen, "unsupported method produces HttpError")
+
+get_body_rejected: bool = False
+try:
+    nox.http.request("GET", base_url + "/binary", "not-allowed", {}, 1000)
+except HttpError as e:
+    get_body_rejected = True
+nox.test.assert_true(get_body_rejected, "GET with a non-empty body is rejected instead of silently discarded")
+
+self_signed_rejected: bool = False
+try:
+    nox.http.request("GET", self_signed_url + "/binary", "", {}, 1000)
+except HttpError as e:
+    self_signed_rejected = True
+nox.test.assert_true(self_signed_rejected, "TLS verification rejects an untrusted self-signed endpoint")

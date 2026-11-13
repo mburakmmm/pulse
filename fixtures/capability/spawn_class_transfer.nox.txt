@@ -1,0 +1,17 @@
+import nox.test
+
+class Payload:
+    value: int
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+async def read_payload(payload: Payload) -> int:
+    return payload.value
+
+async def run_probe() -> None:
+    task: Task[int] = spawn read_payload(Payload(21))
+    nox.test.assert_eq_int(await task, 21, "class payload crosses spawn boundary")
+
+probe: Task[None] = spawn run_probe()
+await probe

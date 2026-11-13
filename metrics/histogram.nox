@@ -1,0 +1,104 @@
+from core.attributes import is_finite
+from core.errors import TelemetryError
+from metrics.aggregator import MAX_INT
+
+class HistogramSnapshot:
+    boundaries: list[float]
+    bucket_counts: list[int]
+    count: int
+    sum: float
+    has_min_max: bool
+    minimum: float
+    maximum: float
+
+    def __init__(self, boundaries: list[float], bucket_counts: list[int], count: int, sum: float, has_min_max: bool, minimum: float, maximum: float) -> None:
+        self.boundaries = boundaries
+        self.bucket_counts = bucket_counts
+        self.count = count
+        self.sum = sum
+        self.has_min_max = has_min_max
+        self.minimum = minimum
+        self.maximum = maximum
+
+class ExplicitHistogramAggregation:
+    boundaries: list[float]
+    bucket_counts: list[int]
+    count: int
+    sum: float
+    has_min_max: bool
+    minimum: float
+    maximum: float
+
+    def __init__(self, boundaries: list[float], max_boundaries: int) -> None:
+        if max_boundaries <= 0:
+            raise TelemetryError("max_boundaries must be positive")
+        if len(boundaries) > max_boundaries:
+            raise TelemetryError("histogram boundaries exceed max_boundaries")
+        boundary_copy: list[float] = []
+        previous: float = 0.0
+        has_previous: bool = False
+        for boundary in boundaries:
+            if not is_finite(boundary):
+                raise TelemetryError("histogram boundaries must be finite")
+            if has_previous and boundary <= previous:
+                raise TelemetryError("histogram boundaries must be strictly increasing")
+            boundary_copy.append(boundary)
+            previous = boundary
+            has_previous = True
+
+        counts: list[int] = []
+        index: int = 0
+        while index <= len(boundary_copy):
+            counts.append(0)
+            index += 1
+
+        self.boundaries = boundary_copy
+        self.bucket_counts = counts
+        self.count = 0
+        self.sum = 0.0
+        self.has_min_max = False
+        self.minimum = 0.0
+        self.maximum = 0.0
+
+    def record(self, value: float) -> None:
+
+        if not is_finite(value):
+            raise TelemetryError("histogram measurements must be finite")
+        if self.count == MAX_INT:
+            raise TelemetryError("histogram count overflow")
+        candidate_sum: float = self.sum + value
+        if not is_finite(candidate_sum):
+            raise TelemetryError("histogram sum must remain finite")
+
+        bucket_index: int = len(self.boundaries)
+        index: int = 0
+        while index < len(self.boundaries):
+            if value <= self.boundaries[index]:
+                bucket_index = index
+                break
+            index += 1
+        if self.bucket_counts[bucket_index] == MAX_INT:
+            raise TelemetryError("histogram bucket count overflow")
+
+        self.count += 1
+        self.sum = candidate_sum
+        self.bucket_counts[bucket_index] += 1
+        if not self.has_min_max:
+            self.minimum = value
+            self.maximum = value
+            self.has_min_max = True
+        else:
+            if value < self.minimum:
+                self.minimum = value
+            if value > self.maximum:
+                self.maximum = value
+
+    def snapshot(self) -> HistogramSnapshot:
+
+        boundary_copy: list[float] = []
+        for boundary in self.boundaries:
+            boundary_copy.append(boundary)
+        count_copy: list[int] = []
+        for bucket_count in self.bucket_counts:
+            count_copy.append(bucket_count)
+        return HistogramSnapshot(boundary_copy, count_copy, self.count, self.sum, self.has_min_max, self.minimum, self.maximum)

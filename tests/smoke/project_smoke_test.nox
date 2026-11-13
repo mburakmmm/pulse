@@ -1,0 +1,5 @@
+import nox.test
+import _internal.build_info
+
+nox.test.assert_eq_str(_internal.build_info.package_version(), "0.1.0", "root-project module resolution")
+

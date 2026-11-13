@@ -1,0 +1,87 @@
+import nox.protobuf
+from nox.protobuf import Writer
+from core.attributes import AttributeEntry, AttributeSet, AttributeValue
+from core.errors import TelemetryError
+
+def write_series_attribute(writer: Writer, entry: AttributeEntry) -> None:
+    item: Writer = nox.protobuf.writer()
+    item.string(1, entry.key)
+    match entry.value:
+        case AttributeValue.Boolean(bool_value):
+            item.varint(2, 1)
+            item.boolean(3, bool_value)
+        case AttributeValue.Integer(int_value):
+            item.varint(2, 2)
+            item.sint(3, int_value)
+        case AttributeValue.Float(float_value):
+            item.varint(2, 3)
+            item.double(3, float_value)
+        case AttributeValue.Text(text_value):
+            item.varint(2, 4)
+            item.string(3, text_value)
+        case AttributeValue.BooleanArray(bool_values):
+            item.varint(2, 5)
+            for bool_item in bool_values:
+                item.boolean(3, bool_item)
+        case AttributeValue.IntegerArray(int_values):
+            item.varint(2, 6)
+            for int_item in int_values:
+                item.sint(3, int_item)
+        case AttributeValue.FloatArray(float_values):
+            item.varint(2, 7)
+            for float_item in float_values:
+                item.double(3, float_item)
+        case AttributeValue.TextArray(text_values):
+            item.varint(2, 8)
+            for text_item in text_values:
+                item.string(3, text_item)
+    writer.message(1, item)
+
+def canonical_series_key(attributes: AttributeSet) -> str:
+    writer: Writer = nox.protobuf.writer()
+    previous_key: str = ""
+    has_previous: bool = False
+    for entry in attributes.entries:
+        if has_previous and entry.key <= previous_key:
+            raise TelemetryError("attribute set must have strictly increasing unique keys")
+        write_series_attribute(writer, entry)
+        previous_key = entry.key
+        has_previous = True
+    return writer.to_str()
+
+def copy_attribute_value(value: AttributeValue) -> AttributeValue:
+    match value:
+        case AttributeValue.Boolean(bool_value):
+            return AttributeValue.Boolean(bool_value)
+        case AttributeValue.Integer(int_value):
+            return AttributeValue.Integer(int_value)
+        case AttributeValue.Float(float_value):
+            return AttributeValue.Float(float_value)
+        case AttributeValue.Text(text_value):
+            return AttributeValue.Text(text_value)
+        case AttributeValue.BooleanArray(bool_values):
+            copied_bools: list[bool] = []
+            for bool_item in bool_values:
+                copied_bools.append(bool_item)
+            return AttributeValue.BooleanArray(copied_bools)
+        case AttributeValue.IntegerArray(int_values):
+            copied_ints: list[int] = []
+            for int_item in int_values:
+                copied_ints.append(int_item)
+            return AttributeValue.IntegerArray(copied_ints)
+        case AttributeValue.FloatArray(float_values):
+            copied_floats: list[float] = []
+            for float_item in float_values:
+                copied_floats.append(float_item)
+            return AttributeValue.FloatArray(copied_floats)
+        case AttributeValue.TextArray(text_values):
+            copied_texts: list[str] = []
+            for text_item in text_values:
+                copied_texts.append(text_item)
+            return AttributeValue.TextArray(copied_texts)
+
+def copy_attribute_set(attributes: AttributeSet) -> AttributeSet:
+    copied_entries: list[AttributeEntry] = []
+    for entry in attributes.entries:
+        copied_entries.append(AttributeEntry(entry.key, copy_attribute_value(entry.value)))
+    return AttributeSet(copied_entries, attributes.dropped_count, attributes.estimated_bytes)

@@ -1,0 +1,5 @@
+class EmptyError(Exception):
+    pass
+
+value: EmptyError = EmptyError("probe")
+print(value)

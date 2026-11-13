@@ -1,0 +1,45 @@
+import nox.atomic
+import nox.test
+import nox.thread
+from nox.atomic import AtomicBool, AtomicInt
+
+async def increment_shared(handle: int) -> int:
+    counter: AtomicInt = nox.atomic.from_int_handle(handle)
+    i: int = 0
+    while i < 100:
+        counter.increment()
+        i += 1
+    return 0
+
+async def produce_scalar(channel: ThreadChannel[int]) -> None:
+    await channel.send(7)
+    await channel.send(11)
+
+async def run_thread_probe() -> None:
+    counter: AtomicInt = nox.atomic.new_int(0)
+    first: ThreadHandle[int] = nox.thread.start(increment_shared, counter.handle)
+    second: ThreadHandle[int] = nox.thread.start(increment_shared, counter.handle)
+    await first.join()
+    await second.join()
+    nox.test.assert_eq_int(counter.load(), 200, "joined workers publish exact atomic count")
+
+    nox.test.assert_true(counter.compare_and_swap(200, 201), "AtomicInt compare-and-swap succeeds for expected value")
+    nox.test.assert_eq_int(counter.load(), 201, "AtomicInt compare-and-swap stores desired value")
+
+    flag: AtomicBool = nox.atomic.new_bool(False)
+    nox.test.assert_true(flag.compare_and_swap(False, True), "AtomicBool compare-and-swap succeeds for expected value")
+    nox.test.assert_true(flag.load(), "AtomicBool publishes stored value")
+
+    channel: ThreadChannel[int] = ThreadChannel[int](2)
+    producer_thread: ThreadHandle[None] = nox.thread.start(produce_scalar, channel)
+    total: int = await channel.recv()
+    total += await channel.recv()
+    await producer_thread.join()
+    nox.test.assert_eq_int(total, 18, "ThreadChannel transfers scalar values")
+
+    counter.free()
+    flag.free()
+
+probe: Task[None] = spawn run_thread_probe()
+await probe
+

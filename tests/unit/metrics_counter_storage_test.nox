@@ -1,0 +1,58 @@
+import nox.test
+from core.attributes import AttributeValue
+from core.errors import TelemetryError
+from core.limits import MetricLimits, default_attribute_limits
+from metrics.cardinality import MetricBudget
+from metrics.counter_storage import CounterStorage, CounterStorageSnapshot
+
+limits: MetricLimits = MetricLimits(3, 3, 4096, 4096)
+budget: MetricBudget = MetricBudget(limits)
+storage: CounterStorage = CounterStorage(default_attribute_limits(), limits, budget)
+storage.record(5, {"route": AttributeValue.Text("a")})
+storage.record(2, {"route": AttributeValue.Text("a")})
+storage.record(3, {"route": AttributeValue.Text("b")})
+storage.record(7, {"route": AttributeValue.Text("c")})
+storage.record(11, {"route": AttributeValue.Text("d")})
+storage.record(13, {"otel.metric.overflow": AttributeValue.Boolean(True)})
+
+snapshot: CounterStorageSnapshot = storage.snapshot()
+nox.test.assert_eq_int(len(snapshot.points), 3, "two regular points plus one overflow point are exported")
+nox.test.assert_eq_int(snapshot.points[0].total + snapshot.points[1].total + snapshot.points[2].total, 41, "every measurement is reflected exactly once")
+nox.test.assert_true(not snapshot.points[0].overflow, "regular points precede the overflow point")
+nox.test.assert_true(not snapshot.points[1].overflow, "both admitted attribute sets remain regular")
+nox.test.assert_true(snapshot.points[2].overflow, "overflow point is explicit")
+nox.test.assert_eq_int(snapshot.points[2].total, 31, "all excess and explicit-overflow measurements share one aggregator")
+nox.test.assert_eq_int(snapshot.overflow_measurements, 3, "overflow diagnostics count measurements, not unique rejected keys")
+nox.test.assert_eq_int(budget.reserved_series, 3, "allocation stops at overflow plus two regular series")
+
+snapshot.points[0].attributes.entries[0].key = "mutated"
+resnapshot: CounterStorageSnapshot = storage.snapshot()
+nox.test.assert_true(resnapshot.points[0].attributes.entries[0].key != "mutated", "collection snapshots cannot mutate stored series identity")
+
+privacy_limits: MetricLimits = MetricLimits(3, 3, 4096, 4096)
+privacy_budget: MetricBudget = MetricBudget(privacy_limits)
+privacy_storage: CounterStorage = CounterStorage(default_attribute_limits(), privacy_limits, privacy_budget)
+privacy_storage.record(1, {"authorization": AttributeValue.Text("Bearer secret")})
+privacy_snapshot: CounterStorageSnapshot = privacy_storage.snapshot()
+nox.test.assert_eq_int(privacy_snapshot.points[0].attributes.len(), 0, "sensitive attributes are removed before series allocation")
+nox.test.assert_eq_int(privacy_snapshot.dropped_attributes, 1, "dropped attribute diagnostics are retained")
+
+negative_limits: MetricLimits = MetricLimits(3, 3, 4096, 4096)
+negative_budget: MetricBudget = MetricBudget(negative_limits)
+negative_storage: CounterStorage = CounterStorage(default_attribute_limits(), negative_limits, negative_budget)
+negative_seen: bool = False
+try:
+    negative_storage.record(-1, {"would.allocate": AttributeValue.Text("no")})
+except TelemetryError as e:
+    negative_seen = True
+nox.test.assert_true(negative_seen, "invalid counter values are rejected before attribute-series allocation")
+nox.test.assert_eq_int(negative_budget.reserved_series, 1, "invalid measurement leaves only the mandatory overflow reservation")
+nox.test.assert_eq_int(len(negative_storage.snapshot().points), 0, "invalid measurement creates no data point")
+
+tiny_budget_rejected: bool = False
+try:
+    tiny_limits: MetricLimits = MetricLimits(1, 1, 1, 4096)
+    CounterStorage(default_attribute_limits(), tiny_limits, MetricBudget(tiny_limits))
+except TelemetryError as e:
+    tiny_budget_rejected = True
+nox.test.assert_true(tiny_budget_rejected, "provider fails before startup when overflow series cannot fit the byte budget")

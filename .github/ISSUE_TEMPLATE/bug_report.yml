@@ -1,0 +1,73 @@
+name: Bug report
+description: Report reproducible incorrect Pulse behavior
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, personal data, production telemetry or security vulnerabilities. Follow SECURITY.md for private reports.
+  - type: input
+    id: pulse-revision
+    attributes:
+      label: Pulse revision
+      description: Commit SHA or tag where the problem occurs.
+      placeholder: 40-character commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: nox-build
+    attributes:
+      label: NOX build information
+      description: Paste the output of `noxc version --build-info`.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend
+      options:
+        - LLVM
+        - QBE
+        - Both
+        - Not backend-specific
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: macOS 15 ARM64
+    validations:
+      required: true
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal synthetic reproducer
+      description: Provide the smallest safe program and exact commands that reproduce the issue.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: The report contains no real secrets, personal data or customer telemetry.
+          required: true
+        - label: This is not a private security vulnerability.
+          required: true

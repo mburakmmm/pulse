@@ -1,0 +1,141 @@
+from core.errors import TelemetryError
+
+class AttributeLimits:
+    max_attributes: int
+    max_key_bytes: int
+    max_string_bytes: int
+    max_array_elements: int
+    max_string_array_element_bytes: int
+    max_total_bytes: int
+
+    def __init__(self, max_attributes: int, max_key_bytes: int, max_string_bytes: int, max_array_elements: int, max_string_array_element_bytes: int, max_total_bytes: int) -> None:
+        if max_attributes <= 0:
+            raise TelemetryError("max_attributes must be positive")
+        if max_key_bytes <= 0:
+            raise TelemetryError("max_key_bytes must be positive")
+        if max_string_bytes <= 0:
+            raise TelemetryError("max_string_bytes must be positive")
+        if max_array_elements <= 0:
+            raise TelemetryError("max_array_elements must be positive")
+        if max_string_array_element_bytes <= 0:
+            raise TelemetryError("max_string_array_element_bytes must be positive")
+        if max_total_bytes <= 0:
+            raise TelemetryError("max_total_bytes must be positive")
+        self.max_attributes = max_attributes
+        self.max_key_bytes = max_key_bytes
+        self.max_string_bytes = max_string_bytes
+        self.max_array_elements = max_array_elements
+        self.max_string_array_element_bytes = max_string_array_element_bytes
+        self.max_total_bytes = max_total_bytes
+
+def default_attribute_limits() -> AttributeLimits:
+    return AttributeLimits(64, 128, 1024, 32, 256, 32768)
+
+class RuntimeLimits:
+    max_queue_records: int
+    max_queue_bytes: int
+    max_batch_records: int
+    max_payload_bytes: int
+    scheduled_delay_ms: int
+    export_timeout_ms: int
+    flush_timeout_ms: int
+    shutdown_timeout_ms: int
+    retry_attempts: int
+    retry_elapsed_ms: int
+
+    def __init__(self, max_queue_records: int, max_queue_bytes: int, max_batch_records: int, max_payload_bytes: int, scheduled_delay_ms: int, export_timeout_ms: int, flush_timeout_ms: int, shutdown_timeout_ms: int, retry_attempts: int, retry_elapsed_ms: int) -> None:
+        if max_queue_records <= 0:
+            raise TelemetryError("max_queue_records must be positive")
+        if max_queue_bytes <= 0:
+            raise TelemetryError("max_queue_bytes must be positive")
+        if max_batch_records <= 0 or max_batch_records > max_queue_records:
+            raise TelemetryError("max_batch_records must be positive and no greater than max_queue_records")
+        if max_payload_bytes <= 0 or max_payload_bytes > max_queue_bytes:
+            raise TelemetryError("max_payload_bytes must be positive and no greater than max_queue_bytes")
+        if scheduled_delay_ms <= 0:
+            raise TelemetryError("scheduled_delay_ms must be positive")
+        if export_timeout_ms <= 0:
+            raise TelemetryError("export_timeout_ms must be positive")
+        if flush_timeout_ms <= 0:
+            raise TelemetryError("flush_timeout_ms must be positive")
+        if shutdown_timeout_ms <= 0:
+            raise TelemetryError("shutdown_timeout_ms must be positive")
+        if retry_attempts < 0:
+            raise TelemetryError("retry_attempts must be nonnegative")
+        if retry_elapsed_ms <= 0 or retry_elapsed_ms > shutdown_timeout_ms:
+            raise TelemetryError("retry_elapsed_ms must be positive and no greater than shutdown_timeout_ms")
+        self.max_queue_records = max_queue_records
+        self.max_queue_bytes = max_queue_bytes
+        self.max_batch_records = max_batch_records
+        self.max_payload_bytes = max_payload_bytes
+        self.scheduled_delay_ms = scheduled_delay_ms
+        self.export_timeout_ms = export_timeout_ms
+        self.flush_timeout_ms = flush_timeout_ms
+        self.shutdown_timeout_ms = shutdown_timeout_ms
+        self.retry_attempts = retry_attempts
+        self.retry_elapsed_ms = retry_elapsed_ms
+
+def default_runtime_limits() -> RuntimeLimits:
+    return RuntimeLimits(2048, 33554432, 512, 4194304, 5000, 10000, 10000, 30000, 4, 30000)
+
+class RecordLimits:
+    max_events: int
+    max_links: int
+    max_event_attributes: int
+    max_link_attributes: int
+    max_event_attribute_bytes: int
+    max_link_attribute_bytes: int
+    max_span_bytes: int
+    max_histogram_boundaries: int
+
+    def __init__(self, max_events: int, max_links: int, max_event_attributes: int, max_link_attributes: int, max_event_attribute_bytes: int, max_link_attribute_bytes: int, max_span_bytes: int, max_histogram_boundaries: int) -> None:
+        if max_events <= 0:
+            raise TelemetryError("max_events must be positive")
+        if max_links <= 0:
+            raise TelemetryError("max_links must be positive")
+        if max_event_attributes <= 0:
+            raise TelemetryError("max_event_attributes must be positive")
+        if max_link_attributes <= 0:
+            raise TelemetryError("max_link_attributes must be positive")
+        if max_event_attribute_bytes <= 0 or max_event_attribute_bytes > max_span_bytes:
+            raise TelemetryError("max_event_attribute_bytes must be positive and no greater than max_span_bytes")
+        if max_link_attribute_bytes <= 0 or max_link_attribute_bytes > max_span_bytes:
+            raise TelemetryError("max_link_attribute_bytes must be positive and no greater than max_span_bytes")
+        if max_span_bytes <= 0:
+            raise TelemetryError("max_span_bytes must be positive")
+        if max_histogram_boundaries <= 0:
+            raise TelemetryError("max_histogram_boundaries must be positive")
+        self.max_events = max_events
+        self.max_links = max_links
+        self.max_event_attributes = max_event_attributes
+        self.max_link_attributes = max_link_attributes
+        self.max_event_attribute_bytes = max_event_attribute_bytes
+        self.max_link_attribute_bytes = max_link_attribute_bytes
+        self.max_span_bytes = max_span_bytes
+        self.max_histogram_boundaries = max_histogram_boundaries
+
+def default_record_limits() -> RecordLimits:
+    return RecordLimits(64, 32, 32, 32, 8192, 8192, 262144, 64)
+
+class MetricLimits:
+    max_series_per_instrument: int
+    max_total_series: int
+    max_aggregation_bytes: int
+    max_instrument_description_bytes: int
+
+    def __init__(self, max_series_per_instrument: int, max_total_series: int, max_aggregation_bytes: int, max_instrument_description_bytes: int) -> None:
+        if max_series_per_instrument <= 0:
+            raise TelemetryError("max_series_per_instrument must be positive")
+        if max_total_series <= 0 or max_total_series < max_series_per_instrument:
+            raise TelemetryError("max_total_series must be no less than max_series_per_instrument")
+        if max_aggregation_bytes <= 0:
+            raise TelemetryError("max_aggregation_bytes must be positive")
+        if max_instrument_description_bytes < 1023:
+            raise TelemetryError("max_instrument_description_bytes must support at least 1023 bytes")
+        self.max_series_per_instrument = max_series_per_instrument
+        self.max_total_series = max_total_series
+        self.max_aggregation_bytes = max_aggregation_bytes
+        self.max_instrument_description_bytes = max_instrument_description_bytes
+
+def default_metric_limits() -> MetricLimits:
+    return MetricLimits(2000, 20000, 67108864, 4096)

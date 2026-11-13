@@ -1,0 +1,208 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pulse-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NOX_VERSION: v2.1.64
+  NOX_COMMIT: be3458c332c8234baa8f3f8ac2ae9601db24321e
+  NOX_REPOSITORY: mburakmmm/nox-lang
+
+jobs:
+  core:
+    name: Core / ${{ matrix.label }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            asset: macos-arm64
+            archive: tar.gz
+            label: macOS ARM64
+          - os: ubuntu-latest
+            asset: linux-x64
+            archive: tar.gz
+            label: Linux x64
+          - os: ubuntu-24.04-arm
+            asset: linux-arm64
+            archive: tar.gz
+            label: Linux ARM64
+          - os: windows-2025
+            asset: windows-x64
+            archive: zip
+            label: Windows x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install checksum-verified NOX release (Unix)
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="nox-lang-${NOX_VERSION}-${{ matrix.asset }}"
+          base="https://github.com/${NOX_REPOSITORY}/releases/download/${NOX_VERSION}"
+          curl --fail --silent --show-error --location --remote-name "${base}/${stage}.tar.gz"
+          curl --fail --silent --show-error --location --remote-name "${base}/${stage}.tar.gz.sha256"
+          shasum -a 256 -c "${stage}.tar.gz.sha256"
+          tar xzf "${stage}.tar.gz"
+          echo "$PWD/${stage}/bin" >>"$GITHUB_PATH"
+          echo "NOX_RESOURCE_DIR=$PWD/${stage}" >>"$GITHUB_ENV"
+
+      - name: Install checksum-verified NOX release (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stage = "nox-lang-$env:NOX_VERSION-${{ matrix.asset }}"
+          $base = "https://github.com/$env:NOX_REPOSITORY/releases/download/$env:NOX_VERSION"
+          Invoke-WebRequest -Uri "$base/$stage.zip" -OutFile "$stage.zip"
+          Invoke-WebRequest -Uri "$base/$stage.zip.sha256" -OutFile "$stage.zip.sha256"
+          $expected = (Get-Content "$stage.zip.sha256" -Raw).Trim().Split()[0].ToLowerInvariant()
+          $actual = (Get-FileHash "$stage.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "NOX archive checksum mismatch: expected $expected, got $actual"
+          }
+          Expand-Archive -Path "$stage.zip" -DestinationPath .
+          "$($PWD.Path)\$stage\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "NOX_RESOURCE_DIR=$($PWD.Path)\$stage" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify toolchain pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(noxc --version 2>&1)" = "noxc 2.1.64"
+          noxc version --build-info | grep -Fx "commit: ${NOX_COMMIT}"
+
+      - name: Verify NOX formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' source_file; do
+            noxc fmt "$source_file"
+          done < <(git ls-files -z '*.nox')
+          if ! git diff --quiet -- '*.nox'; then
+            git diff --check -- '*.nox'
+            git diff -- '*.nox'
+            exit 1
+          fi
+
+      - name: Run portable QBE and LLVM suite
+        shell: bash
+        run: bash scripts/run-ci-core.sh
+
+      - name: Record scope limits
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### ${{ matrix.label }}"
+            echo
+            echo "- Portable core: QBE + LLVM"
+            echo "- Metrics provider: single-owner only"
+            echo "- Concurrent-provider claim: UNSUPPORTED in the current Pulse phase"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  capability:
+    name: Capabilities / ${{ matrix.label }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            asset: macos-arm64
+            label: macOS ARM64
+          - os: ubuntu-latest
+            asset: linux-x64
+            label: Linux x64
+          - os: ubuntu-24.04-arm
+            asset: linux-arm64
+            label: Linux ARM64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install checksum-verified NOX release
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="nox-lang-${NOX_VERSION}-${{ matrix.asset }}"
+          base="https://github.com/${NOX_REPOSITORY}/releases/download/${NOX_VERSION}"
+          curl --fail --silent --show-error --location --remote-name "${base}/${stage}.tar.gz"
+          curl --fail --silent --show-error --location --remote-name "${base}/${stage}.tar.gz.sha256"
+          shasum -a 256 -c "${stage}.tar.gz.sha256"
+          tar xzf "${stage}.tar.gz"
+          echo "$PWD/${stage}/bin" >>"$GITHUB_PATH"
+          echo "NOX_RESOURCE_DIR=$PWD/${stage}" >>"$GITHUB_ENV"
+
+      - name: Verify toolchain pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(noxc --version 2>&1)" = "noxc 2.1.64"
+          noxc version --build-info | grep -Fx "commit: ${NOX_COMMIT}"
+
+      - name: Runtime divergence audit
+        shell: bash
+        run: |
+          bash scripts/run-runtime-capability-audit.sh llvm
+          bash scripts/run-runtime-capability-audit.sh qbe
+
+      - name: Type and compiler limitation audit
+        shell: bash
+        run: bash scripts/run-type-capability-audit.sh
+
+      - name: HTTP and TLS capability audit
+        shell: bash
+        run: |
+          bash scripts/run-http-capability-audit.sh llvm
+          bash scripts/run-http-capability-audit.sh qbe
+
+      - name: Backend transfer audit
+        shell: bash
+        run: bash scripts/run-backend-transfer-audit.sh
+
+      - name: Record capability scope
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### ${{ matrix.label }} capability audit"
+            echo
+            echo "- Runtime and HTTP behavior: executed on QBE + LLVM"
+            echo "- Transfer restrictions: executed per backend"
+            echo "- OTLP Collector and Prometheus parser: SKIPPED; exporters are not implemented"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  ci-success:
+    name: CI success
+    if: always()
+    needs:
+      - core
+      - capability
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every claimed gate
+        shell: bash
+        env:
+          CORE_RESULT: ${{ needs.core.result }}
+          CAPABILITY_RESULT: ${{ needs.capability.result }}
+        run: |
+          set -euo pipefail
+          test "$CORE_RESULT" = "success"
+          test "$CAPABILITY_RESULT" = "success"

@@ -1,0 +1,128 @@
+import nox.protobuf
+import nox.strings
+from nox.protobuf import Writer
+from core.errors import TelemetryError
+from core.limits import MetricLimits
+
+enum InstrumentKind:
+    Counter
+    UpDownCounter
+    Histogram
+
+enum RegistrationResult:
+    Existing(key: str)
+    New(key: str)
+    Conflict(key: str)
+
+def is_ascii_alpha(byte: int) -> bool:
+    return byte >= 65 and byte <= 90 or byte >= 97 and byte <= 122
+
+def is_ascii_digit(byte: int) -> bool:
+    return byte >= 48 and byte <= 57
+
+def validate_instrument_name(name: str) -> None:
+    size: int = nox.strings.byte_len(name)
+    if size == 0 or size > 255:
+        raise TelemetryError("instrument name must contain 1 to 255 ASCII characters")
+    if not is_ascii_alpha(nox.strings.byte_at(name, 0)):
+        raise TelemetryError("instrument name must start with an ASCII letter")
+    index: int = 1
+    while index < size:
+        byte: int = nox.strings.byte_at(name, index)
+        if not is_ascii_alpha(byte) and not is_ascii_digit(byte) and byte != 95 and byte != 46 and byte != 45 and byte != 47:
+            raise TelemetryError("instrument name contains an invalid character")
+        index += 1
+
+def validate_instrument_unit(unit: str) -> None:
+    size: int = nox.strings.byte_len(unit)
+    if size > 63:
+        raise TelemetryError("instrument unit must contain at most 63 ASCII characters")
+    index: int = 0
+    while index < size:
+        if nox.strings.byte_at(unit, index) > 127:
+            raise TelemetryError("instrument unit must be ASCII")
+        index += 1
+
+def instrument_kind_code(kind: InstrumentKind) -> int:
+    match kind:
+        case InstrumentKind.Counter:
+            return 1
+        case InstrumentKind.UpDownCounter:
+            return 2
+        case InstrumentKind.Histogram:
+            return 3
+
+class InstrumentDescriptor:
+    name: str
+    normalized_name: str
+    kind: InstrumentKind
+    unit: str
+    description: str
+
+    def __init__(self, name: str, kind: InstrumentKind, unit: str, description: str, limits: MetricLimits) -> None:
+        validate_instrument_name(name)
+        validate_instrument_unit(unit)
+        if nox.strings.byte_len(description) > limits.max_instrument_description_bytes:
+            raise TelemetryError("instrument description exceeds max_instrument_description_bytes")
+        self.name = name
+        self.normalized_name = name.lower()
+        self.kind = kind
+        self.unit = unit
+        self.description = description
+
+    def key(self) -> str:
+
+        writer: Writer = nox.protobuf.writer()
+        writer.string(1, self.normalized_name)
+        writer.varint(2, instrument_kind_code(self.kind))
+        writer.string(3, self.unit)
+        writer.string(4, self.description)
+        return writer.to_str()
+
+class InstrumentRegistry:
+    descriptors: dict[str, InstrumentDescriptor]
+    first_by_name: dict[str, str]
+    conflict_count: int
+
+    def __init__(self) -> None:
+        self.descriptors = {}
+        self.first_by_name = {}
+        self.conflict_count = 0
+
+    def classify(self, descriptor: InstrumentDescriptor) -> RegistrationResult:
+
+        key: str = descriptor.key()
+        if key in self.descriptors:
+            return RegistrationResult.Existing(key)
+        if descriptor.normalized_name in self.first_by_name:
+            return RegistrationResult.Conflict(key)
+        return RegistrationResult.New(key)
+
+    def commit(self, descriptor: InstrumentDescriptor) -> RegistrationResult:
+
+        classification: RegistrationResult = self.classify(descriptor)
+        match classification:
+            case RegistrationResult.Existing(existing_key):
+                return RegistrationResult.Existing(existing_key)
+            case RegistrationResult.Conflict(conflict_key):
+                self.descriptors[conflict_key] = descriptor
+                self.conflict_count += 1
+                return RegistrationResult.Conflict(conflict_key)
+            case RegistrationResult.New(new_key):
+                self.descriptors[new_key] = descriptor
+                self.first_by_name[descriptor.normalized_name] = new_key
+                return RegistrationResult.New(new_key)
+
+    def register(self, descriptor: InstrumentDescriptor) -> RegistrationResult:
+
+        return self.commit(descriptor)
+
+    def descriptor(self, key: str) -> InstrumentDescriptor:
+
+        if key not in self.descriptors:
+            raise TelemetryError("instrument descriptor key is not registered")
+        return self.descriptors[key]
+
+    def len(self) -> int:
+
+        return len(self.descriptors)

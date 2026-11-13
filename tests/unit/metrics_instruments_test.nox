@@ -1,0 +1,81 @@
+import nox.strings
+import nox.test
+from core.errors import TelemetryError
+from core.limits import MetricLimits, default_metric_limits
+from metrics.instruments import InstrumentDescriptor, InstrumentKind, InstrumentRegistry, RegistrationResult
+
+limits: MetricLimits = default_metric_limits()
+descriptor: InstrumentDescriptor = InstrumentDescriptor("http.server/duration", InstrumentKind.Histogram, "ms", "server request duration", limits)
+nox.test.assert_eq_str(descriptor.normalized_name, "http.server/duration", "valid instrument name is retained")
+
+invalid_names: list[str] = ["", "1starts.with.digit", "bad:name", nox.strings.repeat("a", 256), "ölçüm"]
+for invalid_name in invalid_names:
+    invalid_seen: bool = False
+    try:
+        InstrumentDescriptor(invalid_name, InstrumentKind.Counter, "1", "invalid", limits)
+    except TelemetryError as e:
+        invalid_seen = True
+    nox.test.assert_true(invalid_seen, "invalid instrument name is rejected")
+
+invalid_unit_seen: bool = False
+try:
+    InstrumentDescriptor("valid.name", InstrumentKind.Counter, "ölçü", "invalid unit", limits)
+except TelemetryError as e:
+    invalid_unit_seen = True
+nox.test.assert_true(invalid_unit_seen, "instrument unit must be ASCII")
+
+long_unit_seen: bool = False
+try:
+    InstrumentDescriptor("valid.name", InstrumentKind.Counter, nox.strings.repeat("u", 64), "invalid unit", limits)
+except TelemetryError as e:
+    long_unit_seen = True
+nox.test.assert_true(long_unit_seen, "instrument unit length is bounded")
+
+description_limit_seen: bool = False
+try:
+    small_description_limit: MetricLimits = MetricLimits(10, 10, 4096, 1023)
+    InstrumentDescriptor("valid.name", InstrumentKind.Counter, "1", nox.strings.repeat("d", 1024), small_description_limit)
+except TelemetryError as e:
+    description_limit_seen = True
+nox.test.assert_true(description_limit_seen, "instrument description uses the configured byte bound")
+
+registry: InstrumentRegistry = InstrumentRegistry()
+first: InstrumentDescriptor = InstrumentDescriptor("RequestCount", InstrumentKind.Counter, "1", "requests", limits)
+match registry.register(first):
+    case RegistrationResult.New(_):
+        nox.test.assert_true(True, "first descriptor is new")
+    case _:
+        nox.test.assert_true(False, "first descriptor must be new")
+
+same_different_case: InstrumentDescriptor = InstrumentDescriptor("requestcount", InstrumentKind.Counter, "1", "requests", limits)
+same_key: str = ""
+match registry.register(same_different_case):
+    case RegistrationResult.Existing(existing_key):
+        same_key = existing_key
+    case _:
+        nox.test.assert_true(False, "instrument identity is case-insensitive")
+nox.test.assert_eq_str(registry.descriptor(same_key).name, "RequestCount", "identical registration keeps the first-seen casing")
+
+different_unit: InstrumentDescriptor = InstrumentDescriptor("REQUESTCOUNT", InstrumentKind.Counter, "items", "requests", limits)
+match registry.register(different_unit):
+    case RegistrationResult.Conflict(_):
+        nox.test.assert_true(True, "same name with a different unit remains functional but conflicting")
+    case _:
+        nox.test.assert_true(False, "different identifying metadata must be a conflict")
+
+different_kind: InstrumentDescriptor = InstrumentDescriptor("requestcount", InstrumentKind.UpDownCounter, "1", "requests", limits)
+match registry.register(different_kind):
+    case RegistrationResult.Conflict(_):
+        nox.test.assert_true(True, "same name with a different kind remains a distinct conflict")
+    case _:
+        nox.test.assert_true(False, "different kind must be a conflict")
+
+nox.test.assert_eq_int(registry.len(), 3, "identical descriptors aggregate while conflicts remain separate")
+nox.test.assert_eq_int(registry.conflict_count, 2, "duplicate conflict diagnostics are counted")
+
+unknown_descriptor_seen: bool = False
+try:
+    registry.descriptor("missing")
+except TelemetryError as e:
+    unknown_descriptor_seen = True
+nox.test.assert_true(unknown_descriptor_seen, "unknown descriptor keys fail explicitly")

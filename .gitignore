@@ -1,0 +1,17 @@
+.nox/
+.DS_Store
+test-results.xml
+
+# Local compiler archives and extracted toolchains
+/nox-lang-v*/
+/nox-lang-v*.tar.gz
+/nox-lang-v*.tar.gz.sha256
+/nox-lang-v*.zip
+/nox-lang-v*.zip.sha256
+
+# Local build outputs
+/pulse-smoke-*
+
+# Generated interoperability output
+/artifacts/
+

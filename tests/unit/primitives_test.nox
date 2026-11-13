@@ -1,0 +1,104 @@
+import nox.test
+import nox.strings
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.clock import TestClock
+from core.errors import ErrorKind, ExportResult, TelemetryError, export_retryable, export_succeeded
+from core.ids import SequenceIdGenerator, SpanId, TraceId, generate_span_id, generate_trace_id
+from core.limits import AttributeLimits, default_attribute_limits
+from core.resource import Resource, resource_from_layers
+from core.scope import InstrumentationScope
+
+limits: AttributeLimits = default_attribute_limits()
+nox.test.assert_eq_int(limits.max_attributes, 64, "default attribute count is bounded")
+nox.test.assert_eq_int(limits.max_total_bytes, 32768, "default attribute bytes are bounded")
+
+invalid_limit_seen: bool = False
+try:
+    AttributeLimits(0, 1, 1, 1, 1, 1)
+except TelemetryError as e:
+    invalid_limit_seen = True
+nox.test.assert_true(invalid_limit_seen, "invalid limits fail before provider startup")
+
+clock: TestClock = TestClock(100, 40)
+nox.test.assert_eq_int(clock.wall_time_ns(), 100, "injected wall clock is deterministic")
+nox.test.assert_eq_int(clock.monotonic_time_ns(), 40, "injected monotonic clock is deterministic")
+clock.advance(7, 3)
+nox.test.assert_eq_int(clock.wall_time_ns(), 107, "test wall clock advances explicitly")
+nox.test.assert_eq_int(clock.monotonic_time_ns(), 43, "test monotonic clock advances explicitly")
+
+sequence: SequenceIdGenerator = SequenceIdGenerator(0, 0)
+nox.test.assert_eq_str(sequence.next_trace_id().value, "00000000000000000000000000000001", "deterministic trace ID is fixed-width lowercase hex")
+nox.test.assert_eq_str(sequence.next_span_id().value, "0000000000000001", "deterministic span ID is fixed-width lowercase hex")
+nox.test.assert_eq_int(nox.strings.byte_len(TraceId("000102030405060708090a0b0c0d0e0f").raw), 16, "trace ID keeps raw bytes distinct from hex text")
+nox.test.assert_eq_int(nox.strings.byte_at(SpanId("0102030405060708").raw, 7), 8, "span ID raw bytes decode exactly")
+
+invalid_sequence_seen: bool = False
+try:
+    SequenceIdGenerator(-1, 0)
+except TelemetryError as e:
+    invalid_sequence_seen = True
+nox.test.assert_true(invalid_sequence_seen, "deterministic ID generator rejects negative state")
+nox.test.assert_eq_int(len(generate_trace_id().value), 32, "production trace ID uses 16 secure bytes")
+nox.test.assert_eq_int(len(generate_span_id().value), 16, "production span ID uses 8 secure bytes")
+
+invalid_trace_seen: bool = False
+try:
+    TraceId("00000000000000000000000000000000")
+except TelemetryError as e:
+    invalid_trace_seen = True
+nox.test.assert_true(invalid_trace_seen, "all-zero trace ID is rejected")
+
+invalid_span_seen: bool = False
+try:
+    SpanId("ABCDEF0123456789")
+except TelemetryError as e:
+    invalid_span_seen = True
+nox.test.assert_true(invalid_span_seen, "uppercase span ID is rejected")
+
+source_ints: list[int] = [7, 8]
+input_values: dict[str, AttributeValue] = {"z.count": AttributeValue.Integer(9007199254740993), "a.values": AttributeValue.IntegerArray(source_ints), "authorization": AttributeValue.Text("must-not-survive"), "bad.nan": AttributeValue.Float(float("nan"))}
+snapshot: AttributeSet = snapshot_attributes(input_values, limits, True)
+nox.test.assert_eq_int(snapshot.len(), 2, "sensitive and invalid attributes are dropped")
+nox.test.assert_eq_int(snapshot.dropped_count, 2, "dropped attribute count is retained")
+nox.test.assert_eq_str(snapshot.entries[0].key, "a.values", "attribute keys are sorted deterministically")
+nox.test.assert_eq_str(snapshot.entries[1].key, "z.count", "attribute key sorting is stable")
+source_ints[0] = 99
+
+match snapshot.entries[0].value:
+    case AttributeValue.IntegerArray(copied_ints):
+        nox.test.assert_eq_int(copied_ints[0], 7, "array snapshot is isolated from caller mutation")
+    case _:
+        nox.test.assert_true(False, "expected integer array attribute")
+
+match snapshot.entries[1].value:
+    case AttributeValue.Integer(exact_integer):
+        nox.test.assert_eq_int(exact_integer, 9007199254740993, "attribute integer remains exact above 2^53")
+    case _:
+        nox.test.assert_true(False, "expected integer attribute")
+
+tight_limits: AttributeLimits = AttributeLimits(1, 128, 4, 2, 2, 16)
+tight_values: dict[str, AttributeValue] = {"a": AttributeValue.Text("okay"), "b": AttributeValue.Integer(2), "c": AttributeValue.Text("too-long")}
+tight_snapshot: AttributeSet = snapshot_attributes(tight_values, tight_limits, True)
+nox.test.assert_eq_int(tight_snapshot.len(), 1, "attribute count limit applies before extra entries are accepted")
+nox.test.assert_eq_int(tight_snapshot.dropped_count, 2, "count and value limit drops are counted")
+
+nox.test.assert_true(export_succeeded(ExportResult.Success), "success result is classified truthfully")
+nox.test.assert_true(export_retryable(ExportResult.Failure(ErrorKind.Unavailable, "offline")), "unavailable export is retryable")
+nox.test.assert_true(not export_retryable(ExportResult.Failure(ErrorKind.Permanent, "invalid")), "permanent export failure is not retryable")
+
+safe_resource: dict[str, AttributeValue] = {"service.name": AttributeValue.Text("safe-default"), "service.version": AttributeValue.Text("1")}
+environment_resource: dict[str, AttributeValue] = {"service.name": AttributeValue.Text("environment")}
+explicit_resource: dict[str, AttributeValue] = {"service.name": AttributeValue.Text("explicit")}
+resource: Resource = resource_from_layers(safe_resource, environment_resource, explicit_resource, limits)
+nox.test.assert_eq_int(resource.attributes.len(), 2, "resource merge keeps non-conflicting attributes")
+nox.test.assert_eq_str(resource.attributes.entries[0].key, "service.name", "resource keys are canonical")
+match resource.attributes.entries[0].value:
+    case AttributeValue.Text(resource_service_name):
+        nox.test.assert_eq_str(resource_service_name, "explicit", "explicit resource attributes win over environment and defaults")
+    case _:
+        nox.test.assert_true(False, "expected resource service name text")
+
+scope_values: dict[str, AttributeValue] = {"library.mode": AttributeValue.Text("test")}
+scope: InstrumentationScope = InstrumentationScope("pulse.tests", "0.1.0", None, scope_values, limits)
+nox.test.assert_eq_str(scope.name, "pulse.tests", "instrumentation scope name is retained")
+nox.test.assert_eq_int(scope.attributes.len(), 1, "instrumentation scope attributes are snapped")
