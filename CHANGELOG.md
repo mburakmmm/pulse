@@ -14,6 +14,8 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
   Windows x64 using checksum-verified official NOX release archives.
 - SHA-pinned `actions/checkout` v6.1.0, avoiding the retired Node.js 20 action
   runtime.
+- Event-scoped workflow concurrency so superseded push and pull-request runs are
+  canceled independently without cross-event queue blocking.
 - Separate Unix capability jobs for runtime divergence, compiler limitations,
   HTTP/TLS behavior and backend transfer semantics, with explicit skipped and
   unsupported scope summaries.
