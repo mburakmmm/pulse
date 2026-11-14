@@ -1,0 +1,41 @@
+import nox.test
+import nox.thread
+from metrics.concurrency import AtomicCounterCell, atomic_counter_cell_from_handle, new_atomic_counter_cell
+
+async def add_one_thousand(handle: int) -> None:
+    counter: AtomicCounterCell = atomic_counter_cell_from_handle(handle)
+    index: int = 0
+    while index < 1000:
+        counter.add(1)
+        index += 1
+
+async def run_concurrency_test() -> None:
+    counter: AtomicCounterCell = new_atomic_counter_cell()
+    first: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    second: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    third: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    fourth: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    fifth: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    sixth: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    seventh: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    eighth: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    ninth: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+    tenth: ThreadHandle[None] = nox.thread.start(add_one_thousand, counter.handle)
+
+    await first.join()
+    await second.join()
+    await third.join()
+    await fourth.join()
+    await fifth.join()
+    await sixth.join()
+    await seventh.join()
+    await eighth.join()
+    await ninth.join()
+    await tenth.join()
+
+    nox.test.assert_eq_int(counter.snapshot(), 10000, "ten joined workers publish exactly ten thousand increments")
+    counter.free_after_join()
+    counter.free_after_join()
+
+probe: Task[None] = spawn run_concurrency_test()
+await probe

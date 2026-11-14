@@ -9,6 +9,7 @@ from metrics.cardinality import MetricBudget
 from metrics.counter_storage import CounterStorage, CounterStorageSnapshot
 from metrics.histogram_storage import HistogramStorage, HistogramStorageSnapshot
 from metrics.instruments import InstrumentDescriptor, InstrumentKind, InstrumentRegistry, RegistrationResult
+from metrics.model import MetricCollection, MetricData, MetricSnapshot, snapshot_descriptor, snapshot_scope
 from metrics.updown_storage import UpDownStorage, UpDownStorageSnapshot
 
 def default_histogram_boundaries() -> list[float]:
@@ -190,3 +191,32 @@ class SingleOwnerMeterProvider(MeterProvider):
         meter: RecordingMeter = RecordingMeter(scope, self.attribute_limits, self.metric_limits, self.record_limits, self.budget)
         self.meters[key] = meter
         return meter
+
+    def collection_snapshot(self, start_time_ns: int, time_ns: int) -> MetricCollection:
+
+        if start_time_ns < 0 or time_ns < start_time_ns:
+            raise TelemetryError("collection timestamps must be nonnegative and ordered")
+        meter_keys: list[str] = []
+        for meter_key in self.meters:
+            meter_keys.append(meter_key)
+        meter_keys.sort()
+
+        metrics: list[MetricSnapshot] = []
+        for meter_key in meter_keys:
+            meter: RecordingMeter = self.meters[meter_key]
+            descriptor_keys: list[str] = []
+            for descriptor_key in meter.registry.descriptors:
+                descriptor_keys.append(descriptor_key)
+            descriptor_keys.sort()
+            for descriptor_key in descriptor_keys:
+                descriptor: InstrumentDescriptor = meter.registry.descriptor(descriptor_key)
+                data: MetricData = MetricData.Counter(CounterStorageSnapshot([], 0, 0))
+                match descriptor.kind:
+                    case InstrumentKind.Counter:
+                        data = MetricData.Counter(meter.counter_storages[descriptor_key].snapshot())
+                    case InstrumentKind.UpDownCounter:
+                        data = MetricData.UpDownCounter(meter.updown_storages[descriptor_key].snapshot())
+                    case InstrumentKind.Histogram:
+                        data = MetricData.Histogram(meter.histogram_storages[descriptor_key].snapshot())
+                metrics.append(MetricSnapshot(snapshot_scope(meter.scope), snapshot_descriptor(descriptor), start_time_ns, time_ns, data))
+        return MetricCollection(start_time_ns, time_ns, metrics)

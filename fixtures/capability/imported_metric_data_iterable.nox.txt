@@ -1,0 +1,16 @@
+from nox.json import JsonWriter
+from metrics.model import MetricData
+
+def write_points(writer: JsonWriter, data: MetricData) -> None:
+    match data:
+        case MetricData.Counter(snapshot):
+            for point in snapshot.points:
+                writer.write_int(point.total)
+        case MetricData.UpDownCounter(snapshot):
+            for point in snapshot.points:
+                writer.write_int(point.total)
+        case MetricData.Histogram(snapshot):
+            for point in snapshot.points:
+                writer.write_int(point.data.count)
+
+print("codegen probe")

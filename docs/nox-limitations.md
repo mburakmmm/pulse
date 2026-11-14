@@ -4,7 +4,8 @@ Status: Active compatibility register
 Pulse baseline: NOX `2.1.64`, source commit `be3458c332c8234baa8f3f8ac2ae9601db24321e`  
 Compiler build identity: `noxc version --build-info` reports the same commit  
 Audited binary SHA-256: `067b6dbfd4a42f692690dbaa2bf390486b33a491614460e61b6b2191307737d7`  
-Last re-verification: 2026-11-12, macOS ARM64, QBE and LLVM
+Last re-verification: 2026-11-14, macOS ARM64, QBE and LLVM; portable core CI
+also passed on Linux x64, Linux ARM64 and Windows x64
 
 This register separates actual defects from language/runtime design constraints and
 Pulse-only audit work. A closed historical item remains here so an older workaround
@@ -160,7 +161,7 @@ used as release evidence.
 
 ### NOX-CODEGEN-001 — Optional float fields pass check but fail executable codegen
 
-- Status: `OPEN` on NOX `2.1.64`; observed on LLVM while implementing the Pulse
+- Status: `OPEN-UPSTREAM` on NOX `2.1.64`; observed on LLVM while implementing the Pulse
   explicit histogram.
 - Result: a class containing `float | None` state can pass `noxc check`, while a
   program exercising that state fails code generation with the generic unsupported
@@ -170,6 +171,24 @@ used as release evidence.
   This is typed portable state and does not invent an empty-histogram value.
 - Gate: `fixtures/capability/optional_float_field.nox.txt` is expected to check and
   fail executable build until upstream support is verified.
+
+### NOX-CODEGEN-002 — Imported enum payload list iteration loses codegen support
+
+- Status: `OPEN-UPSTREAM` on NOX `2.1.64`; reproduced on QBE and LLVM while
+  implementing the Phase 2 console metric exporter.
+- Observed: a function can type-check when it matches an imported enum whose
+  payload is an imported snapshot class and directly iterates the payload's
+  `list[T]` field, but executable build fails with the generic unsupported-
+  construct diagnostic and no source location.
+- Reproducer: `fixtures/capability/imported_metric_data_iterable.nox.txt`; both
+  backend failures are asserted by `bash scripts/run-type-capability-audit.sh`.
+- Pulse containment: enum matching only dispatches to concrete-typed helper
+  functions. Each helper accepts the exact snapshot class and performs the list
+  iteration outside the pattern-bound payload scope. The same audit builds this
+  containment on QBE and LLVM, and the console exporter behavioral suite passes
+  on both backends.
+- Close when: the direct reproducer builds and runs on QBE and LLVM without the
+  helper boundary; then remove only the containment, not the behavioral tests.
 
 ### NOX-TASKLOCAL-002 — Spawned tasks do not inherit TaskLocal values
 
@@ -235,6 +254,21 @@ used as release evidence.
 - `AUDIT-PENDING`: optional OTLP/gRPC Collector interoperability.
 - `AUDIT-PENDING`: UDP loopback on each supported POSIX platform if Pulse later adds
   a UDP exporter. UDP is not required for the initial release.
+
+## Phase evidence ledger
+
+Every implementation phase must record newly observed NOX behavior here before
+the phase gate can close. An item is added only after a minimal compiling or
+failing probe distinguishes a compiler/runtime limitation from a Pulse defect.
+
+| Pulse phase | Newly evidenced NOX items | Permanent gate / containment |
+|---|---|---|
+| Phase 0 — audit | `NOX-FMT-004`; QBE/task-local/module/thread design limits; historical fixes re-verified | Type/runtime/transfer/smoke audit scripts |
+| Phase 1 — primitives | No new upstream defect; exact int64, clocks, IDs, protobuf and typed enums remained verified | QBE + LLVM primitive unit/property/security/golden suites |
+| Phase 2 — metrics core | `NOX-CODEGEN-001`, `NOX-CODEGEN-002` | Explicit histogram presence flag; concrete snapshot helpers; expected-failure fixtures plus two-backend positive tests |
+
+Future phases append a row or explicitly record “no new NOX limitation observed”
+with the exact capability and behavioral commands used for that conclusion.
 
 ## Re-verification procedure
 

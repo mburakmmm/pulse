@@ -64,6 +64,9 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 - Optional `float | None` class state type-checks but fails executable codegen on
   2.1.64. Histogram min/max state uses an explicit presence flag; see
   `NOX-CODEGEN-001`.
+- Direct list iteration through an imported enum's snapshot payload type-checks but
+  fails codegen. Export rendering dispatches to concrete-typed helpers; see
+  `NOX-CODEGEN-002`.
 - `nox.http.request` buffers bodies. Pulse enforces request/response payload caps,
   positive deadlines and a credential-safe redirect policy.
 - gRPC permits one active call/stream per connection and has no client-side read
@@ -78,7 +81,7 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 | isolated `noxc version --build-info` | `2.1.64`, commit `be3458c...`, Zig `0.16.0`, ARM64 macOS ReleaseFast |
 | `bash scripts/run-smoke.sh llvm` | 10/10 tests; check/build/run pass |
 | `bash scripts/run-smoke.sh qbe` | 10/10 tests; check/build/run pass |
-| `bash scripts/run-type-capability-audit.sh` | four historical formatter/parser fixes pass; pass-only class defect is reproduced and contained |
+| `bash scripts/run-type-capability-audit.sh` | historical fixes pass; pass-only class, optional-float and imported-enum-payload defects are reproduced; QBE/LLVM containment builds pass |
 | `bash scripts/run-runtime-capability-audit.sh llvm` | NaN parity, NUL and JSON escaping pass |
 | `bash scripts/run-runtime-capability-audit.sh qbe` | NaN parity, NUL and JSON escaping pass |
 | `bash scripts/run-http-capability-audit.sh llvm` | binary/status/header/redirect/gzip/timeout/TLS/method gates pass |
@@ -86,7 +89,7 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 | `bash scripts/run-backend-transfer-audit.sh` | LLVM wider transfers pass; QBE restrictions remain explicit |
 | `bash scripts/run-phase1-tests.sh llvm` | 12 Phase 1 modules, 11 regression unit files, security, seeded property and canonical golden fixture pass |
 | `bash scripts/run-phase1-tests.sh qbe` | same Phase 1 gates pass |
-| `bash scripts/run-phase2-tests.sh llvm` | single-owner provider, bounded Counter/UpDown/Histogram, canonical series, cardinality and 100k-label/1000-point stress gates pass |
+| `bash scripts/run-phase2-tests.sh llvm` | single-owner provider, cumulative reader, memory/console exporters, aggregation properties, 10×1,000 worker counter, cardinality and 100k-label stress gates pass |
 | `bash scripts/run-phase2-tests.sh qbe` | same Phase 2 gates pass |
 | `bash scripts/run-examples.sh llvm` | compiling single-owner metrics example passes with exact real totals |
 | `bash scripts/run-examples.sh qbe` | same example and assertions pass |

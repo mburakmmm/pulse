@@ -1,0 +1,52 @@
+import nox.atomic
+from nox.atomic import AtomicInt
+from core.errors import TelemetryError
+from metrics.aggregator import MAX_INT
+
+class AtomicCounterCell:
+    handle: int
+    owns_handle: bool
+    is_freed: bool
+
+    def __init__(self, handle: int, owns_handle: bool) -> None:
+        if handle == 0:
+            raise TelemetryError("atomic counter handle must be nonzero")
+        self.handle = handle
+        self.owns_handle = owns_handle
+        self.is_freed = False
+
+    def add(self, value: int) -> None:
+
+        if self.is_freed:
+            raise TelemetryError("atomic counter cell has been freed")
+        if value < 0:
+            raise TelemetryError("counter additions must be nonnegative")
+        counter: AtomicInt = nox.atomic.from_int_handle(self.handle)
+        while True:
+            current: int = counter.load()
+            if value > MAX_INT - current:
+                raise TelemetryError("integer aggregation overflow")
+            if counter.compare_and_swap(current, current + value):
+                return
+
+    def snapshot(self) -> int:
+
+        if self.is_freed:
+            raise TelemetryError("atomic counter cell has been freed")
+        return nox.atomic.from_int_handle(self.handle).load()
+
+    def free_after_join(self) -> None:
+
+        if not self.owns_handle:
+            raise TelemetryError("borrowed atomic counter cell cannot free shared state")
+        if self.is_freed:
+            return
+        nox.atomic.from_int_handle(self.handle).free()
+        self.is_freed = True
+
+def new_atomic_counter_cell() -> AtomicCounterCell:
+    cell: AtomicInt = nox.atomic.new_int(0)
+    return AtomicCounterCell(cell.handle, True)
+
+def atomic_counter_cell_from_handle(handle: int) -> AtomicCounterCell:
+    return AtomicCounterCell(handle, False)

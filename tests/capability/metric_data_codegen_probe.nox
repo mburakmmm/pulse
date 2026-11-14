@@ -1,0 +1,44 @@
+from metrics.counter_storage import CounterStorageSnapshot
+from metrics.histogram_storage import HistogramStorageSnapshot
+from metrics.updown_storage import UpDownStorageSnapshot
+from nox.json import JsonWriter
+from metrics.model import MetricData
+
+def write_counter_points(writer: JsonWriter, snapshot: CounterStorageSnapshot) -> None:
+    for point in snapshot.points:
+        writer.write_int(point.total)
+
+def write_updown_points(writer: JsonWriter, snapshot: UpDownStorageSnapshot) -> None:
+    for point in snapshot.points:
+        writer.write_int(point.total)
+
+def write_histogram_points(writer: JsonWriter, snapshot: HistogramStorageSnapshot) -> None:
+    for point in snapshot.points:
+        writer.write_int(point.data.count)
+
+def metric_kind(data: MetricData) -> int:
+    kind: int = 0
+    match data:
+        case MetricData.Counter(_):
+            kind = 1
+        case MetricData.UpDownCounter(_):
+            kind = 2
+        case MetricData.Histogram(_):
+            kind = 3
+    return kind
+
+def write_points(writer: JsonWriter, data: MetricData) -> None:
+    match data:
+        case MetricData.Counter(snapshot):
+            write_counter_points(writer, snapshot)
+        case MetricData.UpDownCounter(snapshot):
+            write_updown_points(writer, snapshot)
+        case MetricData.Histogram(snapshot):
+            write_histogram_points(writer, snapshot)
+
+data: MetricData = MetricData.Counter(CounterStorageSnapshot([], 0, 0))
+writer: JsonWriter = JsonWriter()
+writer.begin_array()
+write_points(writer, data)
+writer.end_array()
+print(metric_kind(data))

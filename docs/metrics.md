@@ -1,7 +1,8 @@
 # Metrics implementation status
 
-Status: `v0.2.0` active. A cumulative, single-owner recording provider exists for
-development and deterministic tests. No thread-safety, reader, exporter or
+Status: `v0.2.0` active. A cumulative, single-owner recording provider,
+deterministic cumulative reader, bounded in-memory exporter and bounded structured
+console exporter exist for development and tests. No general thread-safe or
 production-ready `MeterProvider` claim exists.
 
 ## Canonical series identity
@@ -74,12 +75,42 @@ creation fails before the registry is mutated. An empty scope name returns a wor
 no-op meter through the base API.
 
 The provider intentionally has no global singleton, worker, reader, exporter,
-`force_flush` or shutdown lifecycle yet. It is not safe for concurrent use and MUST
-remain confined to one owner until the LLVM multi-worker design and QBE behavior are
-implemented and tested.
+or implicit export loop. It is not safe for concurrent use and MUST remain confined
+to one owner until a general concurrent provider is implemented and tested.
+
+## Cumulative collection and exporters
+
+`CumulativeMetricReader` takes an injected clock and captures the cumulative start
+timestamp at construction. Each collection obtains one wall timestamp and assigns
+the same start/end pair to every metric. A backwards wall-clock observation is
+clamped to the previous collection timestamp, so exported intervals never become
+negative. Collection does not mutate or reset aggregation state.
+
+The collection model snapshots instrumentation scope, descriptor metadata,
+attributes, points, histogram boundaries and bucket counts. The bounded in-memory
+exporter copies again on ingress and egress, has a finite collection capacity and
+returns a typed limit failure instead of growing indefinitely. Its flush is
+immediate and shutdown is idempotent.
+
+The console exporter renders deterministic structured JSON with `JsonWriter`,
+preserving signed 64-bit integers and escaping caller text. Sensitive attributes
+cannot reappear because they are removed before aggregation. Output is rejected
+before printing when it exceeds the configured byte limit. The format is for safe
+diagnostics and is not described as OTLP JSON.
+
+## Concurrency status
+
+The general provider and its attribute-series dictionaries remain single-owner.
+`AtomicCounterCell` is a narrower audited primitive for one counter series: it uses
+a CAS loop to prevent lost increments and signed-64-bit overflow. Ten joined
+workers × 1,000 increments produce exactly 10,000 on QBE and LLVM. The owning cell
+is freed only after every handle joins; borrowed worker wrappers cannot free it.
+This proves the acceptance arithmetic for the atomic path, not thread safety for
+instrument creation, cardinality maps, histograms, readers or exporters.
 
 ## Evidence
 
-`scripts/run-phase2-tests.sh` runs the same unit and stress gates on QBE and LLVM.
+`scripts/run-phase2-tests.sh` runs the same unit, property, concurrency and stress
+gates on QBE and LLVM.
 The stress fixture records 100,000 unique attribute sets, verifies a hard limit of
 1,000 metric points, and verifies that the cumulative total remains exactly 100,000.

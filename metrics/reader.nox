@@ -1,0 +1,31 @@
+from core.clock import Clock
+from core.errors import ExportResult, TelemetryError
+from exporters.interface import MetricExporter
+from metrics.model import MetricCollection
+from metrics.provider import SingleOwnerMeterProvider
+
+class CumulativeMetricReader:
+    clock: Clock
+    start_time_ns: int
+    last_collection_time_ns: int
+
+    def __init__(self, clock: Clock) -> None:
+        start_time_ns: int = clock.wall_time_ns()
+        if start_time_ns < 0:
+            raise TelemetryError("metric reader clock must be nonnegative")
+        self.clock = clock
+        self.start_time_ns = start_time_ns
+        self.last_collection_time_ns = start_time_ns
+
+    def collect(self, provider: SingleOwnerMeterProvider) -> MetricCollection:
+
+        current_time_ns: int = self.clock.wall_time_ns()
+        if current_time_ns < self.last_collection_time_ns:
+            current_time_ns = self.last_collection_time_ns
+        self.last_collection_time_ns = current_time_ns
+        return provider.collection_snapshot(self.start_time_ns, current_time_ns)
+
+    def collect_and_export(self, provider: SingleOwnerMeterProvider, exporter: MetricExporter) -> ExportResult:
+
+        collection: MetricCollection = self.collect(provider)
+        return exporter.export_metrics(collection)

@@ -1,0 +1,45 @@
+import nox.test
+from metrics.aggregator import CounterAggregation, UpDownCounterAggregation
+from metrics.histogram import ExplicitHistogramAggregation, HistogramSnapshot
+
+counter: CounterAggregation = CounterAggregation()
+expected_counter: int = 0
+index: int = 0
+while index < 1000:
+    addition: int = index % 17
+    previous: int = counter.snapshot().total
+    counter.record(addition)
+    expected_counter += addition
+    nox.test.assert_true(counter.snapshot().total >= previous, "counter never decreases for valid additions")
+    index += 1
+nox.test.assert_eq_int(counter.snapshot().total, expected_counter, "counter cumulative total equals every accepted addition")
+
+up_down: UpDownCounterAggregation = UpDownCounterAggregation()
+expected_up_down: int = 0
+index = 0
+while index < 1000:
+    delta: int = index % 9 - 4
+    up_down.record(delta)
+    expected_up_down += delta
+    index += 1
+nox.test.assert_eq_int(up_down.snapshot().total, expected_up_down, "up/down counter total equals signed deltas")
+
+histogram: ExplicitHistogramAggregation = ExplicitHistogramAggregation([0.0, 5.0, 10.0], 8)
+expected_histogram_sum: float = 0.0
+index = 0
+while index < 1000:
+    value: float = float(index % 16 - 3)
+    histogram.record(value)
+    expected_histogram_sum += value
+    index += 1
+
+snapshot: HistogramSnapshot = histogram.snapshot()
+bucket_total: int = 0
+for bucket_count in snapshot.bucket_counts:
+    bucket_total += bucket_count
+nox.test.assert_eq_int(snapshot.count, 1000, "histogram count equals accepted observation count")
+nox.test.assert_eq_int(bucket_total, snapshot.count, "histogram bucket counts sum to total count")
+nox.test.assert_eq_float(snapshot.sum, expected_histogram_sum, "histogram sum covers the same observation set")
+nox.test.assert_true(snapshot.has_min_max, "non-empty histogram reports min and max")
+nox.test.assert_eq_float(snapshot.minimum, -3.0, "histogram minimum is exact")
+nox.test.assert_eq_float(snapshot.maximum, 12.0, "histogram maximum is exact")

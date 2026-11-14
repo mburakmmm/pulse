@@ -3,6 +3,7 @@
 [![CI](https://github.com/mburakmmm/pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/mburakmmm/pulse/actions/workflows/ci.yml)
 [![NOX](https://img.shields.io/badge/NOX-2.1.64-6f42c1)](https://github.com/mburakmmm/nox-lang/releases/tag/v2.1.64)
 [![Status](https://img.shields.io/badge/status-experimental-orange)](#project-status)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Bounded, framework-independent observability primitives for the NOX ecosystem.**
 
@@ -27,10 +28,12 @@ now in `v0.2.0`, the bounded cumulative metrics phase.
 | No-op metrics and tracing API | Implemented; no import-time network or worker activity |
 | Counter, UpDownCounter and explicit-boundary Histogram | Experimental single-owner implementation |
 | Cardinality and aggregation-memory bounds | Implemented with deterministic overflow routing |
+| Cumulative metric reader | Implemented with deterministic collection timestamps |
+| In-memory and console metric exporters | Experimental, bounded and tested on QBE + LLVM |
 | Prometheus exposition | Planned for `v0.3.0` |
 | Tracing and W3C propagation | Planned for `v0.4.0`–`v0.5.0` |
 | OTLP/HTTP traces and metrics | Planned for `v0.7.0`–`v0.8.0` |
-| Concurrent recording provider | Not implemented; no thread-safety claim |
+| Concurrent recording provider | Not implemented; atomic same-series 10×1,000 proof only |
 
 The evidence-gated roadmap is maintained in [`todo.md`](todo.md). Compiler and
 platform evidence lives in [`docs/compatibility.md`](docs/compatibility.md), and
@@ -145,7 +148,7 @@ The dependency rules and rationale are documented in
 
 ## Roadmap
 
-1. Complete cumulative metric readers and deterministic in-memory export.
+1. Complete the general concurrent recording-provider lifecycle.
 2. Add standards-validated Prometheus text exposition.
 3. Implement tracing, explicit context and W3C propagation.
 4. Add bounded processors, sampling and lifecycle control.
@@ -167,7 +170,4 @@ issues privately instead of opening a public issue.
 
 ## License
 
-No redistribution license has been selected yet. Until a license is added, the
-repository is publicly readable but no permission to copy, modify or
-redistribute it is granted. This section will be replaced when the maintainer
-records the license decision.
+Pulse is available under the [MIT License](LICENSE).

@@ -132,7 +132,7 @@ Durum: Yerel faz kapısı ve dört hedefli uzak core CI kapısı geçti.
 - [x] Gerçek NOX paket kurallarına göre `nox.json` üret; varsayılan scaffold geçici dizinde incelendi.
 - [x] `nox.lock` üretim ve tekrar üretilebilirlik davranışını doğrula: boş dependency listesi lock üretmiyor; downstream probe exact SHA'yı doğruluyor.
 - [x] Profesyonel capability matrisi, quick start, mimari, doğrulama ve roadmap içeren `README.md`; `CHANGELOG.md` ve `.gitignore` oluştur.
-- [!] `LICENSE` oluştur; lisans sahibi ve yeniden dağıtım kararı bekleniyor, varsayım yapılmadı.
+- [x] MIT `LICENSE` oluştur; lisans kararı ve telif sahibi proje kökünde kaydedildi.
 - [x] Önerilen dizinleri yalnızca ihtiyaç oldukça oluştur; boş mimari klasörleri özellik kanıtı sayma.
 - [x] `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, CODEOWNERS, PR/issue şablonları ve Dependabot yapılandırmasını ekle.
 - [x] Kamu `api` ile SDK/internal katmanının kök modül yerleşimini ADR-0001 ile kararlaştır.
@@ -233,7 +233,7 @@ Amaç: Gerçek ölçümlere dayanan, bounded-cardinality cumulative metrics moto
 
 Bağımlılık: `v0.1.0`.
 
-- [~] `MeterProvider`, `Meter`, instrument registry ve scope bağlama: single-owner recording yol tamam; lifecycle/reader/concurrent-safe provider açık.
+- [~] `MeterProvider`, `Meter`, instrument registry ve scope bağlama: single-owner recording ve explicit reader yolu tamam; provider-owned lifecycle/concurrent-safe provider açık.
 - [x] Counter: public recording bağlantısı, cumulative bounded series, exact int64 total, overflow ve defensive snapshot iki backend'de geçti.
 - [x] UpDownCounter: public recording bağlantısı, signed delta, bounded series ve overflow/underflow davranışı geçti.
 - [x] Explicit-boundary Histogram: public recording bağlantısı, finite/strict boundaries, bounded series ve pre-aggregation geçti.
@@ -245,19 +245,19 @@ Bağımlılık: `v0.1.0`.
 - [x] Allocation öncesi cardinality limiti: Counter/UpDown/Histogram instrument+provider series/byte kapıları aggregation allocation öncesinde.
 - [x] Deterministik `otel.metric.overflow=true` series ve diagnostic counter: üç synchronous instrument storage'ında ölçüm drop/double-count yok.
 - [x] Observation saklamak yerine bounded pre-aggregation: scalar ve explicit Histogram her series için yalnız aggregate state tutuyor.
-- [ ] Cumulative reader snapshot ve tutarlı collection timestamps.
-- [ ] In-memory metric exporter ve immutable deterministic snapshot.
-- [ ] Console metric exporter; structured, sanitized, recursion-safe.
-- [ ] 10 worker × 1.000 increment acceptance testi.
+- [x] Cumulative reader snapshot ve tutarlı collection timestamps: injected clock, tek collection timestamp, nondecreasing clamp ve cumulative/no-reset davranışı iki backend'de geçti.
+- [x] In-memory metric exporter ve immutable deterministic snapshot: bounded capacity, ingress/egress defensive copy, typed overflow ve idempotent shutdown geçti.
+- [x] Console metric exporter: `JsonWriter` ile structured/sanitized çıktı, exact int64, output byte bound ve shutdown davranışı iki backend'de geçti; format OTLP olarak sunulmuyor.
+- [x] 10 worker × 1.000 increment acceptance testi: public `nox.atomic` kullanan tek-series hücre QBE ve LLVM'de tam 10.000 üretti; genel provider thread-safety iddiası değildir.
 - [x] 100.000 benzersiz untrusted label / 1.000 metric-point hard-bound testi QBE ve LLVM'de geçti; toplam tam 100.000.
-- [ ] QBE semantic ve LLVM real multi-worker testleri.
-- [ ] API, limit, temporality ve thread-safety durum belgeleri.
+- [~] QBE ve LLVM real worker atomik sayaç testi geçti; instrument registry/cardinality/histogram/reader/exporter concurrent-provider senaryoları açık.
+- [x] API, limit, cumulative temporality ve thread-safety durumları `docs/api.md`, `docs/metrics.md`, `docs/exporter-support.md` ve limitation kaydında belgelendi.
 
 Çıkış kapısı:
 
-- [ ] Metrics matematiği ve histogram invariants property testleri geçiyor.
-- [ ] Cardinality hiçbir yolda sınırsız allocation yapmıyor.
-- [ ] Aynı counter series için LLVM multi-worker sonucu tam doğru.
+- [x] Metrics matematiği ve histogram invariants property testleri QBE ve LLVM'de geçiyor.
+- [x] Cardinality hiçbir kayıt yolunda sınırsız allocation yapmıyor; 100.000-label stress kapısı iki backend'de geçiyor.
+- [x] Aynı atomik counter series için LLVM multi-worker sonucu tam 10.000; genel provider concurrent yolu ayrıca açık.
 
 ### `v0.3.0` — Faz 3: Prometheus MVP
 
@@ -631,7 +631,7 @@ Bu liste her PR/commit için uygulanır:
 
 | Kimlik | Senaryo | İlk hedef sürüm | Durum |
 |---|---|---:|---|
-| A | 10 × 1.000 exact counter | `v0.2.0` | `[ ]` |
+| A | 10 × 1.000 exact counter | `v0.2.0` | `[~] atomik tek-series QBE + LLVM geçti; provider/export bağlantısı açık` |
 | B | Histogram boundary ve Prometheus/OTLP uyumu | `v0.8.0` | `[ ]` |
 | C | 100.000 label altında 1.000-series bound | `v0.2.0` | `[x] QBE + LLVM` |
 | D | Aether→Nova distributed trace | `v0.11.0` | `[ ]` |
@@ -711,7 +711,7 @@ Commit/tag:
 - Durum ve tarih: yerel kapı 2026-11-11'de, dört hedefli uzak core kapısı 2026-11-14'te geçti.
 - NOX: daha sonra doğrulanıp baseline yapılan `2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`.
 - Platform: macOS ARM64 yerel; CI run #7'de macOS ARM64, Linux x64, Linux ARM64 ve Windows x64 portable core geçti. Unix capability auditleri üç Unix hedefinde geçti.
-- Kalanlar: system-trusted/hostname TLS matrisi, lisans kararı ve sonraki fazların conformance kapıları.
+- Kalanlar: system-trusted/hostname TLS matrisi ve sonraki fazların conformance kapıları.
 - Commit/tag: `8a81f3d272a3f5eae0937b0f7e0477ca178d7586`; tag yok.
 
 ### `v0.1.0` / Faz 1

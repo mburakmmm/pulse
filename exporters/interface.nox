@@ -1,0 +1,14 @@
+from core.errors import ErrorKind, ExportResult, FlushResult, ShutdownResult
+from metrics.model import MetricCollection
+
+class MetricExporter:
+    def export_metrics(self, collection: MetricCollection) -> ExportResult:
+        return ExportResult.Failure(ErrorKind.InvalidState, "metric exporter is not configured")
+
+    def force_flush(self) -> FlushResult:
+
+        return FlushResult.Success
+
+    def shutdown(self) -> ShutdownResult:
+
+        return ShutdownResult.Success

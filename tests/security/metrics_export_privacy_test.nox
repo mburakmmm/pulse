@@ -1,0 +1,24 @@
+import nox.strings
+import nox.test
+from api.metrics import Counter
+from core.attributes import AttributeValue
+from core.clock import TestClock
+from core.limits import default_attribute_limits, default_metric_limits, default_record_limits
+from exporters.console import render_metric_collection_json
+from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
+from metrics.reader import CumulativeMetricReader
+
+provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(default_attribute_limits(), default_metric_limits(), default_record_limits())
+meter: RecordingMeter = provider.get_recording_meter("pulse.security.metrics", "0.2.0", None)
+counter: Counter = meter.create_counter("requests", "1", "safe description")
+counter.add(1, {"route": AttributeValue.Text("/safe-route"), "authorization": AttributeValue.Text("secret-auth-sentinel"), "cookie": AttributeValue.Text("secret-cookie-sentinel"), "http.request.body": AttributeValue.Text("secret-body-sentinel"), "email": AttributeValue.Text("secret-email-sentinel")})
+
+clock: TestClock = TestClock(100, 50)
+reader: CumulativeMetricReader = CumulativeMetricReader(clock)
+payload: str = render_metric_collection_json(reader.collect(provider))
+
+nox.test.assert_true(nox.strings.contains(payload, "/safe-route"), "safe metric attributes survive export rendering")
+nox.test.assert_true(not nox.strings.contains(payload, "secret-auth-sentinel"), "authorization is absent from metric export payload")
+nox.test.assert_true(not nox.strings.contains(payload, "secret-cookie-sentinel"), "cookie is absent from metric export payload")
+nox.test.assert_true(not nox.strings.contains(payload, "secret-body-sentinel"), "request body is absent from metric export payload")
+nox.test.assert_true(not nox.strings.contains(payload, "secret-email-sentinel"), "email is absent from metric export payload")

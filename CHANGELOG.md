@@ -8,6 +8,7 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 - A professional repository landing page with an honest capability matrix,
   quick start, architecture, roadmap and verification instructions.
+- MIT licensing for use, modification and redistribution of Pulse.
 - Contributor, security, support and conduct policies; CODEOWNERS, structured
   issue forms, pull-request checklist and GitHub Actions dependency updates.
 - A four-target core CI matrix for macOS ARM64, Linux x64, Linux ARM64 and
@@ -69,6 +70,12 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 - Bounded cumulative UpDownCounter and Histogram series storage with the same provider budget and overflow guarantees as Counter.
 - An experimental single-owner recording MeterProvider/Meter connecting all three synchronous instruments, scopes and duplicate descriptors without claiming thread safety.
 - Transactional instrument creation: failure to reserve mandatory overflow storage leaves no partial registry entry.
+- A deterministic cumulative metric reader with injected-clock timestamps and
+  defensive collection snapshots.
+- Bounded in-memory and structured console metric exporters with typed failure,
+  output limits and idempotent lifecycle behavior.
+- QBE/LLVM aggregation property coverage and a real 10-worker × 1,000-increment
+  atomic counter proof with join-before-free ownership.
 
 ### Changed
 
@@ -78,6 +85,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 - OTLP/protobuf support remains unimplemented and unclaimed until pinned-schema mapping, independent decoding and Collector integration pass.
 - The manifest advances to `0.1.0` after the common-primitives local gate; active work moves to the unreleased `v0.2.0` metrics core.
 - `NOX-CODEGEN-001` records that optional float class fields type-check but fail executable codegen on 2.1.64; histograms use an explicit `has_min_max` representation.
+- `NOX-CODEGEN-002` records that direct list iteration through an imported enum
+  snapshot payload type-checks but fails QBE/LLVM codegen; concrete-typed helper
+  dispatch is the verified containment.
 
 ### Fixed
 

@@ -4,7 +4,9 @@ set -euo pipefail
 noxc_bin="${NOXC:-noxc}"
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 probe_root="$(mktemp -d "${TMPDIR:-/tmp}/pulse-type-audit.XXXXXX")"
-trap 'rm -rf "$probe_root"' EXIT
+project_probe=""
+project_probe_root=""
+trap 'rm -rf "$probe_root"; if [[ -n "${project_probe_root:-}" ]]; then rm -rf "$project_probe_root"; fi' EXIT
 
 cp "$project_root/fixtures/capability/generic_class.nox.txt" "$probe_root/generic_class.nox"
 cp "$project_root/fixtures/capability/large_float_literal.nox.txt" "$probe_root/large_float_literal.nox"
@@ -50,4 +52,17 @@ if "$noxc_bin" build -o "$probe_root/optional-float-field" "$probe_root/optional
 fi
 grep -Fq "codegen: this program contains a construct that is not supported" "$probe_root/optional-float-field.log"
 
-printf 'pulse type capability audit: generic-class-format=pass large-float-format=pass min-int-literal=pass nul-escape-format=pass pass-only-class=known-incompatible optional-float-field=known-incompatible\n'
+project_probe_root="$(mktemp -d "$project_root/.pulse-codegen-audit.XXXXXX")"
+project_probe="$project_probe_root/imported_metric_data_iterable.nox"
+cp "$project_root/fixtures/capability/imported_metric_data_iterable.nox.txt" "$project_probe"
+"$noxc_bin" check "$project_probe"
+for backend in qbe llvm; do
+  if "$noxc_bin" build --backend "$backend" -o "$probe_root/imported-metric-data-$backend" "$project_probe" >"$probe_root/imported-metric-data-$backend.log" 2>&1; then
+    echo "expected imported metric data iterable reproducer to expose NOX-CODEGEN-002 on $backend" >&2
+    exit 1
+  fi
+  grep -Fq "codegen: this program contains a construct that is not supported" "$probe_root/imported-metric-data-$backend.log"
+  "$noxc_bin" build --backend "$backend" -o "$probe_root/metric-data-containment-$backend" "$project_root/tests/capability/metric_data_codegen_probe.nox"
+done
+
+printf 'pulse type capability audit: generic-class-format=pass large-float-format=pass min-int-literal=pass nul-escape-format=pass pass-only-class=known-incompatible optional-float-field=known-incompatible imported-metric-data-iterable=known-incompatible containment=qbe+llvm-pass\n'

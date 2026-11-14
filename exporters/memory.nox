@@ -1,0 +1,49 @@
+from core.errors import ErrorKind, ExportResult, FlushResult, ShutdownResult, TelemetryError
+from exporters.interface import MetricExporter
+from metrics.aggregator import MAX_INT
+from metrics.model import MetricCollection, copy_metric_collection
+
+class InMemoryMetricExporter(MetricExporter):
+    max_collections: int
+    collections: list[MetricCollection]
+    dropped_collections: int
+    is_shutdown: bool
+
+    def __init__(self, max_collections: int) -> None:
+        if max_collections <= 0:
+            raise TelemetryError("max_collections must be positive")
+        self.max_collections = max_collections
+        self.collections = []
+        self.dropped_collections = 0
+        self.is_shutdown = False
+
+    def export_metrics(self, collection: MetricCollection) -> ExportResult:
+
+        if self.is_shutdown:
+            return ExportResult.Failure(ErrorKind.InvalidState, "metric exporter is shut down")
+        if len(self.collections) >= self.max_collections:
+            if self.dropped_collections < MAX_INT:
+                self.dropped_collections += 1
+            return ExportResult.Failure(ErrorKind.LimitExceeded, "in-memory metric exporter is full")
+        self.collections.append(copy_metric_collection(collection))
+        return ExportResult.Success
+
+    def snapshot(self) -> list[MetricCollection]:
+
+        copied: list[MetricCollection] = []
+        for collection in self.collections:
+            copied.append(copy_metric_collection(collection))
+        return copied
+
+    def force_flush(self) -> FlushResult:
+
+        if self.is_shutdown:
+            return FlushResult.Shutdown
+        return FlushResult.Success
+
+    def shutdown(self) -> ShutdownResult:
+
+        if self.is_shutdown:
+            return ShutdownResult.AlreadyShutdown
+        self.is_shutdown = True
+        return ShutdownResult.Success

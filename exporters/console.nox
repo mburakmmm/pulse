@@ -1,0 +1,214 @@
+import nox.strings
+from nox.json import JsonWriter
+from core.attributes import AttributeSet, AttributeValue
+from core.errors import ErrorKind, ExportResult, FlushResult, ShutdownResult, TelemetryError
+from exporters.interface import MetricExporter
+from metrics.counter_storage import CounterStorageSnapshot
+from metrics.histogram_storage import HistogramStorageSnapshot
+from metrics.instruments import InstrumentKind
+from metrics.model import MetricCollection, MetricData, MetricSnapshot
+from metrics.updown_storage import UpDownStorageSnapshot
+
+def write_attribute_value(writer: JsonWriter, value: AttributeValue) -> None:
+    match value:
+        case AttributeValue.Boolean(bool_value):
+            writer.write_bool(bool_value)
+        case AttributeValue.Integer(int_value):
+            writer.write_int(int_value)
+        case AttributeValue.Float(float_value):
+            writer.write_float(float_value)
+        case AttributeValue.Text(text_value):
+            writer.write_string(text_value)
+        case AttributeValue.BooleanArray(bool_values):
+            writer.begin_array()
+            for bool_item in bool_values:
+                writer.write_bool(bool_item)
+            writer.end_array()
+        case AttributeValue.IntegerArray(int_values):
+            writer.begin_array()
+            for int_item in int_values:
+                writer.write_int(int_item)
+            writer.end_array()
+        case AttributeValue.FloatArray(float_values):
+            writer.begin_array()
+            for float_item in float_values:
+                writer.write_float(float_item)
+            writer.end_array()
+        case AttributeValue.TextArray(text_values):
+            writer.begin_array()
+            for text_item in text_values:
+                writer.write_string(text_item)
+            writer.end_array()
+
+def write_attribute_set(writer: JsonWriter, attributes: AttributeSet) -> None:
+    writer.begin_object()
+    for entry in attributes.entries:
+        writer.write_key(entry.key)
+        write_attribute_value(writer, entry.value)
+    writer.end_object()
+
+def write_optional_string(writer: JsonWriter, value: str | None) -> None:
+    if value is None:
+        writer.write_null()
+    else:
+        writer.write_string(value)
+
+def instrument_kind_name(kind: InstrumentKind) -> str:
+    match kind:
+        case InstrumentKind.Counter:
+            return "counter"
+        case InstrumentKind.UpDownCounter:
+            return "up_down_counter"
+        case InstrumentKind.Histogram:
+            return "histogram"
+
+def write_common_point_fields(writer: JsonWriter, attributes: AttributeSet, overflow: bool) -> None:
+    writer.write_key("attributes")
+    write_attribute_set(writer, attributes)
+    writer.write_key("overflow")
+    writer.write_bool(overflow)
+
+def write_counter_points(writer: JsonWriter, snapshot: CounterStorageSnapshot) -> None:
+    for point in snapshot.points:
+        writer.begin_object()
+        write_common_point_fields(writer, point.attributes, point.overflow)
+        writer.write_key("value")
+        writer.write_int(point.total)
+        writer.end_object()
+
+def write_updown_points(writer: JsonWriter, snapshot: UpDownStorageSnapshot) -> None:
+    for point in snapshot.points:
+        writer.begin_object()
+        write_common_point_fields(writer, point.attributes, point.overflow)
+        writer.write_key("value")
+        writer.write_int(point.total)
+        writer.end_object()
+
+def write_histogram_points(writer: JsonWriter, snapshot: HistogramStorageSnapshot) -> None:
+    for point in snapshot.points:
+        writer.begin_object()
+        write_common_point_fields(writer, point.attributes, point.overflow)
+        writer.write_key("boundaries")
+        writer.begin_array()
+        for boundary in point.data.boundaries:
+            writer.write_float(boundary)
+        writer.end_array()
+        writer.write_key("bucket_counts")
+        writer.begin_array()
+        for bucket_count in point.data.bucket_counts:
+            writer.write_int(bucket_count)
+        writer.end_array()
+        writer.write_key("count")
+        writer.write_int(point.data.count)
+        writer.write_key("sum")
+        writer.write_float(point.data.sum)
+        writer.write_key("min")
+        if point.data.has_min_max:
+            writer.write_float(point.data.minimum)
+        else:
+            writer.write_null()
+        writer.write_key("max")
+        if point.data.has_min_max:
+            writer.write_float(point.data.maximum)
+        else:
+            writer.write_null()
+        writer.end_object()
+
+def write_metric(writer: JsonWriter, metric: MetricSnapshot) -> None:
+    writer.begin_object()
+    writer.write_key("scope")
+    writer.begin_object()
+    writer.write_key("name")
+    writer.write_string(metric.scope.name)
+    writer.write_key("version")
+    write_optional_string(writer, metric.scope.version)
+    writer.write_key("schema_url")
+    write_optional_string(writer, metric.scope.schema_url)
+    writer.write_key("attributes")
+    write_attribute_set(writer, metric.scope.attributes)
+    writer.end_object()
+    writer.write_key("name")
+    writer.write_string(metric.descriptor.name)
+    writer.write_key("kind")
+    writer.write_string(instrument_kind_name(metric.descriptor.kind))
+    writer.write_key("unit")
+    writer.write_string(metric.descriptor.unit)
+    writer.write_key("description")
+    writer.write_string(metric.descriptor.description)
+    writer.write_key("start_time_unix_nano")
+    writer.write_int(metric.start_time_ns)
+    writer.write_key("time_unix_nano")
+    writer.write_int(metric.time_ns)
+    writer.write_key("points")
+    writer.begin_array()
+    dropped_attributes: int = 0
+    overflow_measurements: int = 0
+    match metric.data:
+        case MetricData.Counter(snapshot):
+            dropped_attributes = snapshot.dropped_attributes
+            overflow_measurements = snapshot.overflow_measurements
+            write_counter_points(writer, snapshot)
+        case MetricData.UpDownCounter(snapshot):
+            dropped_attributes = snapshot.dropped_attributes
+            overflow_measurements = snapshot.overflow_measurements
+            write_updown_points(writer, snapshot)
+        case MetricData.Histogram(snapshot):
+            dropped_attributes = snapshot.dropped_attributes
+            overflow_measurements = snapshot.overflow_measurements
+            write_histogram_points(writer, snapshot)
+    writer.end_array()
+    writer.write_key("dropped_attributes")
+    writer.write_int(dropped_attributes)
+    writer.write_key("overflow_measurements")
+    writer.write_int(overflow_measurements)
+    writer.end_object()
+
+def render_metric_collection_json(collection: MetricCollection) -> str:
+    writer: JsonWriter = JsonWriter()
+    writer.begin_object()
+    writer.write_key("signal")
+    writer.write_string("metrics")
+    writer.write_key("start_time_unix_nano")
+    writer.write_int(collection.start_time_ns)
+    writer.write_key("time_unix_nano")
+    writer.write_int(collection.time_ns)
+    writer.write_key("metrics")
+    writer.begin_array()
+    for metric in collection.metrics:
+        write_metric(writer, metric)
+    writer.end_array()
+    writer.end_object()
+    return writer.build()
+
+class ConsoleMetricExporter(MetricExporter):
+    max_output_bytes: int
+    is_shutdown: bool
+
+    def __init__(self, max_output_bytes: int) -> None:
+        if max_output_bytes <= 0:
+            raise TelemetryError("max_output_bytes must be positive")
+        self.max_output_bytes = max_output_bytes
+        self.is_shutdown = False
+
+    def export_metrics(self, collection: MetricCollection) -> ExportResult:
+
+        if self.is_shutdown:
+            return ExportResult.Failure(ErrorKind.InvalidState, "console metric exporter is shut down")
+        payload: str = render_metric_collection_json(collection)
+        if nox.strings.byte_len(payload) > self.max_output_bytes:
+            return ExportResult.Failure(ErrorKind.LimitExceeded, "console metric payload exceeds max_output_bytes")
+        print(payload)
+        return ExportResult.Success
+
+    def force_flush(self) -> FlushResult:
+
+        if self.is_shutdown:
+            return FlushResult.Shutdown
+        return FlushResult.Success
+
+    def shutdown(self) -> ShutdownResult:
+
+        if self.is_shutdown:
+            return ShutdownResult.AlreadyShutdown
+        self.is_shutdown = True
+        return ShutdownResult.Success

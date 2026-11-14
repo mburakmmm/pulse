@@ -1,0 +1,38 @@
+import nox.strings
+import nox.test
+from api.metrics import Counter, Histogram
+from core.attributes import AttributeValue
+from core.clock import TestClock
+from core.errors import ErrorKind, ExportResult
+from core.limits import default_attribute_limits, default_metric_limits, default_record_limits
+from exporters.console import ConsoleMetricExporter, render_metric_collection_json
+from metrics.model import MetricCollection
+from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
+from metrics.reader import CumulativeMetricReader
+
+clock: TestClock = TestClock(1700000000000000000, 1)
+provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(default_attribute_limits(), default_metric_limits(), default_record_limits())
+meter: RecordingMeter = provider.get_recording_meter("pulse.console.tests", "0.2.0", None)
+counter: Counter = meter.create_counter("requests", "1", "quote=\" newline=\n")
+histogram: Histogram = meter.create_histogram("latency", "ms", "latency")
+counter.add(9007199254740993, {"route": AttributeValue.Text("line\n\"quoted\""), "authorization": AttributeValue.Text("must-not-appear")})
+histogram.record(5.0, {})
+
+reader: CumulativeMetricReader = CumulativeMetricReader(clock)
+clock.advance(100, 1)
+collection: MetricCollection = reader.collect(provider)
+payload: str = render_metric_collection_json(collection)
+
+nox.test.assert_true(nox.strings.contains(payload, "\"signal\":\"metrics\""), "console payload declares the metrics signal")
+nox.test.assert_true(nox.strings.contains(payload, "\"start_time_unix_nano\":1700000000000000000"), "console payload retains exact int64 timestamps")
+nox.test.assert_true(nox.strings.contains(payload, "\"value\":9007199254740993"), "console payload retains exact int64 counter values")
+nox.test.assert_true(nox.strings.contains(payload, "line\\n\\\"quoted\\\""), "console payload escapes untrusted text with JsonWriter")
+nox.test.assert_true(not nox.strings.contains(payload, "must-not-appear"), "console payload cannot recover sensitive values dropped at record time")
+nox.test.assert_true(nox.strings.contains(payload, "\"bucket_counts\":"), "console payload includes histogram buckets")
+
+too_small: ConsoleMetricExporter = ConsoleMetricExporter(1)
+match too_small.export_metrics(collection):
+    case ExportResult.Failure(ErrorKind.LimitExceeded, _):
+        nox.test.assert_true(True, "console exporter enforces its output byte limit before printing")
+    case _:
+        nox.test.assert_true(False, "oversized console payload must fail")

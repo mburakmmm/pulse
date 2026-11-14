@@ -1,0 +1,95 @@
+import nox.test
+from api.metrics import Counter, Histogram
+from core.attributes import AttributeValue
+from core.clock import TestClock
+from core.errors import ErrorKind, ExportResult, FlushResult, ShutdownResult
+from core.limits import default_attribute_limits, default_metric_limits, default_record_limits
+from exporters.memory import InMemoryMetricExporter
+from metrics.model import MetricCollection, MetricData
+from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
+from metrics.reader import CumulativeMetricReader
+
+clock: TestClock = TestClock(100, 50)
+provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(default_attribute_limits(), default_metric_limits(), default_record_limits())
+meter: RecordingMeter = provider.get_recording_meter("pulse.reader.tests", "0.2.0", None)
+counter: Counter = meter.create_counter("requests", "1", "request count")
+histogram: Histogram = meter.create_histogram("latency", "ms", "request latency")
+counter.add(3, {"route": AttributeValue.Text("a")})
+histogram.record(5.0, {"route": AttributeValue.Text("a")})
+
+reader: CumulativeMetricReader = CumulativeMetricReader(clock)
+clock.advance(50, 50)
+first: MetricCollection = reader.collect(provider)
+nox.test.assert_eq_int(first.start_time_ns, 100, "cumulative reader fixes the start timestamp at initialization")
+nox.test.assert_eq_int(first.time_ns, 150, "collection uses one injected wall timestamp")
+nox.test.assert_eq_int(len(first.metrics), 2, "reader collects every registered instrument")
+nox.test.assert_eq_int(first.metrics[0].start_time_ns, 100, "metric start timestamp matches the collection")
+nox.test.assert_eq_int(first.metrics[0].time_ns, 150, "metric timestamp matches the collection")
+
+counter_total: int = -1
+for metric in first.metrics:
+    nox.test.assert_eq_str(metric.scope.name, "pulse.reader.tests", "collection retains instrumentation scope")
+    if metric.descriptor.name == "requests":
+        match metric.data:
+            case MetricData.Counter(snapshot):
+                counter_total = snapshot.points[0].total
+            case _:
+                nox.test.assert_true(False, "counter descriptor must carry counter data")
+nox.test.assert_eq_int(counter_total, 3, "reader exposes the exact cumulative counter total")
+
+counter.add(2, {"route": AttributeValue.Text("a")})
+nox.test.assert_eq_int(counter_total, 3, "previous collection remains immutable after later recording")
+
+exporter: InMemoryMetricExporter = InMemoryMetricExporter(1)
+first_result: ExportResult = exporter.export_metrics(first)
+match first_result:
+    case ExportResult.Success:
+        nox.test.assert_true(True, "first bounded in-memory export succeeds")
+    case _:
+        nox.test.assert_true(False, "first bounded in-memory export must succeed")
+
+first.metrics[0].descriptor.name = "mutated"
+stored: list[MetricCollection] = exporter.snapshot()
+nox.test.assert_true(stored[0].metrics[0].descriptor.name != "mutated", "in-memory exporter snapshots caller-owned metric data")
+
+clock.advance(25, 25)
+second: MetricCollection = reader.collect(provider)
+second_total: int = -1
+for metric in second.metrics:
+    if metric.descriptor.name == "requests":
+        match metric.data:
+            case MetricData.Counter(snapshot):
+                second_total = snapshot.points[0].total
+            case _:
+                nox.test.assert_true(False, "counter descriptor must carry counter data")
+nox.test.assert_eq_int(second_total, 5, "later collection remains cumulative after successful export")
+
+second_result: ExportResult = exporter.export_metrics(second)
+match second_result:
+    case ExportResult.Failure(ErrorKind.LimitExceeded, _):
+        nox.test.assert_true(True, "full in-memory exporter reports a bounded failure")
+    case _:
+        nox.test.assert_true(False, "full in-memory exporter must not claim success")
+nox.test.assert_eq_int(exporter.dropped_collections, 1, "bounded exporter exposes its drop diagnostic")
+nox.test.assert_eq_int(len(exporter.snapshot()), 1, "bounded exporter does not grow after reaching capacity")
+
+match exporter.force_flush():
+    case FlushResult.Success:
+        nox.test.assert_true(True, "active in-memory exporter flush is immediately complete")
+    case _:
+        nox.test.assert_true(False, "active in-memory exporter flush must succeed")
+match exporter.shutdown():
+    case ShutdownResult.Success:
+        nox.test.assert_true(True, "first in-memory exporter shutdown succeeds")
+    case _:
+        nox.test.assert_true(False, "first shutdown must succeed")
+match exporter.shutdown():
+    case ShutdownResult.AlreadyShutdown:
+        nox.test.assert_true(True, "in-memory exporter shutdown is idempotent")
+    case _:
+        nox.test.assert_true(False, "second shutdown must report already shutdown")
+match exporter.export_metrics(second):
+    case ExportResult.Failure(ErrorKind.InvalidState, _):
+        nox.test.assert_true(True, "shutdown exporter rejects new collections")
+    case _:
+        nox.test.assert_true(False, "shutdown exporter must reject export")

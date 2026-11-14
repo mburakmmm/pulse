@@ -1,0 +1,119 @@
+from core.attributes import AttributeSet
+from core.errors import TelemetryError
+from core.scope import InstrumentationScope
+from metrics.counter_storage import CounterPointSnapshot, CounterStorageSnapshot
+from metrics.histogram import HistogramSnapshot
+from metrics.histogram_storage import HistogramPointSnapshot, HistogramStorageSnapshot
+from metrics.instruments import InstrumentDescriptor, InstrumentKind
+from metrics.series import copy_attribute_set
+from metrics.updown_storage import UpDownPointSnapshot, UpDownStorageSnapshot
+
+class MetricScopeSnapshot:
+    name: str
+    version: str | None
+    schema_url: str | None
+    attributes: AttributeSet
+
+    def __init__(self, name: str, version: str | None, schema_url: str | None, attributes: AttributeSet) -> None:
+        self.name = name
+        self.version = version
+        self.schema_url = schema_url
+        self.attributes = attributes
+
+class MetricDescriptorSnapshot:
+    name: str
+    kind: InstrumentKind
+    unit: str
+    description: str
+
+    def __init__(self, name: str, kind: InstrumentKind, unit: str, description: str) -> None:
+        self.name = name
+        self.kind = kind
+        self.unit = unit
+        self.description = description
+
+enum MetricData:
+    Counter(snapshot: CounterStorageSnapshot)
+    UpDownCounter(snapshot: UpDownStorageSnapshot)
+    Histogram(snapshot: HistogramStorageSnapshot)
+
+class MetricSnapshot:
+    scope: MetricScopeSnapshot
+    descriptor: MetricDescriptorSnapshot
+    start_time_ns: int
+    time_ns: int
+    data: MetricData
+
+    def __init__(self, scope: MetricScopeSnapshot, descriptor: MetricDescriptorSnapshot, start_time_ns: int, time_ns: int, data: MetricData) -> None:
+        if start_time_ns < 0 or time_ns < start_time_ns:
+            raise TelemetryError("metric timestamps must be nonnegative and ordered")
+        self.scope = scope
+        self.descriptor = descriptor
+        self.start_time_ns = start_time_ns
+        self.time_ns = time_ns
+        self.data = data
+
+class MetricCollection:
+    start_time_ns: int
+    time_ns: int
+    metrics: list[MetricSnapshot]
+
+    def __init__(self, start_time_ns: int, time_ns: int, metrics: list[MetricSnapshot]) -> None:
+        if start_time_ns < 0 or time_ns < start_time_ns:
+            raise TelemetryError("collection timestamps must be nonnegative and ordered")
+        self.start_time_ns = start_time_ns
+        self.time_ns = time_ns
+        self.metrics = metrics
+
+def snapshot_scope(scope: InstrumentationScope) -> MetricScopeSnapshot:
+    return MetricScopeSnapshot(scope.name, scope.version, scope.schema_url, copy_attribute_set(scope.attributes))
+
+def snapshot_descriptor(descriptor: InstrumentDescriptor) -> MetricDescriptorSnapshot:
+    return MetricDescriptorSnapshot(descriptor.name, descriptor.kind, descriptor.unit, descriptor.description)
+
+def copy_counter_storage_snapshot(snapshot: CounterStorageSnapshot) -> CounterStorageSnapshot:
+    points: list[CounterPointSnapshot] = []
+    for point in snapshot.points:
+        points.append(CounterPointSnapshot(copy_attribute_set(point.attributes), point.total, point.overflow))
+    return CounterStorageSnapshot(points, snapshot.dropped_attributes, snapshot.overflow_measurements)
+
+def copy_updown_storage_snapshot(snapshot: UpDownStorageSnapshot) -> UpDownStorageSnapshot:
+    points: list[UpDownPointSnapshot] = []
+    for point in snapshot.points:
+        points.append(UpDownPointSnapshot(copy_attribute_set(point.attributes), point.total, point.overflow))
+    return UpDownStorageSnapshot(points, snapshot.dropped_attributes, snapshot.overflow_measurements)
+
+def copy_histogram_snapshot(snapshot: HistogramSnapshot) -> HistogramSnapshot:
+    boundaries: list[float] = []
+    for boundary in snapshot.boundaries:
+        boundaries.append(boundary)
+    bucket_counts: list[int] = []
+    for bucket_count in snapshot.bucket_counts:
+        bucket_counts.append(bucket_count)
+    return HistogramSnapshot(boundaries, bucket_counts, snapshot.count, snapshot.sum, snapshot.has_min_max, snapshot.minimum, snapshot.maximum)
+
+def copy_histogram_storage_snapshot(snapshot: HistogramStorageSnapshot) -> HistogramStorageSnapshot:
+    points: list[HistogramPointSnapshot] = []
+    for point in snapshot.points:
+        points.append(HistogramPointSnapshot(copy_attribute_set(point.attributes), copy_histogram_snapshot(point.data), point.overflow))
+    return HistogramStorageSnapshot(points, snapshot.dropped_attributes, snapshot.overflow_measurements)
+
+def copy_metric_data(data: MetricData) -> MetricData:
+    match data:
+        case MetricData.Counter(snapshot):
+            return MetricData.Counter(copy_counter_storage_snapshot(snapshot))
+        case MetricData.UpDownCounter(snapshot):
+            return MetricData.UpDownCounter(copy_updown_storage_snapshot(snapshot))
+        case MetricData.Histogram(snapshot):
+            return MetricData.Histogram(copy_histogram_storage_snapshot(snapshot))
+
+def copy_metric_snapshot(snapshot: MetricSnapshot) -> MetricSnapshot:
+    scope: MetricScopeSnapshot = MetricScopeSnapshot(snapshot.scope.name, snapshot.scope.version, snapshot.scope.schema_url, copy_attribute_set(snapshot.scope.attributes))
+    descriptor: MetricDescriptorSnapshot = MetricDescriptorSnapshot(snapshot.descriptor.name, snapshot.descriptor.kind, snapshot.descriptor.unit, snapshot.descriptor.description)
+    return MetricSnapshot(scope, descriptor, snapshot.start_time_ns, snapshot.time_ns, copy_metric_data(snapshot.data))
+
+def copy_metric_collection(collection: MetricCollection) -> MetricCollection:
+    metrics: list[MetricSnapshot] = []
+    for metric in collection.metrics:
+        metrics.append(copy_metric_snapshot(metric))
+    return MetricCollection(collection.start_time_ns, collection.time_ns, metrics)
