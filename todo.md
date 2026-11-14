@@ -186,7 +186,7 @@ Durum: Yerel faz kapısı ve dört hedefli uzak core CI kapısı geçti.
 - [x] Windows x64 portable core hedefi resmî zip/checksum kurulumu ve iki-backend suite ile CI run #7'de geçti; Unix-only capability auditleri Windows için iddia edilmiyor.
 - [x] Downstream dependency alias/package smoke testi ve iki backend'de çalışan `examples/hello_metrics.nox` derleme/çıktı kapısı eklendi.
 - [x] CI step summary ve platform belgesinde `SKIPPED`, `UNSUPPORTED` ve `PENDING` durumları başarıdan ayrıldı; OTLP/Prometheus interop çalıştırılmış gibi gösterilmiyor.
-- [x] GitHub yayını ve dört-platform nihai kanıt tamamlandı: portable `find`/`git grep`, tracked-source ABI guard ve iki taraflı CRLF normalization düzeltmeleri commit `8a81f3d` için CI run #7'de geçti.
+- [x] GitHub yayını, profesyonel About açıklaması/konuları ve dört-platform nihai kanıt tamamlandı: portable `find`/`git grep`, tracked-source ABI guard ve iki taraflı CRLF normalization düzeltmeleri commit `8a81f3d` için CI run #7'de geçti.
 
 #### Çıkış kapısı
 
