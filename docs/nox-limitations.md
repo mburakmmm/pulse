@@ -231,8 +231,6 @@ used as release evidence.
 
 - `AUDIT-PENDING`: system-trusted TLS success and isolated hostname mismatch on all
   supported CI platforms.
-- `AUDIT-PENDING`: Windows x64 Pulse CI execution; upstream support is not evidence
-  that this repository's suite ran there.
 - `AUDIT-PENDING`: real Collector OTLP/HTTP trace and metric interoperability.
 - `AUDIT-PENDING`: optional OTLP/gRPC Collector interoperability.
 - `AUDIT-PENDING`: UDP loopback on each supported POSIX platform if Pulse later adds

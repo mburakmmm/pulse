@@ -124,7 +124,7 @@ Milestone'lar:
 Amaç: Hiçbir kamu API'si tasarlamadan önce gerçek NOX yeteneklerini ve protokol sürümlerini kanıtlamak.
 
 Bağımlılık: Yok.  
-Durum: Yerel faz kapısı geçti; uzak platform CI kanıtları sürüm öncesi izleniyor.
+Durum: Yerel faz kapısı ve dört hedefli uzak core CI kapısı geçti.
 
 #### Depo ve paket temeli
 
@@ -182,11 +182,11 @@ Durum: Yerel faz kapısı geçti; uzak platform CI kanıtları sürüm öncesi i
 - [x] ADR-0004: deterministik test clock, sequence ID generator, scripted transport, bounded in-memory sink ve suite sınıflandırması.
 - [ ] `tests/unit`, `golden`, `integration`, `conformance`, `concurrency`, `security`, `fuzz`, `benchmarks` koşum biçimini doğrula.
 - [x] QBE ve LLVM smoke job'larını checksum-verified NOX release kurulumu ile workflow'a ekle.
-- [x] macOS ARM64, Linux x64 ve Linux ARM64 workflow matrisini ekle; remote sonuç bekleniyor.
-- [~] Windows x64 core workflow hedefi resmî zip/checksum kurulumu ve iki-backend suite ile eklendi; destek iddiası remote sonuç görülene kadar `PENDING`.
+- [x] macOS ARM64, Linux x64 ve Linux ARM64 workflow matrisi CI run #7'de core ve capability işleriyle geçti.
+- [x] Windows x64 portable core hedefi resmî zip/checksum kurulumu ve iki-backend suite ile CI run #7'de geçti; Unix-only capability auditleri Windows için iddia edilmiyor.
 - [x] Downstream dependency alias/package smoke testi ve iki backend'de çalışan `examples/hello_metrics.nox` derleme/çıktı kapısı eklendi.
 - [x] CI step summary ve platform belgesinde `SKIPPED`, `UNSUPPORTED` ve `PENDING` durumları başarıdan ayrıldı; OTLP/Prometheus interop çalıştırılmış gibi gösterilmiyor.
-- [~] İlk GitHub yayını `3d6a89c` ile tamamlandı; ilk Windows koşusu CRLF ve runner'da eksik `rg` varsayımını yakaladı, portable `find`/`grep` + text normalization düzeltmesi remote tekrar doğrulamasını bekliyor. Repository metadata ve dört-platform nihai kanıt henüz tamamlanmadı.
+- [x] GitHub yayını ve dört-platform nihai kanıt tamamlandı: portable `find`/`git grep`, tracked-source ABI guard ve iki taraflı CRLF normalization düzeltmeleri commit `8a81f3d` için CI run #7'de geçti.
 
 #### Çıkış kapısı
 
@@ -194,7 +194,7 @@ Durum: Yerel faz kapısı geçti; uzak platform CI kanıtları sürüm öncesi i
 - [x] Faz 1'de kullanılacak public stdlib yetenekleri için derlenen smoke testi var.
 - [x] Eksik yetenekler ve fallback'ler `docs/compatibility.md` içinde açık.
 - [x] Standart sürümleri ve protobuf schema kaynağı sabit; vendored schema/checksum Faz 7 teslimi olarak açık.
-- [x] Minimal CI tanımı mevcut; yerelde iki backend yeşil, çalıştırılmayan uzak platformlar açıkça `pending/unsupported` işaretli.
+- [x] CI run #7'de macOS ARM64, Linux x64, Linux ARM64 ve Windows x64 portable core kapıları yeşil; çalıştırılmayan Windows capability auditleri açıkça kapsam dışı.
 
 ### `v0.1.0` — Faz 1: ortak telemetry primitives
 
@@ -708,11 +708,11 @@ Commit/tag:
 
 ### `v0.0.1` / Faz 0
 
-- Durum ve tarih: yerel kapı geçti, 2026-11-11.
+- Durum ve tarih: yerel kapı 2026-11-11'de, dört hedefli uzak core kapısı 2026-11-14'te geçti.
 - NOX: daha sonra doğrulanıp baseline yapılan `2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`.
-- Platform: macOS ARM64; QBE ve LLVM smoke 10/10, capability auditleri geçti.
-- Kalanlar: uzak CI platform kanıtı, Windows kararı, trusted TLS matrisi, lisans kararı.
-- Commit/tag: henüz yok; bu kayıt yayın iddiası değildir.
+- Platform: macOS ARM64 yerel; CI run #7'de macOS ARM64, Linux x64, Linux ARM64 ve Windows x64 portable core geçti. Unix capability auditleri üç Unix hedefinde geçti.
+- Kalanlar: system-trusted/hostname TLS matrisi, lisans kararı ve sonraki fazların conformance kapıları.
+- Commit/tag: `8a81f3d272a3f5eae0937b0f7e0477ca178d7586`; tag yok.
 
 ### `v0.1.0` / Faz 1
 

@@ -1,8 +1,9 @@
 # NOX compatibility audit
 
-Status: Phase 0 local gate passed on 2026-11-11 and the isolated NOX 2.1.64
-upgrade gate passed on 2026-11-12. This document records runtime
-capabilities; it does not claim that Pulse exporters are already implemented.
+Status: Phase 0 local gate passed on 2026-11-11, the isolated NOX 2.1.64
+upgrade gate passed on 2026-11-12 and the four-target remote core matrix passed
+on 2026-11-14. This document records runtime capabilities; it does not claim
+that Pulse exporters are already implemented.
 
 ## Selected baseline
 
@@ -17,8 +18,8 @@ capabilities; it does not claim that Pulse exporters are already implemented.
 | System compiler | `2.1.52`, unchanged | User requested that the system installation not be modified |
 | Profile | `hosted` | Required for clock, network, filesystem and secure entropy |
 | Locally tested backends | LLVM and QBE | 10-file smoke suite plus capability audits |
-| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Workflow configured; remote evidence remains separate |
-| Windows x64 | `PENDING` Pulse CI result | Official checksum-verified toolchain asset is configured; upstream support alone is not a Pulse test result |
+| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Core matrix passed in CI run #7 against the pinned compiler |
+| Windows x64 | Portable core `PASS` | Official checksum-verified toolchain plus QBE/LLVM suite passed; Unix-only capability audits remain unclaimed |
 
 Pulse pins `2.1.64` for CI after testing its official archive from a temporary
 directory. The system-installed `2.1.52` was not upgraded or replaced.
@@ -70,7 +71,7 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 - No Zig/NNI glue is approved for the initial primitives; current required runtime
   features are public NOX APIs.
 
-## Local evidence — 2026-11-13
+## Local evidence — 2026-11-14
 
 | Command | Result |
 |---|---|
@@ -96,10 +97,23 @@ int64 parsing, generic enums/match, byte bridges, gzip and protobuf encoding/dec
 Importing gRPC/UDP proves the public modules type-checks; it is deliberately not
 reported as Collector or network interoperability.
 
+## Remote evidence — 2026-11-14
+
+[GitHub Actions CI run #7](https://github.com/mburakmmm/pulse/actions/runs/43593764797)
+passed on commit `8a81f3d272a3f5eae0937b0f7e0477ca178d7586`:
+
+- portable QBE and LLVM core suite on macOS ARM64, Linux x64, Linux ARM64 and
+  Windows x64;
+- runtime, type/compiler-limit, HTTP/TLS and backend-transfer audits on macOS
+  ARM64, Linux x64 and Linux ARM64;
+- final `CI success` job requiring every claimed matrix gate.
+
+The Windows result is a portable core claim only. It does not imply that the
+Unix-only HTTP/TLS or backend-transfer harnesses ran on Windows.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.
-- Remote macOS ARM64, Linux x64, Linux ARM64 and Windows x64 Pulse CI results.
 - Vendored OTLP schema checksum manifest and independent protobuf decoder fixtures.
 - Real OpenTelemetry Collector and Prometheus parser integration in their phases.
 - Optional gRPC and UDP integration only if Pulse elects to support those exporters.

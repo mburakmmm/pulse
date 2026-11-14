@@ -79,6 +79,11 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 - The manifest advances to `0.1.0` after the common-primitives local gate; active work moves to the unreleased `v0.2.0` metrics core.
 - `NOX-CODEGEN-001` records that optional float class fields type-check but fail executable codegen on 2.1.64; histograms use an explicit `has_min_max` representation.
 
+### Fixed
+
+- Golden fixtures normalize both expected and actual line endings, allowing the
+  full portable QBE/LLVM core suite to pass on Windows as well as Unix targets.
+
 ### Security
 
 - No telemetry implementation or network exporter is enabled.

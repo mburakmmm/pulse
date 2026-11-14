@@ -6,12 +6,12 @@ compiler and both required backends.
 
 ## Current matrix
 
-| Target | Core suite | Extended capability audit | Status before first remote run |
+| Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|
-| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | Locally verified; remote pending |
-| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | Remote pending |
-| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | Remote pending |
-| Windows x64 | QBE + LLVM | Not yet claimed | Remote pending |
+| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #7 |
+| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #7 |
+| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #7 |
+| Windows x64 | QBE + LLVM | Not yet claimed | Portable core `PASS`, CI run #7 |
 
 The core suite includes module checking, smoke build/run, unit, property,
 security, golden and cardinality stress tests, the compiling example and a
@@ -42,3 +42,6 @@ test pass; QBE behavior will be reported independently.
 
 GitHub Actions logs are the source of truth for remote runs. Documentation is
 updated only after those results are observed.
+
+The current evidence is [CI run #7](https://github.com/mburakmmm/pulse/actions/runs/43593764797),
+completed successfully on 2026-11-14 for commit `8a81f3d272a3f5eae0937b0f7e0477ca178d7586`.
