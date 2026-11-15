@@ -5,9 +5,8 @@ Pulse baseline: NOX `2.1.64`, source commit `be3458c332c8234baa8f3f8ac2ae9601db2
 Compiler build identity: `noxc version --build-info` reports the same commit  
 Audited binary SHA-256: `067b6dbfd4a42f692690dbaa2bf390486b33a491614460e61b6b2191307737d7`  
 Last local re-verification: 2026-11-15, macOS ARM64, QBE and LLVM; portable core
-CI run #8 passed on macOS ARM64, Linux x64, Linux ARM64 and Windows x64 on
-2026-11-14. Phase 3 CI run #9 exposed `NOX-IO-001` on Windows x64; its
-portable containment is awaiting the next remote matrix run.
+CI run #10 passed on macOS ARM64, Linux x64, Linux ARM64 and Windows x64 on
+2026-11-15, including the Phase 3 `NOX-IO-001` probe and containment.
 
 This register separates actual defects from language/runtime design constraints and
 Pulse-only audit work. A closed historical item remains here so an older workaround
@@ -59,6 +58,9 @@ used as release evidence.
 - Gate: Unix targets require exact redirected bytes. Windows targets require the
   known `TerminalError` on both backends so an upstream behavior change cannot be
   hidden; after upstream fixes it, the deliberately failing audit must be updated.
+- Remote evidence: [CI run #10](https://github.com/mburakmmm/pulse/actions/runs/43745579223)
+  observed `write_raw=known-incompatible` on Windows x64 LLVM and QBE, while the
+  portable golden renderer test passed on both backends.
 - Close when: redirected output from the minimal fixture succeeds byte-exactly on
   Windows x64 QBE and LLVM, and the containment/audit documentation is retired.
 

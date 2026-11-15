@@ -2,8 +2,8 @@
 
 Status: Phase 0 local gate passed on 2026-11-11, the isolated NOX 2.1.64
 upgrade gate passed on 2026-11-12 and the four-target remote core matrix passed
-on 2026-11-14. This document records runtime capabilities; it does not claim
-that Pulse exporters are already implemented.
+with Phase 3 coverage on 2026-11-15. This document records runtime capabilities;
+it does not claim pending exporters or integrations are implemented.
 
 ## Selected baseline
 
@@ -18,8 +18,8 @@ that Pulse exporters are already implemented.
 | System compiler | `2.1.52`, unchanged | User requested that the system installation not be modified |
 | Profile | `hosted` | Required for clock, network, filesystem and secure entropy |
 | Locally tested backends | LLVM and QBE | 10-file smoke suite plus capability audits |
-| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Core matrix passed in CI run #7 against the pinned compiler |
-| Windows x64 | Portable core `PASS` | Official checksum-verified toolchain plus QBE/LLVM suite passed; Unix-only capability audits remain unclaimed |
+| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Core matrix passed in CI run #10 against the pinned compiler |
+| Windows x64 | Portable core `PASS` | Official checksum-verified toolchain plus QBE/LLVM suite and Phase 3 containment passed; Unix-only capability audits remain unclaimed |
 
 Pulse pins `2.1.64` for CI after testing its official archive from a temporary
 directory. The system-installed `2.1.52` was not upgraded or replaced.
@@ -106,10 +106,10 @@ int64 parsing, generic enums/match, byte bridges, gzip and protobuf encoding/dec
 Importing gRPC/UDP proves the public modules type-checks; it is deliberately not
 reported as Collector or network interoperability.
 
-## Remote evidence — 2026-11-14
+## Remote evidence — 2026-11-15
 
-[GitHub Actions CI run #8](https://github.com/mburakmmm/pulse/actions/runs/43627076879)
-passed on commit `190d154041bf8c317471bb52404ff46426761af1`:
+[GitHub Actions CI run #10](https://github.com/mburakmmm/pulse/actions/runs/43745579223)
+passed on commit `57ed3eabc553a212c7911384196b8d9d12a75e6b`:
 
 - portable QBE and LLVM core suite on macOS ARM64, Linux x64, Linux ARM64 and
   Windows x64;
@@ -118,17 +118,19 @@ passed on commit `190d154041bf8c317471bb52404ff46426761af1`:
 - cumulative reader, bounded memory/console exporters, aggregation properties,
   privacy, 100,000-label stress and atomic 10×1,000 counter gates on both
   backends in every portable core target;
+- Prometheus text 0.0.4 renderer/golden gates on QBE and LLVM for every core
+  target, plus checksum-verified promtool 3.16.0 conformance on Linux x64;
+- `NOX-IO-001` reproduced as an expected Windows LLVM/QBE capability failure,
+  with the portable golden-output containment passing on both backends;
 - final `CI success` job requiring every claimed matrix gate.
 
 The Windows result is a portable core claim only. It does not imply that the
 Unix-only HTTP/TLS or backend-transfer harnesses ran on Windows.
 
 Phase 3 [CI run #9](https://github.com/mburakmmm/pulse/actions/runs/43744840230)
-passed the renderer unit suite and all Unix jobs, including independent promtool
-conformance, but failed the Windows golden helper because redirected
-`nox.terminal.write_raw()` raised `TerminalError`. That failure is recorded as
-`NOX-IO-001`; the portable containment has passed locally and awaits a new remote
-matrix result before Windows Phase 3 is claimed.
+first exposed the redirected `write_raw` failure. Run #10 preserves that evidence
+with a minimal expected-failure probe and proves the portable renderer containment
+across the full matrix.
 
 ## Remaining audit work
 

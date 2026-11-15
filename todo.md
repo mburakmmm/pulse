@@ -273,7 +273,7 @@ Bağımlılık: `v0.2.0`.
 - [x] Renderer bozuk bucket toplamını reddediyor; `+Inf == total count` iki backend'de doğrulandı.
 - [ ] Resource attribute allowlist/target-info politikası.
 - [x] Stable deterministic text `0.0.4` output ve byte-for-byte golden fixture QBE/LLVM'de geçti.
-- [~] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment yerelde geçti, uzak Windows doğrulaması bekleniyor.
+- [x] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment CI run #10'da Windows LLVM/QBE dahil tüm matriste geçti.
 - [~] Immutable collection render internally consistent; concurrent provider collection hâlâ single-owner sınırı nedeniyle açık.
 - [x] Renderer yalnız snapshot/string modüllerine bağlı saf fonksiyon; render sırasında ağ I/O veya recursive telemetry yolu yok.
 - [ ] Opsiyonel HTTP handler: loopback default veya explicit bind zorunluluğu.
@@ -668,7 +668,7 @@ Bu liste her PR/commit için uygulanır:
 | Formatter regresyonu generic veya binary kaynak semantiğini bozabilir | Kamu API kaynakları bozulur | check→fmt→check capability fixtures | Kapatıldı / regresyon kapısı aktif |
 | Pass-only class formatter gövdeyi siliyor (`NOX-FMT-004`) | Format sonrası geçersiz kaynak | Pulse sınıfları gerçek metot gövdesi kullanır; fixture upstream kusuru yeniden üretir | Açık / contained |
 | Optional float class state codegen olmuyor (`NOX-CODEGEN-001`) | Histogram empty min/max temsili build'i durdurur | `has_min_max` + concrete floats; fixture check-pass/build-fail'i yeniden üretir | Açık / contained |
-| Redirected `nox.terminal.write_raw` Windows'ta hata veriyor (`NOX-IO-001`) | Golden/CLI helper redirected stdout altında düşer | Minimal platform/backend probe + portable `print` helper; Windows CI yeniden doğrulaması açık | Açık / contained |
+| Redirected `nox.terminal.write_raw` Windows'ta hata veriyor (`NOX-IO-001`) | Golden/CLI helper redirected stdout altında düşer | Minimal platform/backend probe + portable `print` helper; CI run #10 Windows LLVM/QBE containment geçti | Açık / contained |
 | Typed enum/match regress edebilir | `AttributeValue` exhaustiveness bozulur | ADR-0006 + iki-backend smoke | Kapatıldı / regresyon kapısı aktif |
 | `str` protobuf binary fidelity bozulabilir | OTLP bozulur | NUL/high-byte, byte bridge, protobuf ve HTTP round-trip kapıları | Azaltıldı / Collector açık |
 | Task-local miras yok ve backend transferleri farklı | Context leakage | Explicit immutable context temel API | Tasarım limiti |

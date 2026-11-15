@@ -8,10 +8,10 @@ compiler and both required backends.
 
 | Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|
-| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
-| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
-| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
-| Windows x64 | QBE + LLVM | Not yet claimed | Last complete core `PASS`, CI run #8; Phase 3 containment pending remote rerun after run #9 exposed `NOX-IO-001` |
+| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #10 |
+| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #10 |
+| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #10 |
+| Windows x64 | QBE + LLVM | Not yet claimed | Portable core and Phase 3 containment `PASS`, CI run #10; `NOX-IO-001` reproduced as expected |
 
 The core suite includes module checking, smoke build/run, unit, property,
 security, golden and cardinality stress tests, the compiling example and a
@@ -25,8 +25,8 @@ That distinction is a documented scope limit, not a passing result.
 CI run #9 passed the Phase 3 renderer tests on Unix but exposed a Windows-only
 failure in redirected `nox.terminal.write_raw()`. The pure renderer was not the
 failing component. `NOX-IO-001` now has a minimal QBE/LLVM platform audit, and the
-golden helper uses portable `print` output; Windows Phase 3 remains pending until
-that containment passes remotely.
+golden helper uses portable `print` output. CI run #10 passed that containment on
+Windows while preserving the expected upstream-failure evidence.
 
 ## Thread safety
 
@@ -50,5 +50,5 @@ outside that concurrency proof.
 GitHub Actions logs are the source of truth for remote runs. Documentation is
 updated only after those results are observed.
 
-The current evidence is [CI run #8](https://github.com/mburakmmm/pulse/actions/runs/43627076879),
-completed successfully on 2026-11-14 for commit `190d154041bf8c317471bb52404ff46426761af1`.
+The current evidence is [CI run #10](https://github.com/mburakmmm/pulse/actions/runs/43745579223),
+completed successfully on 2026-11-15 for commit `57ed3eabc553a212c7911384196b8d9d12a75e6b`.
