@@ -6,7 +6,8 @@ Compiler build identity: `noxc version --build-info` reports the same commit
 Audited binary SHA-256: `067b6dbfd4a42f692690dbaa2bf390486b33a491614460e61b6b2191307737d7`  
 Last local re-verification: 2026-11-15, macOS ARM64, QBE and LLVM; portable core
 CI run #8 passed on macOS ARM64, Linux x64, Linux ARM64 and Windows x64 on
-2026-11-14
+2026-11-14. Phase 3 CI run #9 exposed `NOX-IO-001` on Windows x64; its
+portable containment is awaiting the next remote matrix run.
 
 This register separates actual defects from language/runtime design constraints and
 Pulse-only audit work. A closed historical item remains here so an older workaround
@@ -40,6 +41,26 @@ used as release evidence.
 - Pulse containment: Pulse pass-only subclasses define a small real method. This
   avoids invalid formatted source without changing exception behavior.
 - Close when: check → format → check passes for pass-only classes.
+
+### NOX-IO-001 — Redirected `nox.terminal.write_raw` fails on Windows
+
+- Status: `OPEN-UPSTREAM` on NOX `2.1.64`, Windows x64.
+- Observed: a program using the public `nox.terminal.write_raw()` API throws
+  `nox_terminal_TerminalError` when standard output is redirected to a file on
+  Windows. The same operation succeeds on macOS and Linux. This was first
+  isolated from the Phase 3 golden helper in
+  [CI run #9](https://github.com/mburakmmm/pulse/actions/runs/43744840230/job/132905745139);
+  the renderer unit suite itself passed before the helper failed.
+- Reproducer: `tests/capability/terminal_redirect_probe.nox`, built and executed
+  through `bash scripts/run-terminal-redirect-audit.sh <llvm|qbe>`.
+- Pulse containment: telemetry renderers remain pure string functions. Portable
+  golden helpers use `print(nox.strings.trim_end(payload))` and normalize CRLF;
+  they do not use the raw terminal API.
+- Gate: Unix targets require exact redirected bytes. Windows targets require the
+  known `TerminalError` on both backends so an upstream behavior change cannot be
+  hidden; after upstream fixes it, the deliberately failing audit must be updated.
+- Close when: redirected output from the minimal fixture succeeds byte-exactly on
+  Windows x64 QBE and LLVM, and the containment/audit documentation is retired.
 
 ## Closed historical defects
 
@@ -267,7 +288,7 @@ failing probe distinguishes a compiler/runtime limitation from a Pulse defect.
 | Phase 0 — audit | `NOX-FMT-004`; QBE/task-local/module/thread design limits; historical fixes re-verified | Type/runtime/transfer/smoke audit scripts |
 | Phase 1 — primitives | No new upstream defect; exact int64, clocks, IDs, protobuf and typed enums remained verified | QBE + LLVM primitive unit/property/security/golden suites |
 | Phase 2 — metrics core | `NOX-CODEGEN-001`, `NOX-CODEGEN-002` | Explicit histogram presence flag; concrete snapshot helpers; expected-failure fixtures plus two-backend positive tests |
-| Phase 3 — Prometheus renderer slice | No new NOX limitation observed in the pure renderer slice | `scripts/run-phase3-tests.sh` passes type, behavior and golden gates on QBE + LLVM; existing concrete-helper containment remains in force |
+| Phase 3 — Prometheus renderer slice | `NOX-IO-001` | Pure renderer remains portable; redirected `write_raw` has a minimal expected-failure probe, while the golden helper uses portable `print` output on QBE + LLVM |
 
 Future phases append a row or explicitly record “no new NOX limitation observed”
 with the exact capability and behavioral commands used for that conclusion.

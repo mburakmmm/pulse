@@ -55,7 +55,9 @@ aggregation.
 
 `scripts/run-phase3-tests.sh <llvm|qbe>` type-checks the renderer, runs behavioral
 and failure tests, and compares byte-for-byte output against
-`fixtures/prometheus/text-0.0.4.golden.txt`.
+`fixtures/prometheus/text-0.0.4.golden.txt`. The helper uses portable `print`
+output rather than `nox.terminal.write_raw`; `NOX-IO-001` tracks the latter's
+redirected-output failure on Windows independently from renderer correctness.
 
 `scripts/run-prometheus-conformance.sh` then feeds that fixture to Prometheus
 `promtool check metrics`. CI downloads the official Linux x64 Prometheus 3.16.0

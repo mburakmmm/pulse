@@ -96,11 +96,16 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 - `NOX-CODEGEN-002` records that direct list iteration through an imported enum
   snapshot payload type-checks but fails QBE/LLVM codegen; concrete-typed helper
   dispatch is the verified containment.
+- `NOX-IO-001` records that redirected `nox.terminal.write_raw()` fails with
+  `TerminalError` on Windows x64. A two-backend platform probe preserves the
+  evidence, while golden helpers use portable `print` output.
 
 ### Fixed
 
 - Golden fixtures normalize both expected and actual line endings, allowing the
   full portable QBE/LLVM core suite to pass on Windows as well as Unix targets.
+- The Prometheus golden helper no longer depends on raw terminal output, which
+  fails when redirected on NOX 2.1.64 for Windows x64.
 
 ### Security
 

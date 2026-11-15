@@ -11,7 +11,7 @@ compiler and both required backends.
 | macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
 | Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
 | Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
-| Windows x64 | QBE + LLVM | Not yet claimed | Portable core `PASS`, CI run #8 |
+| Windows x64 | QBE + LLVM | Not yet claimed | Last complete core `PASS`, CI run #8; Phase 3 containment pending remote rerun after run #9 exposed `NOX-IO-001` |
 
 The core suite includes module checking, smoke build/run, unit, property,
 security, golden and cardinality stress tests, the compiling example and a
@@ -21,6 +21,12 @@ The Windows job uses the official checksum-verified zip release and runs the
 portable project suite. HTTP/TLS and backend-transfer capability scripts retain
 POSIX test-harness dependencies and are not presented as Windows verification.
 That distinction is a documented scope limit, not a passing result.
+
+CI run #9 passed the Phase 3 renderer tests on Unix but exposed a Windows-only
+failure in redirected `nox.terminal.write_raw()`. The pure renderer was not the
+failing component. `NOX-IO-001` now has a minimal QBE/LLVM platform audit, and the
+golden helper uses portable `print` output; Windows Phase 3 remains pending until
+that containment passes remotely.
 
 ## Thread safety
 

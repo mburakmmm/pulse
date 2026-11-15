@@ -1,0 +1,3 @@
+import nox.terminal
+
+nox.terminal.write_raw("terminal-redirect-ok\n")

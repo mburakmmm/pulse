@@ -67,6 +67,9 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 - Direct list iteration through an imported enum's snapshot payload type-checks but
   fails codegen. Export rendering dispatches to concrete-typed helpers; see
   `NOX-CODEGEN-002`.
+- Redirected `nox.terminal.write_raw()` fails with `TerminalError` on Windows x64.
+  Golden helpers use portable `print` output; a platform/backend probe keeps the
+  upstream defect visible as `NOX-IO-001`.
 - `nox.http.request` buffers bodies. Pulse enforces request/response payload caps,
   positive deadlines and a credential-safe redirect policy.
 - gRPC permits one active call/stream per connection and has no client-side read
@@ -91,8 +94,8 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 | `bash scripts/run-phase1-tests.sh qbe` | same Phase 1 gates pass |
 | `bash scripts/run-phase2-tests.sh llvm` | single-owner provider, cumulative reader, memory/console exporters, aggregation properties, 10×1,000 worker counter, cardinality and 100k-label stress gates pass |
 | `bash scripts/run-phase2-tests.sh qbe` | same Phase 2 gates pass |
-| `bash scripts/run-phase3-tests.sh llvm` | pure Prometheus text 0.0.4 renderer, escaping, family semantics, histogram invariants, output bound and golden fixture pass; parser is a separate gate, endpoint pending |
-| `bash scripts/run-phase3-tests.sh qbe` | same Phase 3 renderer gates pass |
+| `bash scripts/run-phase3-tests.sh llvm` | pure Prometheus text 0.0.4 renderer, escaping, family semantics, histogram invariants, output bound, portable golden fixture and terminal-redirect audit pass; parser is a separate gate, endpoint pending |
+| `bash scripts/run-phase3-tests.sh qbe` | same Phase 3 renderer and terminal-redirect gates pass |
 | `PROMTOOL=<official-3.16.0> bash scripts/run-prometheus-conformance.sh` | checksum-verified independent Prometheus parser accepts the text 0.0.4 golden fixture; HTTP endpoint pending |
 | `bash scripts/run-examples.sh llvm` | compiling single-owner metrics example passes with exact real totals |
 | `bash scripts/run-examples.sh qbe` | same example and assertions pass |
@@ -119,6 +122,13 @@ passed on commit `190d154041bf8c317471bb52404ff46426761af1`:
 
 The Windows result is a portable core claim only. It does not imply that the
 Unix-only HTTP/TLS or backend-transfer harnesses ran on Windows.
+
+Phase 3 [CI run #9](https://github.com/mburakmmm/pulse/actions/runs/43744840230)
+passed the renderer unit suite and all Unix jobs, including independent promtool
+conformance, but failed the Windows golden helper because redirected
+`nox.terminal.write_raw()` raised `TerminalError`. That failure is recorded as
+`NOX-IO-001`; the portable containment has passed locally and awaits a new remote
+matrix result before Windows Phase 3 is claimed.
 
 ## Remaining audit work
 
