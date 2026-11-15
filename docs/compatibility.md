@@ -74,7 +74,7 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 - No Zig/NNI glue is approved for the initial primitives; current required runtime
   features are public NOX APIs.
 
-## Local evidence — 2026-11-14
+## Local evidence — 2026-11-15
 
 | Command | Result |
 |---|---|
@@ -91,6 +91,9 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 | `bash scripts/run-phase1-tests.sh qbe` | same Phase 1 gates pass |
 | `bash scripts/run-phase2-tests.sh llvm` | single-owner provider, cumulative reader, memory/console exporters, aggregation properties, 10×1,000 worker counter, cardinality and 100k-label stress gates pass |
 | `bash scripts/run-phase2-tests.sh qbe` | same Phase 2 gates pass |
+| `bash scripts/run-phase3-tests.sh llvm` | pure Prometheus text 0.0.4 renderer, escaping, family semantics, histogram invariants, output bound and golden fixture pass; parser is a separate gate, endpoint pending |
+| `bash scripts/run-phase3-tests.sh qbe` | same Phase 3 renderer gates pass |
+| `PROMTOOL=<official-3.16.0> bash scripts/run-prometheus-conformance.sh` | checksum-verified independent Prometheus parser accepts the text 0.0.4 golden fixture; HTTP endpoint pending |
 | `bash scripts/run-examples.sh llvm` | compiling single-owner metrics example passes with exact real totals |
 | `bash scripts/run-examples.sh qbe` | same example and assertions pass |
 | `bash scripts/run-ci-core.sh` | both backends, architecture/privacy/property/golden/stress/example/package-import gates pass |
@@ -102,13 +105,16 @@ reported as Collector or network interoperability.
 
 ## Remote evidence — 2026-11-14
 
-[GitHub Actions CI run #7](https://github.com/mburakmmm/pulse/actions/runs/43593764797)
-passed on commit `8a81f3d272a3f5eae0937b0f7e0477ca178d7586`:
+[GitHub Actions CI run #8](https://github.com/mburakmmm/pulse/actions/runs/43627076879)
+passed on commit `190d154041bf8c317471bb52404ff46426761af1`:
 
 - portable QBE and LLVM core suite on macOS ARM64, Linux x64, Linux ARM64 and
   Windows x64;
 - runtime, type/compiler-limit, HTTP/TLS and backend-transfer audits on macOS
   ARM64, Linux x64 and Linux ARM64;
+- cumulative reader, bounded memory/console exporters, aggregation properties,
+  privacy, 100,000-label stress and atomic 10×1,000 counter gates on both
+  backends in every portable core target;
 - final `CI success` job requiring every claimed matrix gate.
 
 The Windows result is a portable core claim only. It does not imply that the
@@ -118,7 +124,7 @@ Unix-only HTTP/TLS or backend-transfer harnesses ran on Windows.
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.
 - Vendored OTLP schema checksum manifest and independent protobuf decoder fixtures.
-- Real OpenTelemetry Collector and Prometheus parser integration in their phases.
+- Real OpenTelemetry Collector integration and Prometheus HTTP scrape integration in their phases.
 - Optional gRPC and UDP integration only if Pulse elects to support those exporters.
 
 See [`nox-limitations.md`](nox-limitations.md) for closed historical defects and

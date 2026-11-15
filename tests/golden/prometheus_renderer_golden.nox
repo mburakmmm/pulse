@@ -1,0 +1,20 @@
+import nox.terminal
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.limits import default_attribute_limits
+from exporters.prometheus import render_metrics
+from metrics.counter_storage import CounterPointSnapshot, CounterStorageSnapshot
+from metrics.histogram import HistogramSnapshot
+from metrics.histogram_storage import HistogramPointSnapshot, HistogramStorageSnapshot
+from metrics.instruments import InstrumentKind
+from metrics.model import MetricCollection, MetricData, MetricDescriptorSnapshot, MetricScopeSnapshot, MetricSnapshot
+
+scope_attributes: AttributeSet = snapshot_attributes({}, default_attribute_limits(), True)
+scope: MetricScopeSnapshot = MetricScopeSnapshot("golden", None, None, scope_attributes)
+counter_attributes: AttributeSet = snapshot_attributes({"method": AttributeValue.Text("GET"), "route": AttributeValue.Text("/orders")}, default_attribute_limits(), True)
+histogram_attributes: AttributeSet = snapshot_attributes({"route": AttributeValue.Text("/orders")}, default_attribute_limits(), True)
+
+counter: CounterStorageSnapshot = CounterStorageSnapshot([CounterPointSnapshot(counter_attributes, 3, False)], 0, 0)
+histogram: HistogramStorageSnapshot = HistogramStorageSnapshot([HistogramPointSnapshot(histogram_attributes, HistogramSnapshot([0.5, 1.0], [1, 1, 1], 3, 2.25, True, 0.25, 1.25), False)], 0, 0)
+metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("http.server.requests", InstrumentKind.Counter, "1", "HTTP requests"), 100, 200, MetricData.Counter(counter)), MetricSnapshot(scope, MetricDescriptorSnapshot("http.server.duration", InstrumentKind.Histogram, "s", "HTTP duration"), 100, 200, MetricData.Histogram(histogram))]
+
+nox.terminal.write_raw(render_metrics(MetricCollection(100, 200, metrics), 8192))

@@ -4,8 +4,9 @@ Status: Active compatibility register
 Pulse baseline: NOX `2.1.64`, source commit `be3458c332c8234baa8f3f8ac2ae9601db24321e`  
 Compiler build identity: `noxc version --build-info` reports the same commit  
 Audited binary SHA-256: `067b6dbfd4a42f692690dbaa2bf390486b33a491614460e61b6b2191307737d7`  
-Last re-verification: 2026-11-14, macOS ARM64, QBE and LLVM; portable core CI
-also passed on Linux x64, Linux ARM64 and Windows x64
+Last local re-verification: 2026-11-15, macOS ARM64, QBE and LLVM; portable core
+CI run #8 passed on macOS ARM64, Linux x64, Linux ARM64 and Windows x64 on
+2026-11-14
 
 This register separates actual defects from language/runtime design constraints and
 Pulse-only audit work. A closed historical item remains here so an older workaround
@@ -266,6 +267,7 @@ failing probe distinguishes a compiler/runtime limitation from a Pulse defect.
 | Phase 0 — audit | `NOX-FMT-004`; QBE/task-local/module/thread design limits; historical fixes re-verified | Type/runtime/transfer/smoke audit scripts |
 | Phase 1 — primitives | No new upstream defect; exact int64, clocks, IDs, protobuf and typed enums remained verified | QBE + LLVM primitive unit/property/security/golden suites |
 | Phase 2 — metrics core | `NOX-CODEGEN-001`, `NOX-CODEGEN-002` | Explicit histogram presence flag; concrete snapshot helpers; expected-failure fixtures plus two-backend positive tests |
+| Phase 3 — Prometheus renderer slice | No new NOX limitation observed in the pure renderer slice | `scripts/run-phase3-tests.sh` passes type, behavior and golden gates on QBE + LLVM; existing concrete-helper containment remains in force |
 
 Future phases append a row or explicitly record “no new NOX limitation observed”
 with the exact capability and behavioral commands used for that conclusion.

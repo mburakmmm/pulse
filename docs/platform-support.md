@@ -8,10 +8,10 @@ compiler and both required backends.
 
 | Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|
-| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #7 |
-| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #7 |
-| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #7 |
-| Windows x64 | QBE + LLVM | Not yet claimed | Portable core `PASS`, CI run #7 |
+| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
+| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
+| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #8 |
+| Windows x64 | QBE + LLVM | Not yet claimed | Portable core `PASS`, CI run #8 |
 
 The core suite includes module checking, smoke build/run, unit, property,
 security, golden and cardinality stress tests, the compiling example and a
@@ -26,9 +26,10 @@ That distinction is a documented scope limit, not a passing result.
 
 The current `SingleOwnerMeterProvider` is explicitly not concurrency-safe. The
 CI matrix validates its single-owner semantics on each target, but does not
-convert that into a thread-safety claim. Phase `v0.2.0` remains open until the
-concurrent provider design and exact 10-worker × 1,000-increment LLVM acceptance
-test pass; QBE behavior will be reported independently.
+convert that into a thread-safety claim. The narrower atomic same-series path
+produces exactly 10,000 from 10 workers × 1,000 increments on QBE and LLVM. The
+instrument registry, cardinality maps, histograms, readers and exporters remain
+outside that concurrency proof.
 
 ## Result vocabulary
 
@@ -43,5 +44,5 @@ test pass; QBE behavior will be reported independently.
 GitHub Actions logs are the source of truth for remote runs. Documentation is
 updated only after those results are observed.
 
-The current evidence is [CI run #7](https://github.com/mburakmmm/pulse/actions/runs/43593764797),
-completed successfully on 2026-11-14 for commit `8a81f3d272a3f5eae0937b0f7e0477ca178d7586`.
+The current evidence is [CI run #8](https://github.com/mburakmmm/pulse/actions/runs/43627076879),
+completed successfully on 2026-11-14 for commit `190d154041bf8c317471bb52404ff46426761af1`.

@@ -1,9 +1,10 @@
 # Pulse API status
 
-Status: pre-1.0, Phase 1 local gate complete and Phase 2 active. A bounded
+Status: pre-1.0, Phase 2 local exit gate complete and Phase 3 active. A bounded
 single-owner recording metrics provider, cumulative reader and bounded in-memory
-and console metric exporters exist for development and tests. No general
-concurrent metrics provider, tracing SDK or network exporter is implemented yet.
+and console metric exporters plus an experimental pure Prometheus text renderer
+exist for development and tests. No general concurrent metrics provider, tracing
+SDK or network exporter is implemented yet.
 
 ## Stable direction
 
@@ -59,6 +60,13 @@ emits one JsonWriter-escaped structured metrics record only when it fits the
 configured byte limit. This JSON is a diagnostic console format, not OTLP JSON.
 Both exporters are synchronous and single-owner; neither creates a worker,
 listener or network request.
+
+`exporters.prometheus.render_metrics` maps an immutable cumulative collection to
+bounded Prometheus text exposition `0.0.4`. It covers Counter, UpDownCounter and
+explicit Histogram output, and its golden fixture passes Prometheus `promtool`
+3.16.0. Unit translation, resource labels and an HTTP scrape endpoint remain
+open. It is therefore an experimental renderer, not completed Prometheus exporter
+support.
 
 `metrics.concurrency.AtomicCounterCell` is an internal concurrency proof for one
 attribute-free counter series. Ten real workers recording 1,000 increments each

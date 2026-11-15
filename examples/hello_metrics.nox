@@ -6,7 +6,7 @@ from metrics.histogram_storage import HistogramStorageSnapshot
 from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
 
 provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(default_attribute_limits(), default_metric_limits(), default_record_limits())
-meter: RecordingMeter = provider.get_recording_meter("pulse.example", "0.1.0", None)
+meter: RecordingMeter = provider.get_recording_meter("pulse.example", "0.2.0", None)
 
 requests: Counter = meter.create_counter("checkout.requests", "1", "completed requests")
 requests.add(1, {"route": AttributeValue.Text("/checkout")})

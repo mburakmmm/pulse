@@ -11,9 +11,10 @@ for backend in llvm qbe; do
   bash scripts/run-smoke.sh "$backend"
   bash scripts/run-phase1-tests.sh "$backend"
   bash scripts/run-phase2-tests.sh "$backend"
+  bash scripts/run-phase3-tests.sh "$backend"
   bash scripts/run-examples.sh "$backend"
 done
 
 bash scripts/verify-package-import.sh
 
-printf 'pulse core CI: LLVM=pass QBE=pass package-import=pass\n'
+printf 'pulse core CI: LLVM=pass QBE=pass phase3-renderer=pass package-import=pass\n'

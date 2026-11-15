@@ -11,6 +11,7 @@ Status: Standards selected on 2026-11-07; NOX baseline refreshed and locally ver
 | W3C Trace Context | Recommendation, 23 November 2021 | `traceparent`, `tracestate` | Pinned; fixtures pending |
 | W3C Baggage | Candidate Recommendation Snapshot, 30 May 2024 | Baggage propagation | Pinned with maturity disclosed; fixtures pending |
 | Prometheus text exposition | `0.0.4` | Metrics renderer | Pinned |
+| Prometheus validation tool | `v3.16.0`, `e2e28adeee2c5883d000fc82aca6008cfbf7e96d` | Independent text parser | Pinned; checksum-verified promtool golden gate passes |
 | OpenMetrics | `1.0.0` is reference-only | Optional future renderer | Unsupported in initial release |
 
 ## Pinned primary sources
@@ -21,6 +22,7 @@ Status: Standards selected on 2026-11-07; NOX baseline refreshed and locally ver
 - W3C Trace Context: <https://www.w3.org/TR/2021/REC-trace-context-1-20211123/>
 - W3C Baggage: <https://www.w3.org/TR/2024/CR-baggage-20240530/>
 - Prometheus text exposition: <https://prometheus.io/docs/instrumenting/exposition_formats/>
+- Prometheus validation tool: <https://github.com/prometheus/prometheus/releases/tag/v3.16.0>
 - OpenMetrics 1.0.0: <https://github.com/prometheus/OpenMetrics/releases/tag/v1.0.0>
 
 ## Selection notes
@@ -39,9 +41,9 @@ This table will expand with each phase. No feature is advertised merely because 
 |---|---:|---:|---:|---:|---:|
 | Package/module loading | Pass | N/A | N/A | N/A | Downstream consumer pass on LLVM/QBE |
 | Clock and secure IDs | Pass | N/A | Planned | N/A | N/A |
-| Metrics | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
+| Metrics | Pass | Pass | Pass | Atomic same-series pass; general provider pending | N/A |
 | Tracing | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 | W3C propagation | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| Prometheus | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
+| Prometheus | Pure renderer pass | Text 0.0.4 pass | Malformed/bound checks pass | Immutable snapshot only; concurrent provider pending | promtool 3.16.0 pass; real scrape pending |
 | OTLP protobuf/HTTP | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 

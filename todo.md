@@ -5,8 +5,8 @@
 >
 > Başlangıç tarihi: 2026-11-07  
 > Genel durum: Deneysel geliştirme  
-> Son tamamlanan sürüm: `v0.1.0` — yerel faz kapısı 2026-11-12'de geçti  
-> Aktif sürüm: `v0.2.0` — bounded cumulative metrics core
+> Son tamamlanan sürüm: `v0.2.0` — yerel faz kapısı 2026-11-14'te geçti
+> Aktif sürüm: `v0.3.0` — Prometheus MVP
 
 ## 1. Takip kuralları
 
@@ -186,7 +186,7 @@ Durum: Yerel faz kapısı ve dört hedefli uzak core CI kapısı geçti.
 - [x] Windows x64 portable core hedefi resmî zip/checksum kurulumu ve iki-backend suite ile CI run #7'de geçti; Unix-only capability auditleri Windows için iddia edilmiyor.
 - [x] Downstream dependency alias/package smoke testi ve iki backend'de çalışan `examples/hello_metrics.nox` derleme/çıktı kapısı eklendi.
 - [x] CI step summary ve platform belgesinde `SKIPPED`, `UNSUPPORTED` ve `PENDING` durumları başarıdan ayrıldı; OTLP/Prometheus interop çalıştırılmış gibi gösterilmiyor.
-- [x] GitHub yayını, profesyonel About açıklaması/konuları ve dört-platform nihai kanıt tamamlandı: portable `find`/`git grep`, tracked-source ABI guard ve iki taraflı CRLF normalization düzeltmeleri commit `8a81f3d` için CI run #7'de geçti.
+- [x] GitHub yayını, profesyonel About açıklaması/konuları ve dört-platform kanıt tamamlandı: Phase 2 reader/exporter/property/privacy/stress/atomic kapıları dahil commit `190d154` için CI run #8'de geçti.
 
 #### Çıkış kapısı
 
@@ -265,26 +265,26 @@ Amaç: Deterministik ve standart uyumlu pull/scrape metrics çıktısı.
 
 Bağımlılık: `v0.2.0`.
 
-- [ ] Desteklenen Prometheus text exposition sürümünü sabitle.
-- [ ] `render_metrics()` saf snapshot renderer.
-- [ ] Metric/label adları, label values ve HELP text escaping.
-- [ ] Counter naming ve unit politikası.
-- [ ] Histogram `_bucket`, `_sum`, `_count`, cumulative `le`, `+Inf`.
-- [ ] `+Inf == total count` ve OTLP'ye hazırlık invariants.
+- [x] Prometheus text exposition `0.0.4` sabitlendi; OpenMetrics açıkça unsupported.
+- [x] Pozitif output-byte bound alan, I/O yapmayan saf `render_metrics()` snapshot renderer iki backend'de geçti.
+- [x] Metric/label adı normalization, label value ve HELP escaping; normalization collision'ında fail-closed davranış test edildi.
+- [~] Counter `_total` isimlendirmesi tamam; instrument unit translation/scaling politikası açık ve henüz iddia edilmiyor.
+- [x] Histogram `_bucket`, `_sum`, `_count`, cumulative `le`, `+Inf` üretimi golden testte geçti.
+- [x] Renderer bozuk bucket toplamını reddediyor; `+Inf == total count` iki backend'de doğrulandı.
 - [ ] Resource attribute allowlist/target-info politikası.
-- [ ] Stable deterministic output ve golden fixtures.
-- [ ] Concurrent record sırasında internally consistent scrape snapshot.
-- [ ] Render sırasında ağ I/O ve recursive telemetry olmadığını test et.
+- [x] Stable deterministic text `0.0.4` output ve byte-for-byte golden fixture QBE/LLVM'de geçti.
+- [~] Immutable collection render internally consistent; concurrent provider collection hâlâ single-owner sınırı nedeniyle açık.
+- [x] Renderer yalnız snapshot/string modüllerine bağlı saf fonksiyon; render sırasında ağ I/O veya recursive telemetry yolu yok.
 - [ ] Opsiyonel HTTP handler: loopback default veya explicit bind zorunluluğu.
 - [ ] Scrape timeout ve inbound resource sınırları.
-- [ ] Dış Prometheus/OpenMetrics parser doğrulaması.
+- [x] Dış Prometheus parser doğrulaması: checksum-verified `promtool` 3.16.0 golden fixture'ı kabul etti; OpenMetrics desteklenmiyor.
 - [ ] Gerçek endpoint scrape integration testi.
 - [ ] `examples/hello_metrics.nox` derlenen örneği.
 - [ ] Exporter support/security/docs/changelog güncellemesi.
 
 Çıkış kapısı:
 
-- [ ] Dış parser tüm golden çıktıları kabul ediyor.
+- [x] Dış `promtool` 3.16.0 parser tüm mevcut text 0.0.4 golden çıktıları kabul ediyor.
 - [ ] Gerçek scrape doğru metric type ve histogram değerlerini görüyor.
 - [ ] Dinamik label saldırısı cardinality limitini aşmıyor.
 
@@ -730,13 +730,18 @@ Commit/tag:
 - Changelog/manifest: güncellendi; manifest `0.1.0`.
 - Commit/tag: henüz yok; bu kayıt yayın iddiası değildir.
 
-### `v0.2.0` / Faz 2 ilerleme kaydı
+### `v0.2.0` / Faz 2
 
-- Durum ve tarih: aktif, kapanmadı; 2026-11-13.
-- Eklenenler: instrument descriptor/duplicate registry, type-tagged canonical series key, provider-wide series+estimated-byte budget, hard per-instrument point cap, OTel overflow point, üç bounded synchronous storage ve single-owner recording provider.
-- Kesin kapılar: `NOXC=<isolated-2.1.64> bash scripts/run-phase2-tests.sh llvm` ve aynı komut `qbe`.
-- QBE/LLVM: instrument, Counter, UpDown arithmetic, Histogram, series identity, cardinality ve 100.000-label stress kapıları geçti.
+- Durum ve tarih: yerel kapı ve dört hedefli uzak core kapısı 2026-11-14'te geçti; manifest `0.2.0`.
+- Dosyalar: `metrics/`, metric API/model/reader, memory/console exporter'ları, unit/property/security/concurrency/stress testleri ve ilgili belgeler.
+- NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem `2.1.52` değiştirilmedi.
+- Kamu API: Counter, UpDownCounter ve explicit Histogram için bounded cumulative single-owner recording provider; cumulative reader ve bounded memory/console exporter'ları.
+- Kesin yerel kapılar: `NOXC=<isolated-2.1.64> bash scripts/run-phase2-tests.sh llvm`, aynı komut `qbe` ve `bash scripts/run-ci-core.sh`.
+- QBE/LLVM: 10 metrics unit dosyası, aggregation property, privacy, 100.000-label stress ve 10 worker × 1.000 atomic counter kapıları geçti; fail/skip yok.
 - Stress sonucu: 100.000 benzersiz set, 1.000 point hard sınırı, toplam 100.000; ölçüm drop/double-count yok.
-- Phase 1 regresyonu: iki backend'de 11 unit dosyası + security + property + golden geçti.
-- Açık: cumulative reader, provider lifecycle ve real LLVM multi-worker correctness; mevcut recording provider single-owner.
-- Sistem derleyicisi: değiştirilmedi; izole resmî `2.1.64` kullanıldı.
+- Uzak platform: CI run #8, commit `190d154041bf8c317471bb52404ff46426761af1`; macOS ARM64, Linux x64, Linux ARM64 ve Windows x64 portable core tamamen yeşil.
+- Security/concurrency: record-boundary sensitive drop geçti; aynı atomik seri tam 10.000. General provider, registry, histogram, reader ve exporter thread-safe değildir.
+- Collector/Prometheus conformance: Faz 2 kapsamı değil; Prometheus Faz 3'te, OTLP sonraki fazlarda açık.
+- Bilinen NOX sınırlamaları: `NOX-CODEGEN-001` ve `NOX-CODEGEN-002`; iki backend expected-failure/containment kapıları kalıcı.
+- Changelog/release etkisi: manifest/build identity `0.2.0`; tag veya release artefaktı henüz yok.
+- Commit/tag: uygulama commit'i `190d154041bf8c317471bb52404ff46426761af1`; tag yok.

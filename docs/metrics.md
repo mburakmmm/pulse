@@ -1,6 +1,6 @@
 # Metrics implementation status
 
-Status: `v0.2.0` active. A cumulative, single-owner recording provider,
+Status: the `v0.2.0` local exit gate is complete and `v0.3.0` is active. A cumulative, single-owner recording provider,
 deterministic cumulative reader, bounded in-memory exporter and bounded structured
 console exporter exist for development and tests. No general thread-safe or
 production-ready `MeterProvider` claim exists.
@@ -97,6 +97,12 @@ preserving signed 64-bit integers and escaping caller text. Sensitive attributes
 cannot reappear because they are removed before aggregation. Output is rejected
 before printing when it exceeds the configured byte limit. The format is for safe
 diagnostics and is not described as OTLP JSON.
+
+The first Phase 3 slice adds a pure bounded Prometheus text `0.0.4` renderer over
+the same immutable cumulative collection. It produces counter/gauge/histogram
+families and cumulative histogram buckets without performing I/O. External parser
+acceptance is independently verified. Unit translation, resource labels and the
+HTTP endpoint are deliberately still pending; see `docs/prometheus.md`.
 
 ## Concurrency status
 

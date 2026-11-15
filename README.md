@@ -14,13 +14,15 @@ backends.
 
 > [!WARNING]
 > Pulse is pre-1.0 and experimental. The current recording provider is
-> single-owner only. Prometheus, tracing and OTLP exporters are planned, not
-> implemented, and are not advertised as working features.
+> single-owner only. A pure Prometheus text renderer is experimental; its HTTP
+> endpoint is not implemented. The golden output passes an independently
+> checksum-verified `promtool`; tracing and OTLP exporters remain planned and are
+> not advertised as working features.
 
 ## Project status
 
-The common telemetry primitives (`v0.1.0`) are complete locally. Development is
-now in `v0.2.0`, the bounded cumulative metrics phase.
+The bounded cumulative metrics local exit gate (`v0.2.0`) is complete. Development
+is now in `v0.3.0`, beginning with a bounded Prometheus text renderer.
 
 | Capability | Current state |
 |---|---|
@@ -30,7 +32,7 @@ now in `v0.2.0`, the bounded cumulative metrics phase.
 | Cardinality and aggregation-memory bounds | Implemented with deterministic overflow routing |
 | Cumulative metric reader | Implemented with deterministic collection timestamps |
 | In-memory and console metric exporters | Experimental, bounded and tested on QBE + LLVM |
-| Prometheus exposition | Planned for `v0.3.0` |
+| Prometheus exposition | Experimental pure text 0.0.4 renderer; promtool 3.16.0 pass, endpoint pending |
 | Tracing and W3C propagation | Planned for `v0.4.0`–`v0.5.0` |
 | OTLP/HTTP traces and metrics | Planned for `v0.7.0`–`v0.8.0` |
 | Concurrent recording provider | Not implemented; atomic same-series 10×1,000 proof only |
@@ -84,7 +86,7 @@ provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(
     default_metric_limits(),
     default_record_limits(),
 )
-meter: RecordingMeter = provider.get_recording_meter("checkout", "0.1.0", None)
+meter: RecordingMeter = provider.get_recording_meter("checkout", "0.2.0", None)
 requests: Counter = meter.create_counter("checkout.requests", "1", "completed requests")
 requests.add(1, {"route": AttributeValue.Text("/checkout")})
 ```
@@ -123,6 +125,9 @@ bash scripts/run-http-capability-audit.sh qbe
 bash scripts/run-backend-transfer-audit.sh
 ```
 
+The portable core command includes the Phase 3 renderer gate on both LLVM and
+QBE. See [`docs/prometheus.md`](docs/prometheus.md) for its exact limitations.
+
 No test result is treated as a platform claim until its remote workflow has
 actually completed. Unsupported and deferred capabilities remain explicit in
 the compatibility documentation.
@@ -149,7 +154,7 @@ The dependency rules and rationale are documented in
 ## Roadmap
 
 1. Complete the general concurrent recording-provider lifecycle.
-2. Add standards-validated Prometheus text exposition.
+2. Complete Prometheus unit/resource policy and the real scrape endpoint.
 3. Implement tracing, explicit context and W3C propagation.
 4. Add bounded processors, sampling and lifecycle control.
 5. Implement pinned OTLP protobuf mapping and real Collector interoperability.

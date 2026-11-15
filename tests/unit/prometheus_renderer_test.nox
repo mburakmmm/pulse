@@ -1,0 +1,83 @@
+import nox.strings
+import nox.test
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.errors import TelemetryError
+from core.limits import default_attribute_limits
+from exporters.prometheus import escape_help, escape_label_value, prometheus_family_name, render_metrics, sanitize_prometheus_name
+from metrics.counter_storage import CounterPointSnapshot, CounterStorageSnapshot
+from metrics.histogram import HistogramSnapshot
+from metrics.histogram_storage import HistogramPointSnapshot, HistogramStorageSnapshot
+from metrics.instruments import InstrumentKind
+from metrics.model import MetricCollection, MetricData, MetricDescriptorSnapshot, MetricScopeSnapshot, MetricSnapshot
+from metrics.updown_storage import UpDownPointSnapshot, UpDownStorageSnapshot
+
+scope: MetricScopeSnapshot = MetricScopeSnapshot("pulse.prometheus.tests", "0.3.0", None, snapshot_attributes({}, default_attribute_limits(), True))
+counter_attributes: AttributeSet = snapshot_attributes({"http.route": AttributeValue.Text("/orders\n\"quoted\""), "attempt": AttributeValue.Integer(2)}, default_attribute_limits(), True)
+gauge_attributes: AttributeSet = snapshot_attributes({"state": AttributeValue.Text("ready")}, default_attribute_limits(), True)
+histogram_attributes: AttributeSet = snapshot_attributes({"route": AttributeValue.Text("/orders")}, default_attribute_limits(), True)
+
+counter_data: CounterStorageSnapshot = CounterStorageSnapshot([CounterPointSnapshot(counter_attributes, 9007199254740993, False)], 0, 0)
+gauge_data: UpDownStorageSnapshot = UpDownStorageSnapshot([UpDownPointSnapshot(gauge_attributes, -2, False)], 0, 0)
+histogram_data: HistogramStorageSnapshot = HistogramStorageSnapshot([HistogramPointSnapshot(histogram_attributes, HistogramSnapshot([1.0, 5.0], [1, 2, 1], 4, 13.0, True, 1.0, 6.0), False)], 0, 0)
+
+metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("http.requests", InstrumentKind.Counter, "1", "request\\count\nline"), 100, 200, MetricData.Counter(counter_data)), MetricSnapshot(scope, MetricDescriptorSnapshot("active-requests", InstrumentKind.UpDownCounter, "1", ""), 100, 200, MetricData.UpDownCounter(gauge_data)), MetricSnapshot(scope, MetricDescriptorSnapshot("request/duration", InstrumentKind.Histogram, "ms", "request latency"), 100, 200, MetricData.Histogram(histogram_data))]
+
+payload: str = render_metrics(MetricCollection(100, 200, metrics), 16384)
+nox.test.assert_true(nox.strings.contains(payload, "# HELP http_requests_total request\\\\count\\nline\n"), "HELP text escapes backslashes and newlines")
+nox.test.assert_true(nox.strings.contains(payload, "# TYPE http_requests_total counter\n"), "counter families use the counter type and total suffix")
+nox.test.assert_true(nox.strings.contains(payload, "http_requests_total{attempt=\"2\",http_route=\"/orders\\n\\\"quoted\\\"\"} 9007199254740993\n"), "counter samples retain exact int64 values and escaped deterministic labels")
+nox.test.assert_true(nox.strings.contains(payload, "# TYPE active_requests gauge\n"), "up/down counters map to gauges")
+nox.test.assert_true(nox.strings.contains(payload, "active_requests{state=\"ready\"} -2\n"), "gauges retain signed values")
+nox.test.assert_true(nox.strings.contains(payload, "request_duration_bucket{route=\"/orders\",le=\"1"), "histograms emit cumulative finite buckets")
+nox.test.assert_true(nox.strings.contains(payload, "request_duration_bucket{route=\"/orders\",le=\"+Inf\"} 4\n"), "histograms emit a positive-infinity bucket equal to count")
+nox.test.assert_true(nox.strings.contains(payload, "request_duration_count{route=\"/orders\"} 4\n"), "histograms emit count")
+nox.test.assert_true(nox.strings.contains(payload, "request_duration_sum{route=\"/orders\"} 13"), "histograms emit sum")
+
+nox.test.assert_eq_str(sanitize_prometheus_name("9.bad/name", False), "__bad_name", "invalid metric-name bytes normalize deterministically")
+nox.test.assert_eq_str(sanitize_prometheus_name("__internal", True), "otel__internal", "reserved double-underscore labels are moved out of the reserved namespace")
+nox.test.assert_eq_str(prometheus_family_name("already_total", InstrumentKind.Counter), "already_total", "counter total suffix is idempotent")
+nox.test.assert_eq_str(escape_help("a\\b\nc"), "a\\\\b\\nc", "HELP escaping follows text exposition rules")
+nox.test.assert_eq_str(escape_label_value("a\\b\n\"c"), "a\\\\b\\n\\\"c", "label escaping follows text exposition rules")
+
+too_small_failed: bool = False
+try:
+    render_metrics(MetricCollection(100, 200, metrics), 1)
+except TelemetryError as e:
+    too_small_failed = True
+nox.test.assert_true(too_small_failed, "renderer rejects payloads beyond the configured byte bound")
+
+invalid_histogram: HistogramStorageSnapshot = HistogramStorageSnapshot([HistogramPointSnapshot(histogram_attributes, HistogramSnapshot([1.0], [1, 1], 3, 2.0, True, 1.0, 1.0), False)], 0, 0)
+invalid_metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("invalid", InstrumentKind.Histogram, "1", ""), 100, 200, MetricData.Histogram(invalid_histogram))]
+invalid_histogram_failed: bool = False
+try:
+    render_metrics(MetricCollection(100, 200, invalid_metrics), 1024)
+except TelemetryError as e:
+    invalid_histogram_failed = True
+nox.test.assert_true(invalid_histogram_failed, "renderer rejects inconsistent histogram snapshots")
+
+collision_data: CounterStorageSnapshot = CounterStorageSnapshot([CounterPointSnapshot(snapshot_attributes({}, default_attribute_limits(), True), 1, False)], 0, 0)
+collision_metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("same.name", InstrumentKind.Counter, "1", ""), 100, 200, MetricData.Counter(collision_data)), MetricSnapshot(scope, MetricDescriptorSnapshot("same/name", InstrumentKind.Counter, "1", ""), 100, 200, MetricData.Counter(collision_data))]
+family_collision_failed: bool = False
+try:
+    render_metrics(MetricCollection(100, 200, collision_metrics), 1024)
+except TelemetryError as e:
+    family_collision_failed = True
+nox.test.assert_true(family_collision_failed, "renderer rejects family collisions after name normalization")
+
+colliding_attributes: AttributeSet = snapshot_attributes({"label.one": AttributeValue.Text("first"), "label/one": AttributeValue.Text("second")}, default_attribute_limits(), True)
+label_collision_data: CounterStorageSnapshot = CounterStorageSnapshot([CounterPointSnapshot(colliding_attributes, 1, False)], 0, 0)
+label_collision_metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("label_collision", InstrumentKind.Counter, "1", ""), 100, 200, MetricData.Counter(label_collision_data))]
+label_collision_failed: bool = False
+try:
+    render_metrics(MetricCollection(100, 200, label_collision_metrics), 1024)
+except TelemetryError as e:
+    label_collision_failed = True
+nox.test.assert_true(label_collision_failed, "renderer rejects label collisions after name normalization")
+
+kind_mismatch_metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("kind_mismatch", InstrumentKind.Counter, "1", ""), 100, 200, MetricData.Histogram(histogram_data))]
+kind_mismatch_failed: bool = False
+try:
+    render_metrics(MetricCollection(100, 200, kind_mismatch_metrics), 1024)
+except TelemetryError as e:
+    kind_mismatch_failed = True
+nox.test.assert_true(kind_mismatch_failed, "renderer rejects descriptor and metric-data kind mismatches")

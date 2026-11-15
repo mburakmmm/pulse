@@ -5,6 +5,8 @@ from core.attributes import AttributeValue
 from core.clock import TestClock
 from core.limits import default_attribute_limits, default_metric_limits, default_record_limits
 from exporters.console import render_metric_collection_json
+from exporters.prometheus import render_metrics
+from metrics.model import MetricCollection
 from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
 from metrics.reader import CumulativeMetricReader
 
@@ -15,10 +17,17 @@ counter.add(1, {"route": AttributeValue.Text("/safe-route"), "authorization": At
 
 clock: TestClock = TestClock(100, 50)
 reader: CumulativeMetricReader = CumulativeMetricReader(clock)
-payload: str = render_metric_collection_json(reader.collect(provider))
+collection: MetricCollection = reader.collect(provider)
+payload: str = render_metric_collection_json(collection)
+prometheus_payload: str = render_metrics(collection, 4096)
 
 nox.test.assert_true(nox.strings.contains(payload, "/safe-route"), "safe metric attributes survive export rendering")
 nox.test.assert_true(not nox.strings.contains(payload, "secret-auth-sentinel"), "authorization is absent from metric export payload")
 nox.test.assert_true(not nox.strings.contains(payload, "secret-cookie-sentinel"), "cookie is absent from metric export payload")
 nox.test.assert_true(not nox.strings.contains(payload, "secret-body-sentinel"), "request body is absent from metric export payload")
 nox.test.assert_true(not nox.strings.contains(payload, "secret-email-sentinel"), "email is absent from metric export payload")
+nox.test.assert_true(nox.strings.contains(prometheus_payload, "/safe-route"), "safe metric attributes survive Prometheus rendering")
+nox.test.assert_true(not nox.strings.contains(prometheus_payload, "secret-auth-sentinel"), "authorization is absent from Prometheus payload")
+nox.test.assert_true(not nox.strings.contains(prometheus_payload, "secret-cookie-sentinel"), "cookie is absent from Prometheus payload")
+nox.test.assert_true(not nox.strings.contains(prometheus_payload, "secret-body-sentinel"), "request body is absent from Prometheus payload")
+nox.test.assert_true(not nox.strings.contains(prometheus_payload, "secret-email-sentinel"), "email is absent from Prometheus payload")

@@ -1,0 +1,235 @@
+import nox.strings
+from nox.json import JsonWriter
+from core.attributes import AttributeSet, AttributeValue, is_finite
+from core.errors import TelemetryError
+from metrics.aggregator import MAX_INT
+from metrics.counter_storage import CounterStorageSnapshot
+from metrics.histogram import HistogramSnapshot
+from metrics.histogram_storage import HistogramStorageSnapshot
+from metrics.instruments import InstrumentKind
+from metrics.model import MetricCollection, MetricData, MetricSnapshot
+from metrics.updown_storage import UpDownStorageSnapshot
+
+def is_ascii_alpha(byte: int) -> bool:
+    return byte >= 65 and byte <= 90 or byte >= 97 and byte <= 122
+
+def is_ascii_digit(byte: int) -> bool:
+    return byte >= 48 and byte <= 57
+
+def sanitize_prometheus_name(value: str, label: bool) -> str:
+    parts: list[str] = []
+    index: int = 0
+    size: int = nox.strings.byte_len(value)
+    while index < size:
+        byte: int = nox.strings.byte_at(value, index)
+        valid: bool = is_ascii_alpha(byte) or byte == 95
+        if index > 0:
+            valid = valid or is_ascii_digit(byte)
+        if not label:
+            valid = valid or byte == 58
+        if valid:
+            parts.append(nox.strings.char_from_byte(byte))
+        else:
+            parts.append("_")
+        index += 1
+    result: str = nox.strings.join(parts, "")
+    if nox.strings.byte_len(result) == 0:
+        return "_"
+    if label and nox.strings.starts_with(result, "__"):
+        return "otel" + result
+    return result
+
+def prometheus_family_name(name: str, kind: InstrumentKind) -> str:
+    base: str = sanitize_prometheus_name(name, False)
+    match kind:
+        case InstrumentKind.Counter:
+            if nox.strings.ends_with(base, "_total"):
+                return base
+            return base + "_total"
+        case InstrumentKind.UpDownCounter:
+            return base
+        case InstrumentKind.Histogram:
+            return base
+
+def escape_help(value: str) -> str:
+    return nox.strings.replace(nox.strings.replace(value, "\\", "\\\\"), "\n", "\\n")
+
+def escape_label_value(value: str) -> str:
+    escaped: str = nox.strings.replace(value, "\\", "\\\\")
+    escaped = nox.strings.replace(escaped, "\n", "\\n")
+    return nox.strings.replace(escaped, "\"", "\\\"")
+
+def attribute_array_json(value: AttributeValue) -> str:
+    writer: JsonWriter = JsonWriter()
+    match value:
+        case AttributeValue.BooleanArray(bool_values):
+            writer.begin_array()
+            for bool_item in bool_values:
+                writer.write_bool(bool_item)
+            writer.end_array()
+        case AttributeValue.IntegerArray(int_values):
+            writer.begin_array()
+            for int_item in int_values:
+                writer.write_int(int_item)
+            writer.end_array()
+        case AttributeValue.FloatArray(float_values):
+            writer.begin_array()
+            for float_item in float_values:
+                writer.write_float(float_item)
+            writer.end_array()
+        case AttributeValue.TextArray(text_values):
+            writer.begin_array()
+            for text_item in text_values:
+                writer.write_string(text_item)
+            writer.end_array()
+        case _:
+            raise TelemetryError("attribute_array_json requires an array attribute")
+    return writer.build()
+
+def attribute_label_value(value: AttributeValue) -> str:
+    match value:
+        case AttributeValue.Boolean(bool_item):
+            if bool_item:
+                return "true"
+            return "false"
+        case AttributeValue.Integer(int_item):
+            return str(int_item)
+        case AttributeValue.Float(float_item):
+            return str(float_item)
+        case AttributeValue.Text(text_item):
+            return text_item
+        case _:
+            return attribute_array_json(value)
+
+def render_labels(attributes: AttributeSet, extra_name: str | None, extra_value: str) -> str:
+    if len(attributes.entries) == 0 and extra_name is None:
+        return ""
+    labels: list[str] = []
+    seen: dict[str, bool] = {}
+    for entry in attributes.entries:
+        name: str = sanitize_prometheus_name(entry.key, True)
+        if name in seen:
+            raise TelemetryError("Prometheus label names collide after normalization")
+        if extra_name is not None and name == extra_name:
+            raise TelemetryError("Prometheus attribute collides with a reserved sample label")
+        seen[name] = True
+        labels.append(name + "=\"" + escape_label_value(attribute_label_value(entry.value)) + "\"")
+    if extra_name is not None:
+        labels.append(extra_name + "=\"" + escape_label_value(extra_value) + "\"")
+    return "{" + nox.strings.join(labels, ",") + "}"
+
+def render_family_header(name: str, description: str, kind: InstrumentKind) -> str:
+    metric_type: str = "gauge"
+    match kind:
+        case InstrumentKind.Counter:
+            metric_type = "counter"
+        case InstrumentKind.UpDownCounter:
+            metric_type = "gauge"
+        case InstrumentKind.Histogram:
+            metric_type = "histogram"
+    result: str = ""
+    if nox.strings.byte_len(description) > 0:
+        result += "# HELP " + name + " " + escape_help(description) + "\n"
+    result += "# TYPE " + name + " " + metric_type + "\n"
+    return result
+
+def render_counter_points(name: str, snapshot: CounterStorageSnapshot) -> str:
+    result: str = ""
+    for point in snapshot.points:
+        result += name + render_labels(point.attributes, None, "") + " " + str(point.total) + "\n"
+    return result
+
+def render_updown_points(name: str, snapshot: UpDownStorageSnapshot) -> str:
+    result: str = ""
+    for point in snapshot.points:
+        result += name + render_labels(point.attributes, None, "") + " " + str(point.total) + "\n"
+    return result
+
+def validate_histogram_snapshot(snapshot: HistogramSnapshot) -> None:
+    if len(snapshot.bucket_counts) != len(snapshot.boundaries) + 1:
+        raise TelemetryError("Prometheus histogram requires N plus one bucket counts")
+    if snapshot.count < 0:
+        raise TelemetryError("Prometheus histogram count must be nonnegative")
+    if not is_finite(snapshot.sum):
+        raise TelemetryError("Prometheus histogram sum must be finite")
+    previous: float = 0.0
+    has_previous: bool = False
+    for boundary in snapshot.boundaries:
+        if not is_finite(boundary):
+            raise TelemetryError("Prometheus histogram boundaries must be finite")
+        if has_previous and boundary <= previous:
+            raise TelemetryError("Prometheus histogram boundaries must be strictly increasing")
+        previous = boundary
+        has_previous = True
+    cumulative: int = 0
+    for count in snapshot.bucket_counts:
+        if count < 0:
+            raise TelemetryError("Prometheus histogram bucket counts must be nonnegative")
+        if count > MAX_INT - cumulative:
+            raise TelemetryError("Prometheus histogram cumulative count overflow")
+        cumulative += count
+    if cumulative != snapshot.count:
+        raise TelemetryError("Prometheus histogram bucket counts must sum to count")
+
+def render_histogram_point(name: str, attributes: AttributeSet, snapshot: HistogramSnapshot) -> str:
+    validate_histogram_snapshot(snapshot)
+    result: str = ""
+    cumulative: int = 0
+    index: int = 0
+    while index < len(snapshot.boundaries):
+        cumulative += snapshot.bucket_counts[index]
+        result += name + "_bucket" + render_labels(attributes, "le", str(snapshot.boundaries[index])) + " " + str(cumulative) + "\n"
+        index += 1
+    cumulative += snapshot.bucket_counts[len(snapshot.boundaries)]
+    result += name + "_bucket" + render_labels(attributes, "le", "+Inf") + " " + str(cumulative) + "\n"
+    result += name + "_sum" + render_labels(attributes, None, "") + " " + str(snapshot.sum) + "\n"
+    result += name + "_count" + render_labels(attributes, None, "") + " " + str(snapshot.count) + "\n"
+    return result
+
+def render_histogram_points(name: str, snapshot: HistogramStorageSnapshot) -> str:
+    result: str = ""
+    for point in snapshot.points:
+        result += render_histogram_point(name, point.attributes, point.data)
+    return result
+
+def render_metric(metric: MetricSnapshot) -> str:
+    name: str = prometheus_family_name(metric.descriptor.name, metric.descriptor.kind)
+    result: str = render_family_header(name, metric.descriptor.description, metric.descriptor.kind)
+    match metric.data:
+        case MetricData.Counter(snapshot):
+            match metric.descriptor.kind:
+                case InstrumentKind.Counter:
+                    pass
+                case _:
+                    raise TelemetryError("Prometheus metric descriptor and counter data disagree")
+            result += render_counter_points(name, snapshot)
+        case MetricData.UpDownCounter(snapshot):
+            match metric.descriptor.kind:
+                case InstrumentKind.UpDownCounter:
+                    pass
+                case _:
+                    raise TelemetryError("Prometheus metric descriptor and up/down counter data disagree")
+            result += render_updown_points(name, snapshot)
+        case MetricData.Histogram(snapshot):
+            match metric.descriptor.kind:
+                case InstrumentKind.Histogram:
+                    pass
+                case _:
+                    raise TelemetryError("Prometheus metric descriptor and histogram data disagree")
+            result += render_histogram_points(name, snapshot)
+    return result
+
+def render_metrics(collection: MetricCollection, max_output_bytes: int) -> str:
+    if max_output_bytes <= 0:
+        raise TelemetryError("Prometheus max_output_bytes must be positive")
+    result: str = ""
+    families: dict[str, bool] = {}
+    for metric in collection.metrics:
+        family: str = prometheus_family_name(metric.descriptor.name, metric.descriptor.kind)
+        if family in families:
+            raise TelemetryError("Prometheus metric family names must be unique after normalization")
+        families[family] = True
+        result += render_metric(metric)
+        if nox.strings.byte_len(result) > max_output_bytes:
+            raise TelemetryError("Prometheus payload exceeds max_output_bytes")
+    return result

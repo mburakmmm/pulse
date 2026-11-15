@@ -76,6 +76,11 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
   output limits and idempotent lifecycle behavior.
 - QBE/LLVM aggregation property coverage and a real 10-worker × 1,000-increment
   atomic counter proof with join-before-free ownership.
+- An experimental bounded Prometheus text exposition `0.0.4` renderer with
+  deterministic name/label escaping, exact counter values, gauge mapping,
+  cumulative histogram buckets, `+Inf == count` validation and QBE/LLVM golden
+  coverage. The fixture passes checksum-verified Prometheus `promtool` 3.16.0;
+  unit translation and the real HTTP scrape endpoint remain explicitly pending.
 
 ### Changed
 
@@ -84,6 +89,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 - TaskLocal non-inheritance, QBE cooperative scheduling, worker-local module state and bounded fiber stacks remain explicit design constraints.
 - OTLP/protobuf support remains unimplemented and unclaimed until pinned-schema mapping, independent decoding and Collector integration pass.
 - The manifest advances to `0.1.0` after the common-primitives local gate; active work moves to the unreleased `v0.2.0` metrics core.
+- The manifest advances to `0.2.0` after the bounded cumulative metrics local
+  and four-platform remote gates; active work moves to the unreleased `v0.3.0`
+  Prometheus MVP.
 - `NOX-CODEGEN-001` records that optional float class fields type-check but fail executable codegen on 2.1.64; histograms use an explicit `has_min_max` representation.
 - `NOX-CODEGEN-002` records that direct list iteration through an imported enum
   snapshot payload type-checks but fails QBE/LLVM codegen; concrete-typed helper
