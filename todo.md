@@ -271,9 +271,9 @@ Bağımlılık: `v0.2.0`.
 - [~] Counter `_total` isimlendirmesi tamam; instrument unit translation/scaling politikası açık ve henüz iddia edilmiyor.
 - [x] Histogram `_bucket`, `_sum`, `_count`, cumulative `le`, `+Inf` üretimi golden testte geçti.
 - [x] Renderer bozuk bucket toplamını reddediyor; `+Inf == total count` iki backend'de doğrulandı.
-- [x] Resource attribute promotion default kapalı; açıkça seçilen, 32-key hard-bound allowlist yalnız eşleşen güvenli alanları deterministik `target_info` olarak üretir, sensitive/collision config fail-closed.
+- [x] Resource attribute promotion default kapalı; açıkça seçilen, 32-key hard-bound allowlist yalnız eşleşen güvenli alanları deterministik `target_info` olarak üretir, sensitive/collision config fail-closed; CI run #11 dört platformda geçti.
 - [x] Stable deterministic text `0.0.4` output ve byte-for-byte golden fixture QBE/LLVM'de geçti.
-- [x] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment CI run #10'da Windows LLVM/QBE dahil tüm matriste geçti.
+- [x] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment CI run #11'de Windows LLVM/QBE dahil tüm matriste geçti.
 - [~] Immutable collection render internally consistent; concurrent provider collection hâlâ single-owner sınırı nedeniyle açık.
 - [x] Renderer yalnız snapshot/string modüllerine bağlı saf fonksiyon; render sırasında ağ I/O veya recursive telemetry yolu yok.
 - [ ] Opsiyonel HTTP handler: loopback default veya explicit bind zorunluluğu.

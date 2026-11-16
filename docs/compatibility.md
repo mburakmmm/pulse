@@ -2,8 +2,8 @@
 
 Status: Phase 0 local gate passed on 2026-11-11, the isolated NOX 2.1.64
 upgrade gate passed on 2026-11-12 and the four-target remote core matrix passed
-with Phase 3 coverage on 2026-11-15. This document records runtime capabilities;
-it does not claim pending exporters or integrations are implemented.
+with the latest Phase 3 coverage on 2026-11-16. This document records runtime
+capabilities; it does not claim pending exporters or integrations are implemented.
 
 ## Selected baseline
 
@@ -18,7 +18,7 @@ it does not claim pending exporters or integrations are implemented.
 | System compiler | `2.1.52`, unchanged | User requested that the system installation not be modified |
 | Profile | `hosted` | Required for clock, network, filesystem and secure entropy |
 | Locally tested backends | LLVM and QBE | 10-file smoke suite plus capability audits |
-| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Core matrix passed in CI run #10 against the pinned compiler |
+| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Core matrix passed in CI run #11 against the pinned compiler |
 | Windows x64 | Portable core `PASS` | Official checksum-verified toolchain plus QBE/LLVM suite and Phase 3 containment passed; Unix-only capability audits remain unclaimed |
 
 Pulse pins `2.1.64` for CI after testing its official archive from a temporary
@@ -77,7 +77,7 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 - No Zig/NNI glue is approved for the initial primitives; current required runtime
   features are public NOX APIs.
 
-## Local evidence — 2026-11-15
+## Local evidence — 2026-11-16
 
 | Command | Result |
 |---|---|
@@ -106,10 +106,10 @@ int64 parsing, generic enums/match, byte bridges, gzip and protobuf encoding/dec
 Importing gRPC/UDP proves the public modules type-checks; it is deliberately not
 reported as Collector or network interoperability.
 
-## Remote evidence — 2026-11-15
+## Remote evidence — 2026-11-16
 
-[GitHub Actions CI run #10](https://github.com/mburakmmm/pulse/actions/runs/43745579223)
-passed on commit `57ed3eabc553a212c7911384196b8d9d12a75e6b`:
+[GitHub Actions CI run #11](https://github.com/mburakmmm/pulse/actions/runs/43821365166)
+passed on commit `4f97dbb6c67b2e4718e9037f3fd3c182d79f3b79`:
 
 - portable QBE and LLVM core suite on macOS ARM64, Linux x64, Linux ARM64 and
   Windows x64;
@@ -118,7 +118,8 @@ passed on commit `57ed3eabc553a212c7911384196b8d9d12a75e6b`:
 - cumulative reader, bounded memory/console exporters, aggregation properties,
   privacy, 100,000-label stress and atomic 10×1,000 counter gates on both
   backends in every portable core target;
-- Prometheus text 0.0.4 renderer/golden gates on QBE and LLVM for every core
+- Prometheus text 0.0.4 renderer/golden gates, bounded allowlisted `target_info`,
+  Resource privacy tests and compiling example on QBE and LLVM for every core
   target, plus checksum-verified promtool 3.16.0 conformance on Linux x64;
 - `NOX-IO-001` reproduced as an expected Windows LLVM/QBE capability failure,
   with the portable golden-output containment passing on both backends;
@@ -128,9 +129,9 @@ The Windows result is a portable core claim only. It does not imply that the
 Unix-only HTTP/TLS or backend-transfer harnesses ran on Windows.
 
 Phase 3 [CI run #9](https://github.com/mburakmmm/pulse/actions/runs/43744840230)
-first exposed the redirected `write_raw` failure. Run #10 preserves that evidence
-with a minimal expected-failure probe and proves the portable renderer containment
-across the full matrix.
+first exposed the redirected `write_raw` failure. Runs #10 and #11 preserve that
+evidence with a minimal expected-failure probe and prove the portable renderer
+containment across the full matrix.
 
 ## Remaining audit work
 
