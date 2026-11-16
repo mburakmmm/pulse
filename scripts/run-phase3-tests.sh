@@ -16,6 +16,7 @@ cd "$project_root"
 "$noxc_bin" check exporters/prometheus.nox
 "$noxc_bin" test --backend "$backend" tests/unit/prometheus_renderer_test.nox
 NOXC="$noxc_bin" bash scripts/run-terminal-redirect-audit.sh "$backend"
+NOXC="$noxc_bin" bash scripts/run-prometheus-scrape-integration.sh "$backend"
 "$noxc_bin" build --backend "$backend" -o "$output_root/prometheus-golden" tests/golden/prometheus_renderer_golden.nox
 golden_binary="$output_root/prometheus-golden"
 if [[ -f "$golden_binary.exe" ]]; then
@@ -29,4 +30,4 @@ if ! cmp -s "$output_root/prometheus-golden.expected" "$output_root/prometheus-g
   exit 1
 fi
 
-printf 'pulse phase3 renderer tests: backend=%s text_format=0.0.4 pure_renderer=pass escaping=pass counter=pass gauge=pass histogram=pass resource_allowlist=pass output_bound=pass golden=pass terminal_redirect=audit external_parser=separate-gate endpoint=pending\n' "$backend"
+printf 'pulse phase3 renderer tests: backend=%s text_format=0.0.4 pure_renderer=pass escaping=pass counter=pass gauge=pass histogram=pass resource_allowlist=pass output_bound=pass golden=pass terminal_redirect=audit scrape_adapter=pass real_endpoint=pass external_parser=separate-gate listener_ownership=application\n' "$backend"

@@ -15,4 +15,4 @@ fi
 
 "$promtool_bin" check metrics <fixtures/prometheus/text-0.0.4.golden.txt
 
-printf 'pulse Prometheus conformance: promtool=%s text_format=0.0.4 golden=pass endpoint=pending\n' "$expected_version"
+printf 'pulse Prometheus conformance: promtool=%s text_format=0.0.4 golden=pass http_body=separate-real-gate\n' "$expected_version"

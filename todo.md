@@ -276,17 +276,17 @@ Bağımlılık: `v0.2.0`.
 - [x] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment CI run #11'de Windows LLVM/QBE dahil tüm matriste geçti.
 - [~] Immutable collection render internally consistent; concurrent provider collection hâlâ single-owner sınırı nedeniyle açık.
 - [x] Renderer yalnız snapshot/string modüllerine bağlı saf fonksiyon; render sırasında ağ I/O veya recursive telemetry yolu yok.
-- [ ] Opsiyonel HTTP handler: loopback default veya explicit bind zorunluluğu.
-- [ ] Scrape timeout ve inbound resource sınırları.
+- [x] Saf HTTP scrape handler adapter'ı: yalnız `GET` + bounded configured path/4 KiB target, query-safe routing, 404/405/400/414/500 containment, correct content type ve no-store headers iki backend'de geçti; import/start side effect yok.
+- [~] Gerçek fixture `nox.http.configure` ile body/header/read/connections/drain sınırlarını kullanıyor. Public server API bind address almadığı ve `0.0.0.0` kullandığı için Pulse listener sahiplenmiyor; `NOX-HTTP-004` altında application/deployment kararı zorunlu.
 - [x] Dış Prometheus parser doğrulaması: checksum-verified `promtool` 3.16.0 golden fixture'ı kabul etti; OpenMetrics desteklenmiyor.
-- [ ] Gerçek endpoint scrape integration testi.
+- [x] Gerçek NOX HTTP server/client scrape integration testi LLVM ve QBE'de 200/media-type/exact counter/Resource privacy/graceful shutdown ile geçti; promtool response body'yi kabul ediyor.
 - [x] `examples/hello_metrics.nox` gerçek cumulative collection'ı allowlisted `target_info` ile text 0.0.4 çıktısına çeviriyor; QBE/LLVM script exact satırları doğruluyor.
 - [x] Exporter support/security/API/Prometheus docs ve changelog güncellendi.
 
 Çıkış kapısı:
 
 - [x] Dış `promtool` 3.16.0 parser tüm mevcut text 0.0.4 golden çıktıları kabul ediyor.
-- [ ] Gerçek scrape doğru metric type ve histogram değerlerini görüyor.
+- [x] Gerçek scrape adapter ve socket integration doğru family/value/media type üretiyor; checksum-verified promtool alınan response body'yi kabul ediyor.
 - [x] 100.000 dinamik metric-label stress testi 1.000-series sınırında kalıyor; Resource promotion ayrıca 32-key allowlist hard-bound kullanıyor.
 
 ### `v0.4.0` — Faz 4: tracing core
@@ -679,6 +679,7 @@ Bu liste her PR/commit için uygulanır:
 | Şema derleyici yok; field numaraları elle eşlenir | Wire-format hata riski | Public wire codec + pinned schema + independent fixtures/decoder | Faz 7 açık |
 | HTTP/TLS ayrıntıları eksik olabilir | Exporter hataları | Binary/header/redirect/timeout/self-signed rejection geçti; trusted-chain/hostname matrisi açık | Azaltıldı |
 | HTTP method/body validasyonu regress edebilir | Yanlış request config veri kaybeder | İki-backend loopback regression | Kapatıldı / kapı aktif |
+| NOX HTTP server bind address seçtirmiyor (`NOX-HTTP-004`) | İstenmeden tüm arayüzlere metrics açılabilir | Pulse listener başlatmaz; saf handler + açık deployment/firewall/reverse-proxy kararı | Tasarım limiti / contained |
 | Cardinality/queue kopyaları gizli bellek büyütür | OOM | Allocation-before-limit yasağı ve total memory budget | Açık |
 | Adapter dependency cycle | Core taşınabilirliği bozulur | Leaf packages + import graph CI | Açık |
 

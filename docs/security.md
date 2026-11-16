@@ -16,10 +16,15 @@ Automatic instrumentation uses allowlists. Redaction, dropping, hashing, masking
 - Export endpoints and redirects are SSRF-relevant configuration.
 - OTLP headers and endpoint credentials never appear in diagnostics.
 - TLS certificate verification is enabled by default; no silent insecure fallback.
-- Prometheus listeners default to loopback or require an explicit bind decision.
+- Pulse never starts a Prometheus listener. Pinned NOX server APIs bind wildcard
+  interfaces and cannot select loopback (`NOX-HTTP-004`), so applications must
+  make an explicit deployment/firewall/reverse-proxy exposure decision.
 - Prometheus Resource promotion is disabled in `render_metrics()`. The explicit
   `render_metrics_with_resource()` path emits only configured allowlist keys,
   rejects sensitive keys and bounds the allowlist to 32 labels.
+- The scrape adapter rejects non-GET methods and request bodies, disables caching,
+  bounds configured paths/request targets, emits `nosniff` and returns generic
+  renderer failures without internal details.
 - Native code has operating-system authority; no NNI is approved without an ADR.
 
 ## Required malicious-input coverage

@@ -103,8 +103,10 @@ the same immutable cumulative collection. It produces counter/gauge/histogram
 families and cumulative histogram buckets without performing I/O. External parser
 acceptance is independently verified. Resource promotion remains default-off; an
 explicit maximum-32-key allowlist can produce one deterministic `target_info`
-family and rejects sensitive keys. Unit translation and the HTTP endpoint are
-deliberately still pending; see `docs/prometheus.md`.
+family and rejects sensitive keys. Unit translation and production listener
+deployment remain incomplete: a pure handler and real server/client integration
+exist, but Pulse does not own a listener and pinned NOX cannot select a bind
+address. See `docs/prometheus.md`.
 
 ## Concurrency status
 

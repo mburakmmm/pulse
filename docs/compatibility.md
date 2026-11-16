@@ -72,6 +72,9 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
   upstream defect visible as `NOX-IO-001`.
 - `nox.http.request` buffers bodies. Pulse enforces request/response payload caps,
   positive deadlines and a credential-safe redirect policy.
+- Public `nox.http.serve`/`listen` has no bind-address parameter and binds wildcard
+  interfaces. Pulse supplies a pure scrape handler, not an implicit listener; see
+  `NOX-HTTP-004`.
 - gRPC permits one active call/stream per connection and has no client-side read
   timeout. OTLP/gRPC remains optional until those lifecycle constraints are tested.
 - No Zig/NNI glue is approved for the initial primitives; current required runtime
@@ -94,9 +97,10 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 | `bash scripts/run-phase1-tests.sh qbe` | same Phase 1 gates pass |
 | `bash scripts/run-phase2-tests.sh llvm` | single-owner provider, cumulative reader, memory/console exporters, aggregation properties, 10×1,000 worker counter, cardinality and 100k-label stress gates pass |
 | `bash scripts/run-phase2-tests.sh qbe` | same Phase 2 gates pass |
-| `bash scripts/run-phase3-tests.sh llvm` | pure Prometheus text 0.0.4 renderer, escaping, family semantics, histogram invariants, bounded Resource allowlist/`target_info`, output bound, portable golden fixture and terminal-redirect audit pass; endpoint pending |
-| `bash scripts/run-phase3-tests.sh qbe` | same Phase 3 renderer, Resource allowlist and terminal-redirect gates pass |
-| `PROMTOOL=<official-3.16.0> bash scripts/run-prometheus-conformance.sh` | checksum-verified independent Prometheus parser accepts the text 0.0.4 golden fixture; HTTP endpoint pending |
+| `bash scripts/run-phase3-tests.sh llvm` | pure Prometheus text 0.0.4 renderer, bounded Resource allowlist/`target_info`, handler behavior, real HTTP scrape, portable golden and terminal-redirect audit pass |
+| `bash scripts/run-phase3-tests.sh qbe` | same Phase 3 renderer, handler and real scrape gates pass |
+| `PROMTOOL=<official-3.16.0> bash scripts/run-prometheus-conformance.sh` | checksum-verified independent Prometheus parser accepts the text 0.0.4 golden fixture |
+| `PROMTOOL=<official-3.16.0> bash scripts/run-prometheus-scrape-integration.sh llvm|qbe` | real NOX HTTP response has correct media type, exact values, privacy and graceful shutdown; promtool accepts the received body |
 | `bash scripts/run-examples.sh llvm` | compiling single-owner metrics example passes with exact real totals |
 | `bash scripts/run-examples.sh qbe` | same example and assertions pass |
 | `bash scripts/run-ci-core.sh` | both backends, architecture/privacy/property/golden/stress/example/package-import gates pass |

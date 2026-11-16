@@ -1,5 +1,6 @@
 import nox.strings
 from nox.json import JsonWriter
+from nox.http import HttpRequest, HttpResponse
 from core.attributes import AttributeEntry, AttributeSet, AttributeValue, estimated_attribute_value_bytes, is_finite, is_sensitive_key
 from core.errors import TelemetryError
 from core.resource import Resource
@@ -13,6 +14,9 @@ from metrics.updown_storage import UpDownStorageSnapshot
 
 MAX_RESOURCE_LABELS: int = 32
 MAX_RESOURCE_ALLOWLIST_KEY_BYTES: int = 256
+MAX_METRICS_PATH_BYTES: int = 256
+MAX_SCRAPE_TARGET_BYTES: int = 4096
+PROMETHEUS_CONTENT_TYPE: str = "text/plain; version=0.0.4; charset=utf-8"
 
 def is_ascii_alpha(byte: int) -> bool:
     return byte >= 65 and byte <= 90 or byte >= 97 and byte <= 122
@@ -278,3 +282,58 @@ def render_metrics(collection: MetricCollection, max_output_bytes: int) -> str:
 def render_metrics_with_resource(collection: MetricCollection, resource: Resource, resource_attribute_allowlist: list[str], max_output_bytes: int) -> str:
     target_info: str = render_target_info(resource, resource_attribute_allowlist)
     return render_metrics_with_prefix(collection, max_output_bytes, target_info)
+
+def request_path(target: str) -> str:
+    result: str = ""
+    index: int = 0
+    while index < nox.strings.byte_len(target):
+        byte: int = nox.strings.byte_at(target, index)
+        if byte == 63:
+            return result
+        result += nox.strings.char_from_byte(byte)
+        index += 1
+    return result
+
+def validate_metrics_path(metrics_path: str) -> None:
+    path_bytes: int = nox.strings.byte_len(metrics_path)
+    if path_bytes == 0 or path_bytes > MAX_METRICS_PATH_BYTES or not nox.strings.starts_with(metrics_path, "/") or nox.strings.contains(metrics_path, "?") or nox.strings.contains(metrics_path, "#"):
+        raise TelemetryError("Prometheus metrics_path must be an absolute path without a query")
+    index: int = 0
+    while index < path_bytes:
+        byte: int = nox.strings.byte_at(metrics_path, index)
+        if byte <= 32 or byte == 127:
+            raise TelemetryError("Prometheus metrics_path contains an invalid byte")
+        index += 1
+
+def scrape_headers() -> dict[str, str]:
+    return {"Content-Type": PROMETHEUS_CONTENT_TYPE, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+
+def scrape_response(request: HttpRequest, metrics_path: str, collection: MetricCollection, max_output_bytes: int) -> HttpResponse:
+    validate_metrics_path(metrics_path)
+    if nox.strings.byte_len(request.target) > MAX_SCRAPE_TARGET_BYTES:
+        return HttpResponse(414, "request target too long\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"})
+    if request_path(request.target) != metrics_path:
+        return HttpResponse(404, "not found\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"})
+    if request.method != "GET":
+        return HttpResponse(405, "method not allowed\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "Allow": "GET"})
+    if nox.strings.byte_len(request.body) > 0:
+        return HttpResponse(400, "request body not allowed\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"})
+    try:
+        return HttpResponse(200, render_metrics(collection, max_output_bytes), scrape_headers())
+    except TelemetryError as e:
+        return HttpResponse(500, "metrics rendering failed\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"})
+
+def scrape_response_with_resource(request: HttpRequest, metrics_path: str, collection: MetricCollection, resource: Resource, resource_attribute_allowlist: list[str], max_output_bytes: int) -> HttpResponse:
+    validate_metrics_path(metrics_path)
+    if nox.strings.byte_len(request.target) > MAX_SCRAPE_TARGET_BYTES:
+        return HttpResponse(414, "request target too long\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"})
+    if request_path(request.target) != metrics_path:
+        return HttpResponse(404, "not found\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"})
+    if request.method != "GET":
+        return HttpResponse(405, "method not allowed\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "Allow": "GET"})
+    if nox.strings.byte_len(request.body) > 0:
+        return HttpResponse(400, "request body not allowed\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"})
+    try:
+        return HttpResponse(200, render_metrics_with_resource(collection, resource, resource_attribute_allowlist, max_output_bytes), scrape_headers())
+    except TelemetryError as e:
+        return HttpResponse(500, "metrics rendering failed\n", {"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"})

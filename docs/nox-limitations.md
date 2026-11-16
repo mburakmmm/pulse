@@ -264,6 +264,24 @@ used as release evidence.
 - Pulse behavior: OTLP/HTTP uses POST, positive timeouts, bounded payloads and an
   explicit redirect/credential policy. Export failures never log full headers/body.
 
+### NOX-HTTP-004 — Public HTTP server bind address is not configurable
+
+- Status: `DESIGN-LIMIT` on NOX `2.1.64`.
+- Evidence: public `nox.http.serve`, `serve_fd`, `serve_multicore` and `listen`
+  accept a port/ip-family but no host or bind-address value. The pinned upstream
+  changelog documents that server listeners bind `0.0.0.0` on all interfaces
+  since NOX `1.7.1`.
+- Pulse behavior: the Prometheus package exposes a pure `HttpRequest` →
+  `HttpResponse` adapter and never starts a listener on import or by default.
+  Applications own the explicit exposure decision and must use firewall,
+  container/network policy or a trusted loopback reverse proxy when local-only
+  access is required. Pulse does not claim an embedded loopback-only listener.
+- Gate: `scripts/run-prometheus-scrape-integration.sh` proves real HTTP response,
+  bounds and graceful shutdown; it is a protocol integration test, not proof of
+  loopback confinement.
+- Close when: a pinned public NOX API accepts an explicit bind address and a
+  loopback-only regression passes on every supported target.
+
 ### NOX-GRPC-001 — gRPC client has one active call per connection
 
 - Status: `DESIGN-LIMIT`.
@@ -291,7 +309,7 @@ failing probe distinguishes a compiler/runtime limitation from a Pulse defect.
 | Phase 0 — audit | `NOX-FMT-004`; QBE/task-local/module/thread design limits; historical fixes re-verified | Type/runtime/transfer/smoke audit scripts |
 | Phase 1 — primitives | No new upstream defect; exact int64, clocks, IDs, protobuf and typed enums remained verified | QBE + LLVM primitive unit/property/security/golden suites |
 | Phase 2 — metrics core | `NOX-CODEGEN-001`, `NOX-CODEGEN-002` | Explicit histogram presence flag; concrete snapshot helpers; expected-failure fixtures plus two-backend positive tests |
-| Phase 3 — Prometheus renderer slice | `NOX-IO-001`; no new compiler/runtime issue in allowlisted `target_info` slice | Pure renderer remains portable; redirected `write_raw` has a minimal expected-failure probe, while renderer, Resource allowlist and golden helper pass on QBE + LLVM |
+| Phase 3 — Prometheus MVP slices | `NOX-IO-001`, `NOX-HTTP-004`; no new compiler/runtime issue in allowlisted `target_info` | Pure renderer/handler remain portable; redirected `write_raw` has an expected-failure probe; listener ownership stays with the application because public NOX cannot bind loopback explicitly |
 
 Future phases append a row or explicitly record “no new NOX limitation observed”
 with the exact capability and behavioral commands used for that conclusion.

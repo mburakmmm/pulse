@@ -2,10 +2,10 @@
 
 Status: Phase 3 is active. Pulse has an experimental, pure renderer for the
 Prometheus text exposition format `0.0.4`. It does not yet provide an HTTP scrape
-endpoint or a complete OpenTelemetry-to-Prometheus unit translation policy. It
-supports explicit allowlisted Resource promotion through `target_info`; its golden
-output is accepted by the independently installed Prometheus `promtool` 3.16.0
-parser.
+listener or a complete OpenTelemetry-to-Prometheus unit translation policy. It
+supports a pure HTTP response adapter and explicit allowlisted Resource promotion
+through `target_info`; golden and real scrape output are accepted by the
+independently installed Prometheus `promtool` 3.16.0 parser.
 
 ## Implemented slice
 
@@ -21,6 +21,22 @@ The allowlist is capped at 32 keys, each key is bounded, sensitive keys are
 rejected, normalized label collisions fail closed and the target family counts
 toward the same output-byte ceiling. Non-allowlisted Resource attributes are never
 rendered.
+
+`scrape_response()` and `scrape_response_with_resource()` convert an explicit
+`HttpRequest` plus immutable collection into an `HttpResponse`. They accept only
+`GET` on the configured absolute path, ignore query parameters for routing,
+reject request bodies, return 404/405/400 as appropriate and contain renderer
+failures behind a generic 500. Successful responses declare text `0.0.4`, disable
+caching and add `nosniff`. The adapter performs no bind, clock, network or
+recording operation, so it cannot recursively instrument itself. Configured paths
+are capped at 256 bytes and direct request targets at 4 KiB; oversized targets
+return 414 even when the adapter is invoked outside the NOX server.
+
+Pulse intentionally does not own a listener. NOX 2.1.64 server APIs accept a port
+but not a bind address and bind `0.0.0.0`; see `NOX-HTTP-004`. Applications must
+make the exposure decision explicitly and apply firewall/container policy or a
+trusted loopback reverse proxy for local-only access. The integration fixture's
+wildcard listener is test infrastructure, not a secure production default.
 
 Current mappings are:
 
@@ -59,9 +75,9 @@ aggregation.
   concurrent provider collection is not yet supported.
 - No timestamps are emitted. Prometheus assigns scrape time.
 - OpenMetrics is unsupported.
-- Golden fixtures pass QBE and LLVM and checksum-verified `promtool` 3.16.0. A
-  real HTTP scrape integration test is still required before the Phase 3 exit
-  gate closes.
+- Golden fixtures and real HTTP scrape responses pass QBE and LLVM plus
+  checksum-verified `promtool` 3.16.0. General concurrent collection remains
+  unsupported because the provider is still single-owner.
 
 ## Evidence
 
@@ -77,3 +93,9 @@ archive and requires SHA-256
 `68727009472a2c02e1ff7f062fd5b3e637285bffc8fc2d340c76fb449d6e0f34` before
 executing the parser. Local macOS ARM64 evidence used the official archive with
 SHA-256 `f7c71b553316f822bdd860a3ea527ebefb2f8e944e5b7dfd419ae2653cf3ba01`.
+
+`scripts/run-prometheus-scrape-integration.sh <llvm|qbe>` builds a real NOX
+server and client, applies small request/header/read/connection/drain limits,
+scrapes exact values and safe Resource metadata, checks credential absence and
+waits for graceful shutdown. With `PROMTOOL` set, the received HTTP body is also
+parsed independently.

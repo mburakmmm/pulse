@@ -1,0 +1,27 @@
+import nox.http
+import nox.os
+from nox.http import HttpRequest, HttpResponse
+from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.limits import default_attribute_limits
+from core.resource import Resource
+from exporters.prometheus import scrape_response_with_resource
+from metrics.counter_storage import CounterPointSnapshot, CounterStorageSnapshot
+from metrics.instruments import InstrumentKind
+from metrics.model import MetricCollection, MetricData, MetricDescriptorSnapshot, MetricScopeSnapshot, MetricSnapshot
+
+empty_attributes: AttributeSet = snapshot_attributes({}, default_attribute_limits(), True)
+scope: MetricScopeSnapshot = MetricScopeSnapshot("pulse.scrape.integration", "0.3.0", None, empty_attributes)
+point_attributes: AttributeSet = snapshot_attributes({"method": AttributeValue.Text("GET")}, default_attribute_limits(), True)
+counter: CounterStorageSnapshot = CounterStorageSnapshot([CounterPointSnapshot(point_attributes, 7, False)], 0, 0)
+metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("http.server.requests", InstrumentKind.Counter, "1", "HTTP requests"), 100, 200, MetricData.Counter(counter))]
+collection: MetricCollection = MetricCollection(100, 200, metrics)
+resource: Resource = Resource(snapshot_attributes({"service.name": AttributeValue.Text("scrape-integration"), "authorization": AttributeValue.Text("must-not-export")}, default_attribute_limits(), True))
+
+def handle(request: HttpRequest) -> HttpResponse:
+    response: HttpResponse = scrape_response_with_resource(request, "/metrics", collection, resource, ["service.name"], 8192)
+    nox.http.shutdown()
+    return response
+
+port: int = int(nox.os.arg(1))
+nox.http.configure(1, 4096, 1000, 8, 1000, 0)
+nox.http.serve(port, handle, 1)

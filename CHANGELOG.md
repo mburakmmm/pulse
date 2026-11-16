@@ -86,6 +86,10 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
   labels, collision checks and inclusion in the output-byte bound.
 - The compiling metrics example now renders a real cumulative collection with an
   allowlisted service name; QBE and LLVM assert its Prometheus families and values.
+- A pure Prometheus scrape-response adapter with strict path/method/body handling,
+  correct text 0.0.4 headers, no-store/nosniff policy and generic failure
+  containment, plus real QBE/LLVM NOX server/client integration and promtool
+  validation of the received body.
 
 ### Changed
 
@@ -104,6 +108,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 - `NOX-IO-001` records that redirected `nox.terminal.write_raw()` fails with
   `TerminalError` on Windows x64. A two-backend platform probe preserves the
   evidence, while golden helpers use portable `print` output.
+- `NOX-HTTP-004` records that public NOX HTTP servers cannot select a bind address
+  and bind wildcard interfaces. Pulse exposes a pure handler and leaves listener
+  exposure/lifecycle to the application.
 
 ### Fixed
 

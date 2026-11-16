@@ -67,8 +67,11 @@ explicit Histogram output, and its golden fixture passes Prometheus `promtool`
 3.16.0. `render_metrics_with_resource` may additionally emit one `target_info`
 family, but only for an explicit, bounded Resource attribute allowlist; the base
 renderer never promotes Resource attributes. Unit translation and an HTTP scrape
-endpoint remain open. This is therefore an experimental renderer, not completed
-Prometheus exporter support.
+listener remain open. `scrape_response` and `scrape_response_with_resource` are
+pure `HttpRequest` → `HttpResponse` adapters with method/path/body validation and
+generic error containment. They do not bind a port; listener exposure remains an
+explicit application decision because pinned NOX cannot select a bind address.
+This is therefore experimental Prometheus support, not a production listener.
 
 `metrics.concurrency.AtomicCounterCell` is an internal concurrency proof for one
 attribute-free counter series. Ten real workers recording 1,000 increments each

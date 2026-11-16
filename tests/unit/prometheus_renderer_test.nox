@@ -1,10 +1,11 @@
 import nox.strings
 import nox.test
+from nox.http import HttpRequest, HttpResponse
 from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
 from core.errors import TelemetryError
 from core.limits import default_attribute_limits
 from core.resource import Resource
-from exporters.prometheus import escape_help, escape_label_value, prometheus_family_name, render_metrics, render_metrics_with_resource, sanitize_prometheus_name
+from exporters.prometheus import PROMETHEUS_CONTENT_TYPE, escape_help, escape_label_value, prometheus_family_name, render_metrics, render_metrics_with_resource, sanitize_prometheus_name, scrape_response_with_resource
 from metrics.counter_storage import CounterPointSnapshot, CounterStorageSnapshot
 from metrics.histogram import HistogramSnapshot
 from metrics.histogram_storage import HistogramPointSnapshot, HistogramStorageSnapshot
@@ -130,3 +131,35 @@ try:
 except TelemetryError as e:
     oversized_allowlist_failed = True
 nox.test.assert_true(oversized_allowlist_failed, "target_info enforces the resource-label allowlist hard bound")
+
+scrape: HttpResponse = scrape_response_with_resource(HttpRequest("GET", "/metrics?ignored=1", "", {}), "/metrics", MetricCollection(100, 200, metrics), resource, ["service.name"], 16384)
+nox.test.assert_eq_int(scrape.status, 200, "scrape adapter serves the configured path")
+nox.test.assert_eq_str(scrape.headers["Content-Type"], PROMETHEUS_CONTENT_TYPE, "scrape adapter declares Prometheus text 0.0.4")
+nox.test.assert_eq_str(scrape.headers["Cache-Control"], "no-store", "scrape adapter disables response caching")
+nox.test.assert_true(nox.strings.contains(scrape.body, "target_info{service_name=\"checkout-api\"} 1"), "scrape adapter renders allowlisted Resource metadata")
+
+missing_scrape: HttpResponse = scrape_response_with_resource(HttpRequest("GET", "/other", "", {}), "/metrics", MetricCollection(100, 200, metrics), resource, ["service.name"], 16384)
+nox.test.assert_eq_int(missing_scrape.status, 404, "scrape adapter rejects other paths")
+method_scrape: HttpResponse = scrape_response_with_resource(HttpRequest("POST", "/metrics", "", {}), "/metrics", MetricCollection(100, 200, metrics), resource, ["service.name"], 16384)
+nox.test.assert_eq_int(method_scrape.status, 405, "scrape adapter rejects non-GET methods")
+nox.test.assert_eq_str(method_scrape.headers["Allow"], "GET", "method rejection advertises only GET")
+body_scrape: HttpResponse = scrape_response_with_resource(HttpRequest("GET", "/metrics", "unexpected", {}), "/metrics", MetricCollection(100, 200, metrics), resource, ["service.name"], 16384)
+nox.test.assert_eq_int(body_scrape.status, 400, "scrape adapter rejects request bodies")
+failed_scrape: HttpResponse = scrape_response_with_resource(HttpRequest("GET", "/metrics", "", {}), "/metrics", MetricCollection(100, 200, metrics), resource, ["service.name"], 1)
+nox.test.assert_eq_int(failed_scrape.status, 500, "scrape adapter contains renderer limit failures")
+nox.test.assert_true(not nox.strings.contains(failed_scrape.body, "Prometheus payload"), "scrape adapter does not expose internal error details")
+
+long_target: str = "/"
+target_index: int = 0
+while target_index < 4096:
+    long_target += "x"
+    target_index += 1
+long_target_scrape: HttpResponse = scrape_response_with_resource(HttpRequest("GET", long_target, "", {}), "/metrics", MetricCollection(100, 200, metrics), resource, ["service.name"], 16384)
+nox.test.assert_eq_int(long_target_scrape.status, 414, "scrape adapter bounds request targets even outside the HTTP server")
+
+invalid_path_failed: bool = False
+try:
+    scrape_response_with_resource(HttpRequest("GET", "/metrics", "", {}), "metrics", MetricCollection(100, 200, metrics), resource, ["service.name"], 16384)
+except TelemetryError as e:
+    invalid_path_failed = True
+nox.test.assert_true(invalid_path_failed, "scrape adapter rejects an invalid configured path")

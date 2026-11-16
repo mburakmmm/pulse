@@ -1,0 +1,14 @@
+import nox.os
+import nox.strings
+import nox.test
+from nox.http import HttpResponse, request
+from exporters.prometheus import PROMETHEUS_CONTENT_TYPE
+
+port: str = nox.os.arg(1)
+response: HttpResponse = request("GET", "http://127.0.0.1:" + port + "/metrics?source=integration", "", {}, 1000)
+nox.test.assert_eq_int(response.status, 200, "real scrape endpoint returns success")
+nox.test.assert_eq_str(response.headers["Content-Type"], PROMETHEUS_CONTENT_TYPE, "real scrape endpoint returns text 0.0.4 content type")
+nox.test.assert_true(nox.strings.contains(response.body, "target_info{service_name=\"scrape-integration\"} 1"), "real scrape endpoint exposes allowlisted target metadata")
+nox.test.assert_true(nox.strings.contains(response.body, "http_server_requests_total{method=\"GET\"} 7"), "real scrape endpoint exposes the exact counter")
+nox.test.assert_true(not nox.strings.contains(response.body, "must-not-export"), "real scrape endpoint does not expose sensitive Resource data")
+print(nox.strings.trim_end(response.body))
