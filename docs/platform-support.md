@@ -8,10 +8,10 @@ compiler and both required backends.
 
 | Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|
-| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #11 |
-| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #11 |
-| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #11 |
-| Windows x64 | QBE + LLVM | Not yet claimed | Portable core, Resource privacy and Phase 3 containment `PASS`, CI run #11; `NOX-IO-001` reproduced as expected |
+| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #12 |
+| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #12 |
+| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #12 |
+| Windows x64 | QBE + LLVM | Not yet claimed | Portable core, real scrape, Resource privacy and Phase 3 containment `PASS`, CI run #12; `NOX-IO-001` reproduced as expected |
 
 The core suite includes module checking, smoke build/run, unit, property,
 security, golden and cardinality stress tests, the compiling example and a
@@ -25,9 +25,9 @@ That distinction is a documented scope limit, not a passing result.
 CI run #9 passed the Phase 3 renderer tests on Unix but exposed a Windows-only
 failure in redirected `nox.terminal.write_raw()`. The pure renderer was not the
 failing component. `NOX-IO-001` now has a minimal QBE/LLVM platform audit, and the
-golden helper uses portable `print` output. CI run #11 passed that containment and
-the allowlisted Resource slice on Windows while preserving the expected upstream
-failure evidence.
+golden helper uses portable `print` output. CI run #12 passed that containment,
+the allowlisted Resource slice and real scrape integration on Windows while
+preserving the expected upstream failure evidence.
 
 ## Thread safety
 
@@ -51,5 +51,5 @@ outside that concurrency proof.
 GitHub Actions logs are the source of truth for remote runs. Documentation is
 updated only after those results are observed.
 
-The current evidence is [CI run #11](https://github.com/mburakmmm/pulse/actions/runs/43821365166),
-completed successfully on 2026-11-16 for commit `4f97dbb6c67b2e4718e9037f3fd3c182d79f3b79`.
+The current evidence is [CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141),
+completed successfully on 2026-11-16 for commit `6cf77920778029c927566c98edb5b268ede83a10`.

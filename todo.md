@@ -273,13 +273,13 @@ Bağımlılık: `v0.2.0`.
 - [x] Renderer bozuk bucket toplamını reddediyor; `+Inf == total count` iki backend'de doğrulandı.
 - [x] Resource attribute promotion default kapalı; açıkça seçilen, 32-key hard-bound allowlist yalnız eşleşen güvenli alanları deterministik `target_info` olarak üretir, sensitive/collision config fail-closed; CI run #11 dört platformda geçti.
 - [x] Stable deterministic text `0.0.4` output ve byte-for-byte golden fixture QBE/LLVM'de geçti.
-- [x] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment CI run #11'de Windows LLVM/QBE dahil tüm matriste geçti.
+- [x] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment CI run #12'de Windows LLVM/QBE dahil tüm matriste geçti.
 - [~] Immutable collection render internally consistent; concurrent provider collection hâlâ single-owner sınırı nedeniyle açık.
 - [x] Renderer yalnız snapshot/string modüllerine bağlı saf fonksiyon; render sırasında ağ I/O veya recursive telemetry yolu yok.
 - [x] Saf HTTP scrape handler adapter'ı: yalnız `GET` + bounded configured path/4 KiB target, query-safe routing, 404/405/400/414/500 containment, correct content type ve no-store headers iki backend'de geçti; import/start side effect yok.
 - [~] Gerçek fixture `nox.http.configure` ile body/header/read/connections/drain sınırlarını kullanıyor. Public server API bind address almadığı ve `0.0.0.0` kullandığı için Pulse listener sahiplenmiyor; `NOX-HTTP-004` altında application/deployment kararı zorunlu.
 - [x] Dış Prometheus parser doğrulaması: checksum-verified `promtool` 3.16.0 golden fixture'ı kabul etti; OpenMetrics desteklenmiyor.
-- [x] Gerçek NOX HTTP server/client scrape integration testi LLVM ve QBE'de 200/media-type/exact counter/Resource privacy/graceful shutdown ile geçti; promtool response body'yi kabul ediyor.
+- [x] Gerçek NOX HTTP server/client scrape integration testi CI run #12'de dört platform × LLVM/QBE için 200/media-type/exact counter/Resource privacy/graceful shutdown ile geçti; Linux conformance işi iki response body'yi promtool ile kabul etti.
 - [x] `examples/hello_metrics.nox` gerçek cumulative collection'ı allowlisted `target_info` ile text 0.0.4 çıktısına çeviriyor; QBE/LLVM script exact satırları doğruluyor.
 - [x] Exporter support/security/API/Prometheus docs ve changelog güncellendi.
 
@@ -668,7 +668,7 @@ Bu liste her PR/commit için uygulanır:
 | Formatter regresyonu generic veya binary kaynak semantiğini bozabilir | Kamu API kaynakları bozulur | check→fmt→check capability fixtures | Kapatıldı / regresyon kapısı aktif |
 | Pass-only class formatter gövdeyi siliyor (`NOX-FMT-004`) | Format sonrası geçersiz kaynak | Pulse sınıfları gerçek metot gövdesi kullanır; fixture upstream kusuru yeniden üretir | Açık / contained |
 | Optional float class state codegen olmuyor (`NOX-CODEGEN-001`) | Histogram empty min/max temsili build'i durdurur | `has_min_max` + concrete floats; fixture check-pass/build-fail'i yeniden üretir | Açık / contained |
-| Redirected `nox.terminal.write_raw` Windows'ta hata veriyor (`NOX-IO-001`) | Golden/CLI helper redirected stdout altında düşer | Minimal platform/backend probe + portable `print` helper; CI run #10 Windows LLVM/QBE containment geçti | Açık / contained |
+| Redirected `nox.terminal.write_raw` Windows'ta hata veriyor (`NOX-IO-001`) | Golden/CLI helper redirected stdout altında düşer | Minimal platform/backend probe + portable `print` helper; CI run #12 Windows LLVM/QBE containment geçti | Açık / contained |
 | Typed enum/match regress edebilir | `AttributeValue` exhaustiveness bozulur | ADR-0006 + iki-backend smoke | Kapatıldı / regresyon kapısı aktif |
 | `str` protobuf binary fidelity bozulabilir | OTLP bozulur | NUL/high-byte, byte bridge, protobuf ve HTTP round-trip kapıları | Azaltıldı / Collector açık |
 | Task-local miras yok ve backend transferleri farklı | Context leakage | Explicit immutable context temel API | Tasarım limiti |
@@ -748,3 +748,17 @@ Commit/tag:
 - Bilinen NOX sınırlamaları: `NOX-CODEGEN-001` ve `NOX-CODEGEN-002`; iki backend expected-failure/containment kapıları kalıcı.
 - Changelog/release etkisi: manifest/build identity `0.2.0`; tag veya release artefaktı henüz yok.
 - Commit/tag: uygulama commit'i `190d154041bf8c317471bb52404ff46426761af1`; tag yok.
+
+### `v0.3.0` / Faz 3 — aktif, yayın kapanışı değil
+
+- Durum ve tarih: renderer, allowlisted `target_info` ve gerçek scrape exit gate'leri 2026-11-16'da geçti; unit translation ve general concurrent collection açık olduğu için sürüm tamamlanmadı.
+- NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem `2.1.52` değiştirilmedi.
+- Kamu API: bounded text 0.0.4 renderer, default-off 32-key Resource allowlist ve saf `HttpRequest` → `HttpResponse` scrape adapter'ı; Pulse listener başlatmıyor.
+- Yerel kapılar: `scripts/run-ci-core.sh`, `scripts/run-phase3-tests.sh llvm|qbe`, `scripts/run-prometheus-conformance.sh` ve `scripts/run-prometheus-scrape-integration.sh llvm|qbe` geçti.
+- Uzak platform: CI run #12, commit `6cf77920778029c927566c98edb5b268ede83a10`; macOS ARM64, Linux x64, Linux ARM64 ve Windows x64 core suite gerçek scrape dahil QBE + LLVM geçti.
+- Conformance: checksum-verified promtool 3.16.0 golden fixture'ı ve gerçek LLVM/QBE HTTP response body'lerini kabul etti.
+- Security/resources: output/path/target/Resource allowlist hard bound; non-GET/body/oversized target containment; sensitive Resource sentinel yok; 100.000 label → 1.000 series sınırı devam ediyor.
+- Bilinen NOX sınırlamaları: `NOX-IO-001` expected-failure audit ile contained; `NOX-HTTP-004` nedeniyle public NOX listener yalnız wildcard bind sunuyor, bu yüzden listener exposure uygulama/deployment sorumluluğunda.
+- Açık işler: instrument unit translation/scaling politikası, general concurrent provider/scrape snapshot ve production listener deployment guidance.
+- Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.
+- Commit/tag: uygulama commit'i `6cf77920778029c927566c98edb5b268ede83a10`; tag yok.

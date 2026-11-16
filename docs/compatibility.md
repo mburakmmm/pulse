@@ -18,7 +18,7 @@ capabilities; it does not claim pending exporters or integrations are implemente
 | System compiler | `2.1.52`, unchanged | User requested that the system installation not be modified |
 | Profile | `hosted` | Required for clock, network, filesystem and secure entropy |
 | Locally tested backends | LLVM and QBE | 10-file smoke suite plus capability audits |
-| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Core matrix passed in CI run #11 against the pinned compiler |
+| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Core matrix passed in CI run #12 against the pinned compiler |
 | Windows x64 | Portable core `PASS` | Official checksum-verified toolchain plus QBE/LLVM suite and Phase 3 containment passed; Unix-only capability audits remain unclaimed |
 
 Pulse pins `2.1.64` for CI after testing its official archive from a temporary
@@ -112,8 +112,8 @@ reported as Collector or network interoperability.
 
 ## Remote evidence — 2026-11-16
 
-[GitHub Actions CI run #11](https://github.com/mburakmmm/pulse/actions/runs/43821365166)
-passed on commit `4f97dbb6c67b2e4718e9037f3fd3c182d79f3b79`:
+[GitHub Actions CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141)
+passed on commit `6cf77920778029c927566c98edb5b268ede83a10`:
 
 - portable QBE and LLVM core suite on macOS ARM64, Linux x64, Linux ARM64 and
   Windows x64;
@@ -124,7 +124,10 @@ passed on commit `4f97dbb6c67b2e4718e9037f3fd3c182d79f3b79`:
   backends in every portable core target;
 - Prometheus text 0.0.4 renderer/golden gates, bounded allowlisted `target_info`,
   Resource privacy tests and compiling example on QBE and LLVM for every core
-  target, plus checksum-verified promtool 3.16.0 conformance on Linux x64;
+  target;
+- real NOX HTTP server/client scrape integration on QBE and LLVM for all four
+  core targets, plus checksum-verified promtool 3.16.0 parsing of the golden and
+  both received HTTP bodies on Linux x64;
 - `NOX-IO-001` reproduced as an expected Windows LLVM/QBE capability failure,
   with the portable golden-output containment passing on both backends;
 - final `CI success` job requiring every claimed matrix gate.
@@ -133,8 +136,8 @@ The Windows result is a portable core claim only. It does not imply that the
 Unix-only HTTP/TLS or backend-transfer harnesses ran on Windows.
 
 Phase 3 [CI run #9](https://github.com/mburakmmm/pulse/actions/runs/43744840230)
-first exposed the redirected `write_raw` failure. Runs #10 and #11 preserve that
-evidence with a minimal expected-failure probe and prove the portable renderer
+first exposed the redirected `write_raw` failure. Run #12 preserves that evidence
+with a minimal expected-failure probe and proves the portable renderer/scrape
 containment across the full matrix.
 
 ## Remaining audit work

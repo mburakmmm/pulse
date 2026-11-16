@@ -5,9 +5,9 @@ Pulse baseline: NOX `2.1.64`, source commit `be3458c332c8234baa8f3f8ac2ae9601db2
 Compiler build identity: `noxc version --build-info` reports the same commit  
 Audited binary SHA-256: `067b6dbfd4a42f692690dbaa2bf390486b33a491614460e61b6b2191307737d7`  
 Last local re-verification: 2026-11-16, macOS ARM64, QBE and LLVM; portable core
-CI run #11 passed on macOS ARM64, Linux x64, Linux ARM64 and Windows x64 on
-2026-11-16, including the Phase 3 `NOX-IO-001` probe, containment and allowlisted
-`target_info` slice.
+CI run #12 passed on macOS ARM64, Linux x64, Linux ARM64 and Windows x64 on
+2026-11-16, including the Phase 3 `NOX-IO-001` probe, `NOX-HTTP-004`
+containment, allowlisted `target_info` and real scrape integration.
 
 This register separates actual defects from language/runtime design constraints and
 Pulse-only audit work. A closed historical item remains here so an older workaround
@@ -59,7 +59,7 @@ used as release evidence.
 - Gate: Unix targets require exact redirected bytes. Windows targets require the
   known `TerminalError` on both backends so an upstream behavior change cannot be
   hidden; after upstream fixes it, the deliberately failing audit must be updated.
-- Remote evidence: [CI run #11](https://github.com/mburakmmm/pulse/actions/runs/43821365166)
+- Remote evidence: [CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141)
   observed `write_raw=known-incompatible` on Windows x64 LLVM and QBE, while the
   portable golden renderer test passed on both backends.
 - Close when: redirected output from the minimal fixture succeeds byte-exactly on
@@ -279,6 +279,9 @@ used as release evidence.
 - Gate: `scripts/run-prometheus-scrape-integration.sh` proves real HTTP response,
   bounds and graceful shutdown; it is a protocol integration test, not proof of
   loopback confinement.
+- Remote evidence: [CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141)
+  passed the real scrape fixture on QBE and LLVM across all four core targets;
+  the Linux conformance job independently parsed both HTTP bodies with promtool.
 - Close when: a pinned public NOX API accepts an explicit bind address and a
   loopback-only regression passes on every supported target.
 
