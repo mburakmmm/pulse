@@ -81,6 +81,11 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
   cumulative histogram buckets, `+Inf == count` validation and QBE/LLVM golden
   coverage. The fixture passes checksum-verified Prometheus `promtool` 3.16.0;
   unit translation and the real HTTP scrape endpoint remain explicitly pending.
+- Explicit Prometheus `target_info` rendering from a maximum 32-key Resource
+  allowlist, with default-off promotion, sensitive-key rejection, deterministic
+  labels, collision checks and inclusion in the output-byte bound.
+- The compiling metrics example now renders a real cumulative collection with an
+  allowlisted service name; QBE and LLVM assert its Prometheus families and values.
 
 ### Changed
 
@@ -109,5 +114,7 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ### Security
 
-- No telemetry implementation or network exporter is enabled.
+- Resource attributes are never promoted by the base Prometheus renderer. The
+  explicit `target_info` path requires a bounded allowlist and rejects sensitive
+  keys; no network listener or OTLP exporter is enabled.
 

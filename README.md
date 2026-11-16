@@ -32,7 +32,7 @@ is now in `v0.3.0`, beginning with a bounded Prometheus text renderer.
 | Cardinality and aggregation-memory bounds | Implemented with deterministic overflow routing |
 | Cumulative metric reader | Implemented with deterministic collection timestamps |
 | In-memory and console metric exporters | Experimental, bounded and tested on QBE + LLVM |
-| Prometheus exposition | Experimental pure text 0.0.4 renderer; promtool 3.16.0 pass, endpoint pending |
+| Prometheus exposition | Experimental pure text 0.0.4 renderer with bounded allowlisted `target_info`; promtool 3.16.0 pass, endpoint pending |
 | Tracing and W3C propagation | Planned for `v0.4.0`–`v0.5.0` |
 | OTLP/HTTP traces and metrics | Planned for `v0.7.0`–`v0.8.0` |
 | Concurrent recording provider | Not implemented; atomic same-series 10×1,000 proof only |
@@ -71,9 +71,9 @@ noxc run --backend llvm examples/hello_metrics.nox
 noxc run --backend qbe examples/hello_metrics.nox
 ```
 
-The example records real Counter and Histogram measurements and reads the
-current in-process snapshot. It deliberately does not start an HTTP endpoint or
-export telemetry.
+The example records real Counter and Histogram measurements, collects a
+cumulative snapshot and renders Prometheus text with an explicitly allowlisted
+service name. It deliberately does not start an HTTP endpoint or send telemetry.
 
 ```nox
 from api.metrics import Counter
@@ -154,7 +154,7 @@ The dependency rules and rationale are documented in
 ## Roadmap
 
 1. Complete the general concurrent recording-provider lifecycle.
-2. Complete Prometheus unit/resource policy and the real scrape endpoint.
+2. Complete Prometheus unit translation and the real scrape endpoint.
 3. Implement tracing, explicit context and W3C propagation.
 4. Add bounded processors, sampling and lifecycle control.
 5. Implement pinned OTLP protobuf mapping and real Collector interoperability.

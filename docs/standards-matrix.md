@@ -44,6 +44,6 @@ This table will expand with each phase. No feature is advertised merely because 
 | Metrics | Pass | Pass | Pass | Atomic same-series pass; general provider pending | N/A |
 | Tracing | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 | W3C propagation | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| Prometheus | Pure renderer pass | Text 0.0.4 pass | Malformed/bound checks pass | Immutable snapshot only; concurrent provider pending | promtool 3.16.0 pass; real scrape pending |
+| Prometheus | Pure renderer + allowlisted `target_info` pass | Text 0.0.4 pass | Malformed/bound/sensitive-resource checks pass | Immutable snapshot only; concurrent provider pending | promtool 3.16.0 pass; real scrape pending |
 | OTLP protobuf/HTTP | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 

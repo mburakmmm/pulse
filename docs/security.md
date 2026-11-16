@@ -1,6 +1,8 @@
 # Security and privacy baseline
 
-Status: Phase 0 threat-model seed. Telemetry collection and exporters are not implemented.
+Status: Phase 3 active. Bounded metrics collection and pure in-memory, console
+and Prometheus rendering slices exist; no network listener or OTLP exporter is
+implemented.
 
 ## Default-deny data policy
 
@@ -15,6 +17,9 @@ Automatic instrumentation uses allowlists. Redaction, dropping, hashing, masking
 - OTLP headers and endpoint credentials never appear in diagnostics.
 - TLS certificate verification is enabled by default; no silent insecure fallback.
 - Prometheus listeners default to loopback or require an explicit bind decision.
+- Prometheus Resource promotion is disabled in `render_metrics()`. The explicit
+  `render_metrics_with_resource()` path emits only configured allowlist keys,
+  rejects sensitive keys and bounds the allowlist to 32 labels.
 - Native code has operating-system authority; no NNI is approved without an ADR.
 
 ## Required malicious-input coverage

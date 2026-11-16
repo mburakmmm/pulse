@@ -3,7 +3,8 @@ import nox.test
 from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
 from core.errors import TelemetryError
 from core.limits import default_attribute_limits
-from exporters.prometheus import escape_help, escape_label_value, prometheus_family_name, render_metrics, sanitize_prometheus_name
+from core.resource import Resource
+from exporters.prometheus import escape_help, escape_label_value, prometheus_family_name, render_metrics, render_metrics_with_resource, sanitize_prometheus_name
 from metrics.counter_storage import CounterPointSnapshot, CounterStorageSnapshot
 from metrics.histogram import HistogramSnapshot
 from metrics.histogram_storage import HistogramPointSnapshot, HistogramStorageSnapshot
@@ -32,6 +33,12 @@ nox.test.assert_true(nox.strings.contains(payload, "request_duration_bucket{rout
 nox.test.assert_true(nox.strings.contains(payload, "request_duration_bucket{route=\"/orders\",le=\"+Inf\"} 4\n"), "histograms emit a positive-infinity bucket equal to count")
 nox.test.assert_true(nox.strings.contains(payload, "request_duration_count{route=\"/orders\"} 4\n"), "histograms emit count")
 nox.test.assert_true(nox.strings.contains(payload, "request_duration_sum{route=\"/orders\"} 13"), "histograms emit sum")
+
+resource: Resource = Resource(snapshot_attributes({"service.name": AttributeValue.Text("checkout-api"), "service.version": AttributeValue.Text("1.2.3"), "deployment.environment.name": AttributeValue.Text("production")}, default_attribute_limits(), True))
+resource_payload: str = render_metrics_with_resource(MetricCollection(100, 200, metrics), resource, ["service.name", "deployment.environment.name"], 16384)
+nox.test.assert_true(nox.strings.starts_with(resource_payload, "# HELP target_info Target metadata\n# TYPE target_info gauge\ntarget_info{deployment_environment_name=\"production\",service_name=\"checkout-api\"} 1\n"), "target_info exposes only explicitly allowlisted resource labels in deterministic order")
+nox.test.assert_true(not nox.strings.contains(resource_payload, "service_version"), "target_info does not promote non-allowlisted resource attributes")
+nox.test.assert_eq_str(render_metrics_with_resource(MetricCollection(100, 200, []), resource, [], 1024), "", "an empty resource allowlist emits no target_info family")
 
 nox.test.assert_eq_str(sanitize_prometheus_name("9.bad/name", False), "__bad_name", "invalid metric-name bytes normalize deterministically")
 nox.test.assert_eq_str(sanitize_prometheus_name("__internal", True), "otel__internal", "reserved double-underscore labels are moved out of the reserved namespace")
@@ -81,3 +88,45 @@ try:
 except TelemetryError as e:
     kind_mismatch_failed = True
 nox.test.assert_true(kind_mismatch_failed, "renderer rejects descriptor and metric-data kind mismatches")
+
+sensitive_allowlist_failed: bool = False
+try:
+    render_metrics_with_resource(MetricCollection(100, 200, []), resource, ["authorization"], 1024)
+except TelemetryError as e:
+    sensitive_allowlist_failed = True
+nox.test.assert_true(sensitive_allowlist_failed, "target_info rejects sensitive resource keys even when explicitly configured")
+
+resource_collision_failed: bool = False
+try:
+    render_metrics_with_resource(MetricCollection(100, 200, []), resource, ["service.name", "service/name"], 1024)
+except TelemetryError as e:
+    resource_collision_failed = True
+nox.test.assert_true(resource_collision_failed, "target_info rejects allowlist labels that collide after normalization")
+
+target_info_data: UpDownStorageSnapshot = UpDownStorageSnapshot([UpDownPointSnapshot(snapshot_attributes({}, default_attribute_limits(), True), 1, False)], 0, 0)
+target_info_metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("target_info", InstrumentKind.UpDownCounter, "1", ""), 100, 200, MetricData.UpDownCounter(target_info_data))]
+target_info_collision_failed: bool = False
+try:
+    render_metrics_with_resource(MetricCollection(100, 200, target_info_metrics), resource, ["service.name"], 1024)
+except TelemetryError as e:
+    target_info_collision_failed = True
+nox.test.assert_true(target_info_collision_failed, "target_info rejects a conflicting user metric family")
+
+resource_bound_failed: bool = False
+try:
+    render_metrics_with_resource(MetricCollection(100, 200, []), resource, ["service.name"], 1)
+except TelemetryError as e:
+    resource_bound_failed = True
+nox.test.assert_true(resource_bound_failed, "target_info is included in the configured output byte bound")
+
+oversized_allowlist: list[str] = []
+allowlist_index: int = 0
+while allowlist_index < 33:
+    oversized_allowlist.append("resource.key." + str(allowlist_index))
+    allowlist_index += 1
+oversized_allowlist_failed: bool = False
+try:
+    render_metrics_with_resource(MetricCollection(100, 200, []), resource, oversized_allowlist, 4096)
+except TelemetryError as e:
+    oversized_allowlist_failed = True
+nox.test.assert_true(oversized_allowlist_failed, "target_info enforces the resource-label allowlist hard bound")

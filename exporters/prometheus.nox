@@ -1,7 +1,8 @@
 import nox.strings
 from nox.json import JsonWriter
-from core.attributes import AttributeSet, AttributeValue, is_finite
+from core.attributes import AttributeEntry, AttributeSet, AttributeValue, estimated_attribute_value_bytes, is_finite, is_sensitive_key
 from core.errors import TelemetryError
+from core.resource import Resource
 from metrics.aggregator import MAX_INT
 from metrics.counter_storage import CounterStorageSnapshot
 from metrics.histogram import HistogramSnapshot
@@ -9,6 +10,9 @@ from metrics.histogram_storage import HistogramStorageSnapshot
 from metrics.instruments import InstrumentKind
 from metrics.model import MetricCollection, MetricData, MetricSnapshot
 from metrics.updown_storage import UpDownStorageSnapshot
+
+MAX_RESOURCE_LABELS: int = 32
+MAX_RESOURCE_ALLOWLIST_KEY_BYTES: int = 256
 
 def is_ascii_alpha(byte: int) -> bool:
     return byte >= 65 and byte <= 90 or byte >= 97 and byte <= 122
@@ -219,11 +223,45 @@ def render_metric(metric: MetricSnapshot) -> str:
             result += render_histogram_points(name, snapshot)
     return result
 
-def render_metrics(collection: MetricCollection, max_output_bytes: int) -> str:
+def render_target_info(resource: Resource, resource_attribute_allowlist: list[str]) -> str:
+    if len(resource_attribute_allowlist) > MAX_RESOURCE_LABELS:
+        raise TelemetryError("Prometheus resource allowlist exceeds max labels")
+    allowed: dict[str, bool] = {}
+    normalized_labels: dict[str, bool] = {}
+    for key in resource_attribute_allowlist:
+        key_bytes: int = nox.strings.byte_len(key)
+        if key_bytes == 0 or key_bytes > MAX_RESOURCE_ALLOWLIST_KEY_BYTES:
+            raise TelemetryError("Prometheus resource allowlist key is invalid")
+        if is_sensitive_key(key):
+            raise TelemetryError("Prometheus resource allowlist contains a sensitive key")
+        if key in allowed:
+            raise TelemetryError("Prometheus resource allowlist contains a duplicate key")
+        label: str = sanitize_prometheus_name(key, True)
+        if label in normalized_labels:
+            raise TelemetryError("Prometheus resource labels collide after normalization")
+        allowed[key] = True
+        normalized_labels[label] = True
+
+    selected: list[AttributeEntry] = []
+    selected_bytes: int = 0
+    for entry in resource.attributes.entries:
+        if entry.key in allowed:
+            selected.append(entry)
+            selected_bytes += nox.strings.byte_len(entry.key) + estimated_attribute_value_bytes(entry.value)
+    if len(selected) == 0:
+        return ""
+    attributes: AttributeSet = AttributeSet(selected, 0, selected_bytes)
+    return "# HELP target_info Target metadata\n# TYPE target_info gauge\ntarget_info" + render_labels(attributes, None, "") + " 1\n"
+
+def render_metrics_with_prefix(collection: MetricCollection, max_output_bytes: int, prefix: str) -> str:
     if max_output_bytes <= 0:
         raise TelemetryError("Prometheus max_output_bytes must be positive")
-    result: str = ""
+    result: str = prefix
+    if nox.strings.byte_len(result) > max_output_bytes:
+        raise TelemetryError("Prometheus payload exceeds max_output_bytes")
     families: dict[str, bool] = {}
+    if nox.strings.byte_len(prefix) > 0:
+        families["target_info"] = True
     for metric in collection.metrics:
         family: str = prometheus_family_name(metric.descriptor.name, metric.descriptor.kind)
         if family in families:
@@ -233,3 +271,10 @@ def render_metrics(collection: MetricCollection, max_output_bytes: int) -> str:
         if nox.strings.byte_len(result) > max_output_bytes:
             raise TelemetryError("Prometheus payload exceeds max_output_bytes")
     return result
+
+def render_metrics(collection: MetricCollection, max_output_bytes: int) -> str:
+    return render_metrics_with_prefix(collection, max_output_bytes, "")
+
+def render_metrics_with_resource(collection: MetricCollection, resource: Resource, resource_attribute_allowlist: list[str], max_output_bytes: int) -> str:
+    target_info: str = render_target_info(resource, resource_attribute_allowlist)
+    return render_metrics_with_prefix(collection, max_output_bytes, target_info)

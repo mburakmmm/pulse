@@ -1,7 +1,8 @@
 import nox.strings
 from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
 from core.limits import default_attribute_limits
-from exporters.prometheus import render_metrics
+from core.resource import Resource
+from exporters.prometheus import render_metrics_with_resource
 from metrics.counter_storage import CounterPointSnapshot, CounterStorageSnapshot
 from metrics.histogram import HistogramSnapshot
 from metrics.histogram_storage import HistogramPointSnapshot, HistogramStorageSnapshot
@@ -16,5 +17,6 @@ histogram_attributes: AttributeSet = snapshot_attributes({"route": AttributeValu
 counter: CounterStorageSnapshot = CounterStorageSnapshot([CounterPointSnapshot(counter_attributes, 3, False)], 0, 0)
 histogram: HistogramStorageSnapshot = HistogramStorageSnapshot([HistogramPointSnapshot(histogram_attributes, HistogramSnapshot([0.5, 1.0], [1, 1, 1], 3, 2.25, True, 0.25, 1.25), False)], 0, 0)
 metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("http.server.requests", InstrumentKind.Counter, "1", "HTTP requests"), 100, 200, MetricData.Counter(counter)), MetricSnapshot(scope, MetricDescriptorSnapshot("http.server.duration", InstrumentKind.Histogram, "s", "HTTP duration"), 100, 200, MetricData.Histogram(histogram))]
+resource: Resource = Resource(snapshot_attributes({"service.name": AttributeValue.Text("checkout-api"), "service.version": AttributeValue.Text("0.3.0"), "deployment.environment.name": AttributeValue.Text("test")}, default_attribute_limits(), True))
 
-print(nox.strings.trim_end(render_metrics(MetricCollection(100, 200, metrics), 8192)))
+print(nox.strings.trim_end(render_metrics_with_resource(MetricCollection(100, 200, metrics), resource, ["service.name", "deployment.environment.name"], 8192)))

@@ -271,7 +271,7 @@ Bağımlılık: `v0.2.0`.
 - [~] Counter `_total` isimlendirmesi tamam; instrument unit translation/scaling politikası açık ve henüz iddia edilmiyor.
 - [x] Histogram `_bucket`, `_sum`, `_count`, cumulative `le`, `+Inf` üretimi golden testte geçti.
 - [x] Renderer bozuk bucket toplamını reddediyor; `+Inf == total count` iki backend'de doğrulandı.
-- [ ] Resource attribute allowlist/target-info politikası.
+- [x] Resource attribute promotion default kapalı; açıkça seçilen, 32-key hard-bound allowlist yalnız eşleşen güvenli alanları deterministik `target_info` olarak üretir, sensitive/collision config fail-closed.
 - [x] Stable deterministic text `0.0.4` output ve byte-for-byte golden fixture QBE/LLVM'de geçti.
 - [x] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment CI run #10'da Windows LLVM/QBE dahil tüm matriste geçti.
 - [~] Immutable collection render internally consistent; concurrent provider collection hâlâ single-owner sınırı nedeniyle açık.
@@ -280,14 +280,14 @@ Bağımlılık: `v0.2.0`.
 - [ ] Scrape timeout ve inbound resource sınırları.
 - [x] Dış Prometheus parser doğrulaması: checksum-verified `promtool` 3.16.0 golden fixture'ı kabul etti; OpenMetrics desteklenmiyor.
 - [ ] Gerçek endpoint scrape integration testi.
-- [ ] `examples/hello_metrics.nox` derlenen örneği.
-- [ ] Exporter support/security/docs/changelog güncellemesi.
+- [x] `examples/hello_metrics.nox` gerçek cumulative collection'ı allowlisted `target_info` ile text 0.0.4 çıktısına çeviriyor; QBE/LLVM script exact satırları doğruluyor.
+- [x] Exporter support/security/API/Prometheus docs ve changelog güncellendi.
 
 Çıkış kapısı:
 
 - [x] Dış `promtool` 3.16.0 parser tüm mevcut text 0.0.4 golden çıktıları kabul ediyor.
 - [ ] Gerçek scrape doğru metric type ve histogram değerlerini görüyor.
-- [ ] Dinamik label saldırısı cardinality limitini aşmıyor.
+- [x] 100.000 dinamik metric-label stress testi 1.000-series sınırında kalıyor; Resource promotion ayrıca 32-key allowlist hard-bound kullanıyor.
 
 ### `v0.4.0` — Faz 4: tracing core
 

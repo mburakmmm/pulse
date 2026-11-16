@@ -7,7 +7,7 @@ exporter. A compiling serializer is not automatically OTLP or Prometheus support
 |---|---|---|---|
 | In-memory | Metrics | Experimental, QBE + LLVM tested | Fixed collection capacity; defensive ingress/egress copies; idempotent shutdown |
 | Console | Metrics | Experimental, QBE + LLVM tested | Structured sanitized JSON; fixed output-byte limit; synchronous |
-| Prometheus text renderer | Metrics | Experimental Phase 3 slice, QBE + LLVM tested | Pure cumulative snapshot render; output-byte bound; no listener |
+| Prometheus text renderer | Metrics | Experimental Phase 3 slice, QBE + LLVM tested | Pure cumulative snapshot render; explicit bounded Resource allowlist/`target_info`; output-byte bound; no listener |
 | Prometheus HTTP scrape | Metrics | Planned for Phase 3 | Renderer passes promtool 3.16.0; real scrape endpoint pending |
 | OTLP/HTTP | Metrics + traces | Planned for Phase 8 | Not implemented; no Collector claim |
 | OTLP/gRPC | Metrics + traces | Optional | Unsupported until real Collector conformance |

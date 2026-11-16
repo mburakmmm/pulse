@@ -101,8 +101,10 @@ diagnostics and is not described as OTLP JSON.
 The first Phase 3 slice adds a pure bounded Prometheus text `0.0.4` renderer over
 the same immutable cumulative collection. It produces counter/gauge/histogram
 families and cumulative histogram buckets without performing I/O. External parser
-acceptance is independently verified. Unit translation, resource labels and the
-HTTP endpoint are deliberately still pending; see `docs/prometheus.md`.
+acceptance is independently verified. Resource promotion remains default-off; an
+explicit maximum-32-key allowlist can produce one deterministic `target_info`
+family and rejects sensitive keys. Unit translation and the HTTP endpoint are
+deliberately still pending; see `docs/prometheus.md`.
 
 ## Concurrency status
 

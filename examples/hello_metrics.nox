@@ -1,12 +1,16 @@
 from api.metrics import Counter, Histogram
-from core.attributes import AttributeValue
+from core.attributes import AttributeValue, snapshot_attributes
+from core.clock import TestClock
 from core.limits import default_attribute_limits, default_metric_limits, default_record_limits
+from core.resource import Resource
+from exporters.prometheus import render_metrics_with_resource
 from metrics.counter_storage import CounterStorageSnapshot
 from metrics.histogram_storage import HistogramStorageSnapshot
 from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
+from metrics.reader import CumulativeMetricReader
 
 provider: SingleOwnerMeterProvider = SingleOwnerMeterProvider(default_attribute_limits(), default_metric_limits(), default_record_limits())
-meter: RecordingMeter = provider.get_recording_meter("pulse.example", "0.2.0", None)
+meter: RecordingMeter = provider.get_recording_meter("pulse.example", "0.3.0", None)
 
 requests: Counter = meter.create_counter("checkout.requests", "1", "completed requests")
 requests.add(1, {"route": AttributeValue.Text("/checkout")})
@@ -20,3 +24,7 @@ duration_snapshot: HistogramStorageSnapshot = meter.histogram_snapshot("checkout
 
 print("checkout.requests total", request_snapshot.points[0].total)
 print("checkout.duration count", duration_snapshot.points[0].data.count)
+
+reader: CumulativeMetricReader = CumulativeMetricReader(TestClock(100, 100))
+resource: Resource = Resource(snapshot_attributes({"service.name": AttributeValue.Text("checkout-example"), "service.version": AttributeValue.Text("0.3.0")}, default_attribute_limits(), True))
+print(render_metrics_with_resource(reader.collect(provider), resource, ["service.name"], 16384))

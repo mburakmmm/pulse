@@ -1,11 +1,12 @@
 import nox.strings
 import nox.test
 from api.metrics import Counter
-from core.attributes import AttributeValue
+from core.attributes import AttributeEntry, AttributeSet, AttributeValue
 from core.clock import TestClock
 from core.limits import default_attribute_limits, default_metric_limits, default_record_limits
+from core.resource import Resource
 from exporters.console import render_metric_collection_json
-from exporters.prometheus import render_metrics
+from exporters.prometheus import render_metrics, render_metrics_with_resource
 from metrics.model import MetricCollection
 from metrics.provider import RecordingMeter, SingleOwnerMeterProvider
 from metrics.reader import CumulativeMetricReader
@@ -20,6 +21,8 @@ reader: CumulativeMetricReader = CumulativeMetricReader(clock)
 collection: MetricCollection = reader.collect(provider)
 payload: str = render_metric_collection_json(collection)
 prometheus_payload: str = render_metrics(collection, 4096)
+resource: Resource = Resource(AttributeSet([AttributeEntry("authorization", AttributeValue.Text("secret-resource-auth-sentinel")), AttributeEntry("service.name", AttributeValue.Text("safe-service"))], 0, 64))
+resource_payload: str = render_metrics_with_resource(collection, resource, ["service.name"], 4096)
 
 nox.test.assert_true(nox.strings.contains(payload, "/safe-route"), "safe metric attributes survive export rendering")
 nox.test.assert_true(not nox.strings.contains(payload, "secret-auth-sentinel"), "authorization is absent from metric export payload")
@@ -31,3 +34,5 @@ nox.test.assert_true(not nox.strings.contains(prometheus_payload, "secret-auth-s
 nox.test.assert_true(not nox.strings.contains(prometheus_payload, "secret-cookie-sentinel"), "cookie is absent from Prometheus payload")
 nox.test.assert_true(not nox.strings.contains(prometheus_payload, "secret-body-sentinel"), "request body is absent from Prometheus payload")
 nox.test.assert_true(not nox.strings.contains(prometheus_payload, "secret-email-sentinel"), "email is absent from Prometheus payload")
+nox.test.assert_true(nox.strings.contains(resource_payload, "service_name=\"safe-service\""), "explicitly allowlisted safe Resource data reaches target_info")
+nox.test.assert_true(not nox.strings.contains(resource_payload, "secret-resource-auth-sentinel"), "non-allowlisted Resource credentials never reach target_info")

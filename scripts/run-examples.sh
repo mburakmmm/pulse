@@ -16,6 +16,10 @@ while IFS= read -r example_file; do
   output="$("$noxc_bin" run --backend "$backend" "$example_file")"
   grep -Fxq "checkout.requests total 3" <<<"$output"
   grep -Fxq "checkout.duration count 1" <<<"$output"
+  grep -Fxq '# TYPE target_info gauge' <<<"$output"
+  grep -Fxq 'target_info{service_name="checkout-example"} 1' <<<"$output"
+  grep -Fxq '# TYPE checkout_requests_total counter' <<<"$output"
+  grep -Fq 'checkout_duration_count{route="/checkout"} 1' <<<"$output"
 done < <(find examples -type f -name '*.nox' -print | sort)
 
 printf 'pulse examples: backend=%s compile=pass run=pass\n' "$backend"

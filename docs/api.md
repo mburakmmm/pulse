@@ -64,9 +64,11 @@ listener or network request.
 `exporters.prometheus.render_metrics` maps an immutable cumulative collection to
 bounded Prometheus text exposition `0.0.4`. It covers Counter, UpDownCounter and
 explicit Histogram output, and its golden fixture passes Prometheus `promtool`
-3.16.0. Unit translation, resource labels and an HTTP scrape endpoint remain
-open. It is therefore an experimental renderer, not completed Prometheus exporter
-support.
+3.16.0. `render_metrics_with_resource` may additionally emit one `target_info`
+family, but only for an explicit, bounded Resource attribute allowlist; the base
+renderer never promotes Resource attributes. Unit translation and an HTTP scrape
+endpoint remain open. This is therefore an experimental renderer, not completed
+Prometheus exporter support.
 
 `metrics.concurrency.AtomicCounterCell` is an internal concurrency proof for one
 attribute-free counter series. Ten real workers recording 1,000 increments each

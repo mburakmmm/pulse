@@ -2,9 +2,10 @@
 
 Status: Phase 3 is active. Pulse has an experimental, pure renderer for the
 Prometheus text exposition format `0.0.4`. It does not yet provide an HTTP scrape
-endpoint, resource-label promotion or a complete OpenTelemetry-to-Prometheus unit
-translation policy. Its golden output is accepted by the independently installed
-Prometheus `promtool` 3.16.0 parser.
+endpoint or a complete OpenTelemetry-to-Prometheus unit translation policy. It
+supports explicit allowlisted Resource promotion through `target_info`; its golden
+output is accepted by the independently installed Prometheus `promtool` 3.16.0
+parser.
 
 ## Implemented slice
 
@@ -13,12 +14,22 @@ already-collected cumulative `MetricCollection`. It performs no network, file,
 clock or provider calls. The caller supplies a positive byte ceiling; output over
 that ceiling fails with `TelemetryError`.
 
+`render_metrics_with_resource(collection, resource, allowlist, max_output_bytes)`
+adds a `target_info` gauge before the metric families. Resource promotion is off
+unless this explicit API is selected and the allowlist contains a matching key.
+The allowlist is capped at 32 keys, each key is bounded, sensitive keys are
+rejected, normalized label collisions fail closed and the target family counts
+toward the same output-byte ceiling. Non-allowlisted Resource attributes are never
+rendered.
+
 Current mappings are:
 
 - Counter → Prometheus `counter`, with an idempotent `_total` suffix;
 - UpDownCounter → Prometheus `gauge`;
 - explicit-boundary Histogram → cumulative `_bucket`, `_sum` and `_count`
-  samples, including a mandatory `le="+Inf"` bucket equal to total count.
+  samples, including a mandatory `le="+Inf"` bucket equal to total count;
+- explicitly allowlisted Resource attributes → one `target_info` gauge with
+  deterministic labels and value `1`.
 
 Metric and label names use the legacy text-format ASCII grammar. Unsupported
 bytes are replaced deterministically with `_`; labels beginning with the reserved
@@ -40,8 +51,9 @@ aggregation.
 - Duplicate normalized family names, including the same instrument name from
   separate scopes, fail the render. View-based conflict resolution is not yet
   implemented.
-- The renderer receives no Resource today, so it cannot expose `target_info` or
-  an allowlisted resource-label set.
+- `render_metrics()` intentionally receives no Resource. Callers that need
+  `target_info` must choose `render_metrics_with_resource()` and provide the
+  allowlist; bulk/default promotion is unsupported.
 - Scrape-time concurrent consistency is limited by the current single-owner
   provider. An immutable collection is consistent after it has been collected;
   concurrent provider collection is not yet supported.
