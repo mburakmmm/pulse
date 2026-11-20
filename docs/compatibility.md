@@ -140,6 +140,17 @@ first exposed the redirected `write_raw` failure. Run #12 preserves that evidenc
 with a minimal expected-failure probe and proves the portable renderer/scrape
 containment across the full matrix.
 
+## Unit translation evidence — 2026-11-20
+
+[GitHub Actions CI run #13](https://github.com/mburakmmm/pulse/actions/runs/44791381303)
+passed on commit `8d01f51e6d1a6adb816c0e8cf5c24ac4830f17ec`. The pinned
+OpenTelemetry unit table, annotation removal, rate naming, unit-before-type suffix
+ordering, exact unscaled values and post-translation collision rejection passed
+the portable QBE/LLVM core suite on macOS ARM64, Linux x64, Linux ARM64 and
+Windows x64. The independent Linux x64 promtool 3.16.0 job accepted the updated
+golden fixture; all three capability jobs and the final required-gates job also
+passed. No new NOX compiler or runtime limitation was observed in this slice.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.

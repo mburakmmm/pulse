@@ -755,10 +755,10 @@ Commit/tag:
 - NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem derleyicisi bu fazda kullanılmadı veya değiştirilmedi.
 - Kamu API: bounded text 0.0.4 renderer, default-off 32-key Resource allowlist ve saf `HttpRequest` → `HttpResponse` scrape adapter'ı; Pulse listener başlatmıyor.
 - Yerel kapılar: `scripts/run-ci-core.sh`, `scripts/run-phase3-tests.sh llvm|qbe`, `scripts/run-prometheus-conformance.sh` ve `scripts/run-prometheus-scrape-integration.sh llvm|qbe` geçti.
-- Uzak platform: CI run #12, commit `6cf77920778029c927566c98edb5b268ede83a10`; macOS ARM64, Linux x64, Linux ARM64 ve Windows x64 core suite gerçek scrape dahil QBE + LLVM geçti.
+- Uzak platform: CI run #13, commit `8d01f51e6d1a6adb816c0e8cf5c24ac4830f17ec`; macOS ARM64, Linux x64, Linux ARM64 ve Windows x64 core suite gerçek scrape ve unit translation dahil QBE + LLVM geçti; üç capability işi ve final required-gates işi yeşil.
 - Conformance: checksum-verified promtool 3.16.0 golden fixture'ı ve gerçek LLVM/QBE HTTP response body'lerini kabul etti.
 - Security/resources: output/path/target/Resource allowlist hard bound; non-GET/body/oversized target containment; sensitive Resource sentinel yok; 100.000 label → 1.000 series sınırı devam ediyor.
 - Bilinen NOX sınırlamaları: `NOX-IO-001` expected-failure audit ile contained; `NOX-HTTP-004` nedeniyle public NOX listener yalnız wildcard bind sunuyor, bu yüzden listener exposure uygulama/deployment sorumluluğunda.
 - Açık işler: general concurrent provider/scrape snapshot ve production listener deployment guidance.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.
-- Commit/tag: uygulama commit'i `6cf77920778029c927566c98edb5b268ede83a10`; tag yok.
+- Commit/tag: uygulama commit'i `8d01f51e6d1a6adb816c0e8cf5c24ac4830f17ec`; tag yok.
