@@ -66,8 +66,10 @@ bounded Prometheus text exposition `0.0.4`. It covers Counter, UpDownCounter and
 explicit Histogram output, and its golden fixture passes Prometheus `promtool`
 3.16.0. `render_metrics_with_resource` may additionally emit one `target_info`
 family, but only for an explicit, bounded Resource attribute allowlist; the base
-renderer never promotes Resource attributes. Unit translation and an HTTP scrape
-listener remain open. `scrape_response` and `scrape_response_with_resource` are
+renderer never promotes Resource attributes. Pinned OpenTelemetry UCUM units are
+translated into name suffixes without rescaling measurements; unit suffixes
+precede `_total`. An HTTP scrape listener remains application-owned.
+`scrape_response` and `scrape_response_with_resource` are
 pure `HttpRequest` → `HttpResponse` adapters with method/path/body validation and
 generic error containment. They do not bind a port; listener exposure remains an
 explicit application decision because pinned NOX cannot select a bind address.

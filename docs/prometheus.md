@@ -1,11 +1,11 @@
 # Prometheus exposition
 
 Status: Phase 3 is active. Pulse has an experimental, pure renderer for the
-Prometheus text exposition format `0.0.4`. It does not yet provide an HTTP scrape
-listener or a complete OpenTelemetry-to-Prometheus unit translation policy. It
-supports a pure HTTP response adapter and explicit allowlisted Resource promotion
-through `target_info`; golden and real scrape output are accepted by the
-independently installed Prometheus `promtool` 3.16.0 parser.
+Prometheus text exposition format `0.0.4`. It does not provide an HTTP scrape
+listener. It supports pinned OpenTelemetry unit-to-name translation, a pure HTTP
+response adapter and explicit allowlisted Resource promotion through
+`target_info`; golden and real scrape output are accepted by the independently
+installed Prometheus `promtool` 3.16.0 parser.
 
 ## Implemented slice
 
@@ -47,6 +47,19 @@ Current mappings are:
 - explicitly allowlisted Resource attributes → one `target_info` gauge with
   deterministic labels and value `1`.
 
+The pinned OpenTelemetry `v1.62.0` Prometheus compatibility rules drive unit
+translation. Known UCUM atoms use the normative word table (`ms` →
+`milliseconds`, `By` → `bytes`); annotations in braces are removed; rates use a
+plural numerator and singular denominator (`m/s` → `meters_per_second`). The unit
+suffix precedes the counter suffix, so a seconds counter ends in
+`_seconds_total`. Dimensionless `1` adds no suffix, an existing suffix is not
+duplicated, and malformed annotations/rates fail closed. Unknown ASCII atoms are
+normalized deterministically. Translation changes names only: values, histogram
+boundaries and sums are never scaled or converted, preserving exact integer
+paths and the instrument's declared measurement magnitude. Text format `0.0.4`
+has no UNIT metadata line, so Pulse emits the required information in the family
+name only.
+
 Metric and label names use the legacy text-format ASCII grammar. Unsupported
 bytes are replaced deterministically with `_`; labels beginning with the reserved
 `__` namespace are prefixed with `otel`. A family or label collision after
@@ -61,9 +74,8 @@ aggregation.
 
 ## Explicit limitations
 
-- Instrument units are preserved in the snapshot but do not yet rename or scale
-  Prometheus samples. Unit translation remains open; no base-unit compliance is
-  claimed.
+- Unit translation implements the pinned suffix rules, not arbitrary UCUM
+  dimensional algebra. It does not rescale values or infer a base unit.
 - Duplicate normalized family names, including the same instrument name from
   separate scopes, fail the render. View-based conflict resolution is not yet
   implemented.

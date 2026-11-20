@@ -4,10 +4,10 @@ target_info{deployment_environment_name="test",service_name="checkout-api"} 1
 # HELP http_server_requests_total HTTP requests
 # TYPE http_server_requests_total counter
 http_server_requests_total{method="GET",route="/orders"} 3
-# HELP http_server_duration HTTP duration
-# TYPE http_server_duration histogram
-http_server_duration_bucket{route="/orders",le="0.5"} 1
-http_server_duration_bucket{route="/orders",le="1.0"} 2
-http_server_duration_bucket{route="/orders",le="+Inf"} 3
-http_server_duration_sum{route="/orders"} 2.25
-http_server_duration_count{route="/orders"} 3
+# HELP http_server_duration_seconds HTTP duration
+# TYPE http_server_duration_seconds histogram
+http_server_duration_seconds_bucket{route="/orders",le="0.5"} 1
+http_server_duration_seconds_bucket{route="/orders",le="1.0"} 2
+http_server_duration_seconds_bucket{route="/orders",le="+Inf"} 3
+http_server_duration_seconds_sum{route="/orders"} 2.25
+http_server_duration_seconds_count{route="/orders"} 3

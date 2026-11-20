@@ -5,7 +5,7 @@ from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
 from core.errors import TelemetryError
 from core.limits import default_attribute_limits
 from core.resource import Resource
-from exporters.prometheus import PROMETHEUS_CONTENT_TYPE, escape_help, escape_label_value, prometheus_family_name, render_metrics, render_metrics_with_resource, sanitize_prometheus_name, scrape_response_with_resource
+from exporters.prometheus import PROMETHEUS_CONTENT_TYPE, escape_help, escape_label_value, prometheus_family_name, prometheus_family_name_with_unit, prometheus_unit_name, render_metrics, render_metrics_with_resource, sanitize_prometheus_name, scrape_response_with_resource
 from metrics.counter_storage import CounterPointSnapshot, CounterStorageSnapshot
 from metrics.histogram import HistogramSnapshot
 from metrics.histogram_storage import HistogramPointSnapshot, HistogramStorageSnapshot
@@ -30,10 +30,10 @@ nox.test.assert_true(nox.strings.contains(payload, "# TYPE http_requests_total c
 nox.test.assert_true(nox.strings.contains(payload, "http_requests_total{attempt=\"2\",http_route=\"/orders\\n\\\"quoted\\\"\"} 9007199254740993\n"), "counter samples retain exact int64 values and escaped deterministic labels")
 nox.test.assert_true(nox.strings.contains(payload, "# TYPE active_requests gauge\n"), "up/down counters map to gauges")
 nox.test.assert_true(nox.strings.contains(payload, "active_requests{state=\"ready\"} -2\n"), "gauges retain signed values")
-nox.test.assert_true(nox.strings.contains(payload, "request_duration_bucket{route=\"/orders\",le=\"1"), "histograms emit cumulative finite buckets")
-nox.test.assert_true(nox.strings.contains(payload, "request_duration_bucket{route=\"/orders\",le=\"+Inf\"} 4\n"), "histograms emit a positive-infinity bucket equal to count")
-nox.test.assert_true(nox.strings.contains(payload, "request_duration_count{route=\"/orders\"} 4\n"), "histograms emit count")
-nox.test.assert_true(nox.strings.contains(payload, "request_duration_sum{route=\"/orders\"} 13"), "histograms emit sum")
+nox.test.assert_true(nox.strings.contains(payload, "request_duration_milliseconds_bucket{route=\"/orders\",le=\"1"), "histograms emit cumulative finite buckets with the translated unit suffix")
+nox.test.assert_true(nox.strings.contains(payload, "request_duration_milliseconds_bucket{route=\"/orders\",le=\"+Inf\"} 4\n"), "histograms emit a positive-infinity bucket equal to count")
+nox.test.assert_true(nox.strings.contains(payload, "request_duration_milliseconds_count{route=\"/orders\"} 4\n"), "histograms emit count")
+nox.test.assert_true(nox.strings.contains(payload, "request_duration_milliseconds_sum{route=\"/orders\"} 13"), "unit naming does not rescale histogram values")
 
 resource: Resource = Resource(snapshot_attributes({"service.name": AttributeValue.Text("checkout-api"), "service.version": AttributeValue.Text("1.2.3"), "deployment.environment.name": AttributeValue.Text("production")}, default_attribute_limits(), True))
 resource_payload: str = render_metrics_with_resource(MetricCollection(100, 200, metrics), resource, ["service.name", "deployment.environment.name"], 16384)
@@ -44,8 +44,20 @@ nox.test.assert_eq_str(render_metrics_with_resource(MetricCollection(100, 200, [
 nox.test.assert_eq_str(sanitize_prometheus_name("9.bad/name", False), "__bad_name", "invalid metric-name bytes normalize deterministically")
 nox.test.assert_eq_str(sanitize_prometheus_name("__internal", True), "otel__internal", "reserved double-underscore labels are moved out of the reserved namespace")
 nox.test.assert_eq_str(prometheus_family_name("already_total", InstrumentKind.Counter), "already_total", "counter total suffix is idempotent")
+nox.test.assert_eq_str(prometheus_unit_name("ms{request}"), "milliseconds", "UCUM annotations are dropped before translating known units")
+nox.test.assert_eq_str(prometheus_unit_name("By/s"), "bytes_per_second", "UCUM rates use plural numerators and singular denominators")
+nox.test.assert_eq_str(prometheus_unit_name("{request}/s"), "per_second", "annotation-only numerators produce a bounded rate suffix")
+nox.test.assert_eq_str(prometheus_family_name_with_unit("requests_total", InstrumentKind.Counter, "s"), "requests_seconds_total", "unit suffixes precede counter type suffixes")
+nox.test.assert_eq_str(prometheus_family_name_with_unit("latency_seconds", InstrumentKind.Histogram, "s"), "latency_seconds", "existing unit suffixes are not duplicated")
 nox.test.assert_eq_str(escape_help("a\\b\nc"), "a\\\\b\\nc", "HELP escaping follows text exposition rules")
 nox.test.assert_eq_str(escape_label_value("a\\b\n\"c"), "a\\\\b\\n\\\"c", "label escaping follows text exposition rules")
+
+malformed_unit_failed: bool = False
+try:
+    prometheus_unit_name("ms{request")
+except TelemetryError as e:
+    malformed_unit_failed = True
+nox.test.assert_true(malformed_unit_failed, "malformed UCUM annotations fail closed")
 
 too_small_failed: bool = False
 try:
@@ -71,6 +83,14 @@ try:
 except TelemetryError as e:
     family_collision_failed = True
 nox.test.assert_true(family_collision_failed, "renderer rejects family collisions after name normalization")
+
+unit_collision_metrics: list[MetricSnapshot] = [MetricSnapshot(scope, MetricDescriptorSnapshot("latency", InstrumentKind.UpDownCounter, "ms", ""), 100, 200, MetricData.UpDownCounter(gauge_data)), MetricSnapshot(scope, MetricDescriptorSnapshot("latency_milliseconds", InstrumentKind.UpDownCounter, "1", ""), 100, 200, MetricData.UpDownCounter(gauge_data))]
+unit_collision_failed: bool = False
+try:
+    render_metrics(MetricCollection(100, 200, unit_collision_metrics), 1024)
+except TelemetryError as e:
+    unit_collision_failed = True
+nox.test.assert_true(unit_collision_failed, "renderer rejects family collisions introduced by unit translation")
 
 colliding_attributes: AttributeSet = snapshot_attributes({"label.one": AttributeValue.Text("first"), "label/one": AttributeValue.Text("second")}, default_attribute_limits(), True)
 label_collision_data: CounterStorageSnapshot = CounterStorageSnapshot([CounterPointSnapshot(colliding_attributes, 1, False)], 0, 0)

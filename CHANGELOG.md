@@ -79,8 +79,10 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 - An experimental bounded Prometheus text exposition `0.0.4` renderer with
   deterministic name/label escaping, exact counter values, gauge mapping,
   cumulative histogram buckets, `+Inf == count` validation and QBE/LLVM golden
-  coverage. The fixture passes checksum-verified Prometheus `promtool` 3.16.0;
-  unit translation and the real HTTP scrape endpoint remain explicitly pending.
+  coverage. The fixture passes checksum-verified Prometheus `promtool` 3.16.0.
+- Pinned OpenTelemetry Prometheus unit suffix translation for known UCUM atoms,
+  annotations and rates, with unit-before-`_total` ordering, collision checks and
+  no measurement rescaling.
 - Explicit Prometheus `target_info` rendering from a maximum 32-key Resource
   allowlist, with default-off promotion, sensitive-key rejection, deterministic
   labels, collision checks and inclusion in the output-byte bound.

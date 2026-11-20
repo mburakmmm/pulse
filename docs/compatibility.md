@@ -97,7 +97,7 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 | `bash scripts/run-phase1-tests.sh qbe` | same Phase 1 gates pass |
 | `bash scripts/run-phase2-tests.sh llvm` | single-owner provider, cumulative reader, memory/console exporters, aggregation properties, 10×1,000 worker counter, cardinality and 100k-label stress gates pass |
 | `bash scripts/run-phase2-tests.sh qbe` | same Phase 2 gates pass |
-| `bash scripts/run-phase3-tests.sh llvm` | pure Prometheus text 0.0.4 renderer, bounded Resource allowlist/`target_info`, handler behavior, real HTTP scrape, portable golden and terminal-redirect audit pass |
+| `bash scripts/run-phase3-tests.sh llvm` | pure Prometheus text 0.0.4 renderer, pinned unit suffix translation without value scaling, bounded Resource allowlist/`target_info`, handler behavior, real HTTP scrape, portable golden and terminal-redirect audit pass |
 | `bash scripts/run-phase3-tests.sh qbe` | same Phase 3 renderer, handler and real scrape gates pass |
 | `PROMTOOL=<official-3.16.0> bash scripts/run-prometheus-conformance.sh` | checksum-verified independent Prometheus parser accepts the text 0.0.4 golden fixture |
 | `PROMTOOL=<official-3.16.0> bash scripts/run-prometheus-scrape-integration.sh llvm|qbe` | real NOX HTTP response has correct media type, exact values, privacy and graceful shutdown; promtool accepts the received body |

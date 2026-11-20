@@ -312,7 +312,7 @@ failing probe distinguishes a compiler/runtime limitation from a Pulse defect.
 | Phase 0 — audit | `NOX-FMT-004`; QBE/task-local/module/thread design limits; historical fixes re-verified | Type/runtime/transfer/smoke audit scripts |
 | Phase 1 — primitives | No new upstream defect; exact int64, clocks, IDs, protobuf and typed enums remained verified | QBE + LLVM primitive unit/property/security/golden suites |
 | Phase 2 — metrics core | `NOX-CODEGEN-001`, `NOX-CODEGEN-002` | Explicit histogram presence flag; concrete snapshot helpers; expected-failure fixtures plus two-backend positive tests |
-| Phase 3 — Prometheus MVP slices | `NOX-IO-001`, `NOX-HTTP-004`; no new compiler/runtime issue in allowlisted `target_info` | Pure renderer/handler remain portable; redirected `write_raw` has an expected-failure probe; listener ownership stays with the application because public NOX cannot bind loopback explicitly |
+| Phase 3 — Prometheus MVP slices | `NOX-IO-001`, `NOX-HTTP-004`; no new compiler/runtime issue in allowlisted `target_info` or pinned unit translation | Pure renderer/handler and unit table/rate/annotation logic pass QBE + LLVM; redirected `write_raw` has an expected-failure probe; listener ownership stays with the application because public NOX cannot bind loopback explicitly |
 
 Future phases append a row or explicitly record “no new NOX limitation observed”
 with the exact capability and behavioral commands used for that conclusion.

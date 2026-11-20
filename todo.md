@@ -268,7 +268,7 @@ Bağımlılık: `v0.2.0`.
 - [x] Prometheus text exposition `0.0.4` sabitlendi; OpenMetrics açıkça unsupported.
 - [x] Pozitif output-byte bound alan, I/O yapmayan saf `render_metrics()` snapshot renderer iki backend'de geçti.
 - [x] Metric/label adı normalization, label value ve HELP escaping; normalization collision'ında fail-closed davranış test edildi.
-- [~] Counter `_total` isimlendirmesi tamam; instrument unit translation/scaling politikası açık ve henüz iddia edilmiyor.
+- [x] Pinned OTel `v1.62.0` unit politikası: known UCUM word table, `{annotation}` drop, `_per_` rates, unit-before-`_total`, idempotent suffix ve translation collision fail-closed iki backend'de geçti; değer/boundary/sum ölçeklenmiyor.
 - [x] Histogram `_bucket`, `_sum`, `_count`, cumulative `le`, `+Inf` üretimi golden testte geçti.
 - [x] Renderer bozuk bucket toplamını reddediyor; `+Inf == total count` iki backend'de doğrulandı.
 - [x] Resource attribute promotion default kapalı; açıkça seçilen, 32-key hard-bound allowlist yalnız eşleşen güvenli alanları deterministik `target_info` olarak üretir, sensitive/collision config fail-closed; CI run #11 dört platformda geçti.
@@ -721,7 +721,7 @@ Commit/tag:
 
 - Durum ve tarih: ortak telemetry primitives yerel kapısı geçti, 2026-11-12.
 - Dosyalar: `api/`, `core/`, `sdk/`, Phase 1 unit/property/security/golden testleri ve ilgili belgeler.
-- NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem `2.1.52` değiştirilmedi.
+- NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem derleyicisi bu fazda kullanılmadı veya değiştirilmedi.
 - Platform: macOS ARM64.
 - Kamu API: explicit context, metrics/tracing base contracts, no-op providers; recording SDK veya exporter iddiası yok.
 - Kesin kapılar: `NOXC=<isolated-2.1.64> bash scripts/run-phase1-tests.sh llvm` ve aynı komut `qbe`.
@@ -737,7 +737,7 @@ Commit/tag:
 
 - Durum ve tarih: yerel kapı ve dört hedefli uzak core kapısı 2026-11-14'te geçti; manifest `0.2.0`.
 - Dosyalar: `metrics/`, metric API/model/reader, memory/console exporter'ları, unit/property/security/concurrency/stress testleri ve ilgili belgeler.
-- NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem `2.1.52` değiştirilmedi.
+- NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem derleyicisi bu fazda kullanılmadı veya değiştirilmedi.
 - Kamu API: Counter, UpDownCounter ve explicit Histogram için bounded cumulative single-owner recording provider; cumulative reader ve bounded memory/console exporter'ları.
 - Kesin yerel kapılar: `NOXC=<isolated-2.1.64> bash scripts/run-phase2-tests.sh llvm`, aynı komut `qbe` ve `bash scripts/run-ci-core.sh`.
 - QBE/LLVM: 10 metrics unit dosyası, aggregation property, privacy, 100.000-label stress ve 10 worker × 1.000 atomic counter kapıları geçti; fail/skip yok.
@@ -751,14 +751,14 @@ Commit/tag:
 
 ### `v0.3.0` / Faz 3 — aktif, yayın kapanışı değil
 
-- Durum ve tarih: renderer, allowlisted `target_info` ve gerçek scrape exit gate'leri 2026-11-16'da geçti; unit translation ve general concurrent collection açık olduğu için sürüm tamamlanmadı.
-- NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem `2.1.52` değiştirilmedi.
+- Durum ve tarih: renderer, allowlisted `target_info`, gerçek scrape ve pinned unit translation kapıları 2026-11-20'de geçti; general concurrent collection açık olduğu için sürüm tamamlanmadı.
+- NOX: izole resmî `noxc 2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e`; sistem derleyicisi bu fazda kullanılmadı veya değiştirilmedi.
 - Kamu API: bounded text 0.0.4 renderer, default-off 32-key Resource allowlist ve saf `HttpRequest` → `HttpResponse` scrape adapter'ı; Pulse listener başlatmıyor.
 - Yerel kapılar: `scripts/run-ci-core.sh`, `scripts/run-phase3-tests.sh llvm|qbe`, `scripts/run-prometheus-conformance.sh` ve `scripts/run-prometheus-scrape-integration.sh llvm|qbe` geçti.
 - Uzak platform: CI run #12, commit `6cf77920778029c927566c98edb5b268ede83a10`; macOS ARM64, Linux x64, Linux ARM64 ve Windows x64 core suite gerçek scrape dahil QBE + LLVM geçti.
 - Conformance: checksum-verified promtool 3.16.0 golden fixture'ı ve gerçek LLVM/QBE HTTP response body'lerini kabul etti.
 - Security/resources: output/path/target/Resource allowlist hard bound; non-GET/body/oversized target containment; sensitive Resource sentinel yok; 100.000 label → 1.000 series sınırı devam ediyor.
 - Bilinen NOX sınırlamaları: `NOX-IO-001` expected-failure audit ile contained; `NOX-HTTP-004` nedeniyle public NOX listener yalnız wildcard bind sunuyor, bu yüzden listener exposure uygulama/deployment sorumluluğunda.
-- Açık işler: instrument unit translation/scaling politikası, general concurrent provider/scrape snapshot ve production listener deployment guidance.
+- Açık işler: general concurrent provider/scrape snapshot ve production listener deployment guidance.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.
 - Commit/tag: uygulama commit'i `6cf77920778029c927566c98edb5b268ede83a10`; tag yok.

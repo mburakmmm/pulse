@@ -47,17 +47,125 @@ def sanitize_prometheus_name(value: str, label: bool) -> str:
         return "otel" + result
     return result
 
-def prometheus_family_name(name: str, kind: InstrumentKind) -> str:
+def strip_unit_annotations(unit: str) -> str:
+    size: int = nox.strings.byte_len(unit)
+    if size > 63:
+        raise TelemetryError("Prometheus unit exceeds the OpenTelemetry unit length bound")
+    parts: list[str] = []
+    in_annotation: bool = False
+    index: int = 0
+    while index < size:
+        byte: int = nox.strings.byte_at(unit, index)
+        if byte > 127:
+            raise TelemetryError("Prometheus unit translation requires ASCII input")
+        if byte == 123:
+            if in_annotation:
+                raise TelemetryError("Prometheus unit contains a nested annotation")
+            in_annotation = True
+        elif byte == 125:
+            if not in_annotation:
+                raise TelemetryError("Prometheus unit contains an unmatched annotation terminator")
+            in_annotation = False
+        elif not in_annotation:
+            parts.append(nox.strings.char_from_byte(byte))
+        index += 1
+    if in_annotation:
+        raise TelemetryError("Prometheus unit contains an unterminated annotation")
+    return nox.strings.join(parts, "")
+
+def sanitize_prometheus_unit_atom(value: str) -> str:
+    parts: list[str] = []
+    separator_pending: bool = False
+    index: int = 0
+    size: int = nox.strings.byte_len(value)
+    while index < size:
+        byte: int = nox.strings.byte_at(value, index)
+        if is_ascii_alpha(byte) or is_ascii_digit(byte):
+            if separator_pending and len(parts) > 0:
+                parts.append("_")
+            parts.append(nox.strings.char_from_byte(byte))
+            separator_pending = False
+        else:
+            separator_pending = True
+        index += 1
+    return nox.strings.join(parts, "")
+
+def prometheus_unit_atom(unit: str, singular: bool) -> str:
+    plural: dict[str, str] = {"d": "days", "h": "hours", "min": "minutes", "s": "seconds", "ms": "milliseconds", "us": "microseconds", "ns": "nanoseconds", "By": "bytes", "KiBy": "kibibytes", "MiBy": "mebibytes", "GiBy": "gibibytes", "TiBy": "tebibytes", "kBy": "kilobytes", "MBy": "megabytes", "GBy": "gigabytes", "TBy": "terabytes", "m": "meters", "V": "volts", "A": "amperes", "J": "joules", "W": "watts", "g": "grams", "Cel": "celsius", "Hz": "hertz", "%": "percent"}
+    singular_words: dict[str, str] = {"d": "day", "h": "hour", "min": "minute", "s": "second", "ms": "millisecond", "us": "microsecond", "ns": "nanosecond", "By": "byte", "KiBy": "kibibyte", "MiBy": "mebibyte", "GiBy": "gibibyte", "TiBy": "tebibyte", "kBy": "kilobyte", "MBy": "megabyte", "GBy": "gigabyte", "TBy": "terabyte", "m": "meter", "V": "volt", "A": "ampere", "J": "joule", "W": "watt", "g": "gram", "Cel": "celsius", "Hz": "hertz", "%": "percent"}
+    if unit == "" or unit == "1":
+        return ""
+    if singular and unit in singular_words:
+        return singular_words[unit]
+    if not singular and unit in plural:
+        return plural[unit]
+    result: str = sanitize_prometheus_unit_atom(unit)
+    if result == "":
+        raise TelemetryError("Prometheus unit cannot be represented as a metric-name suffix")
+    return result
+
+def prometheus_unit_name(unit: str) -> str:
+    cleaned: str = strip_unit_annotations(unit)
+    if cleaned == "" or cleaned == "1":
+        return ""
+    numerator_parts: list[str] = []
+    denominator_parts: list[str] = []
+    has_rate: bool = False
+    index: int = 0
+    size: int = nox.strings.byte_len(cleaned)
+    while index < size:
+        byte: int = nox.strings.byte_at(cleaned, index)
+        if byte == 47:
+            if has_rate:
+                raise TelemetryError("Prometheus unit rate contains more than one denominator")
+            has_rate = True
+        elif has_rate:
+            denominator_parts.append(nox.strings.char_from_byte(byte))
+        else:
+            numerator_parts.append(nox.strings.char_from_byte(byte))
+        index += 1
+    numerator: str = nox.strings.join(numerator_parts, "")
+    if not has_rate:
+        return prometheus_unit_atom(numerator, False)
+    denominator: str = prometheus_unit_atom(nox.strings.join(denominator_parts, ""), True)
+    if denominator == "":
+        raise TelemetryError("Prometheus unit rate requires a denominator")
+    translated_numerator: str = prometheus_unit_atom(numerator, False)
+    if translated_numerator == "":
+        return "per_" + denominator
+    return translated_numerator + "_per_" + denominator
+
+def without_ascii_suffix(value: str, suffix: str) -> str:
+    if suffix == "" or not nox.strings.ends_with(value, suffix):
+        return value
+    parts: list[str] = []
+    limit: int = nox.strings.byte_len(value) - nox.strings.byte_len(suffix)
+    index: int = 0
+    while index < limit:
+        parts.append(nox.strings.char_from_byte(nox.strings.byte_at(value, index)))
+        index += 1
+    return nox.strings.join(parts, "")
+
+def prometheus_family_name_with_unit(name: str, kind: InstrumentKind, unit: str) -> str:
     base: str = sanitize_prometheus_name(name, False)
+    type_suffix: str = ""
     match kind:
         case InstrumentKind.Counter:
-            if nox.strings.ends_with(base, "_total"):
-                return base
-            return base + "_total"
+            type_suffix = "_total"
         case InstrumentKind.UpDownCounter:
-            return base
+            pass
         case InstrumentKind.Histogram:
-            return base
+            pass
+    core: str = without_ascii_suffix(base, type_suffix)
+    translated_unit: str = prometheus_unit_name(unit)
+    if translated_unit != "":
+        unit_suffix: str = "_" + translated_unit
+        if not nox.strings.ends_with(core, unit_suffix):
+            core += unit_suffix
+    return core + type_suffix
+
+def prometheus_family_name(name: str, kind: InstrumentKind) -> str:
+    return prometheus_family_name_with_unit(name, kind, "1")
 
 def escape_help(value: str) -> str:
     return nox.strings.replace(nox.strings.replace(value, "\\", "\\\\"), "\n", "\\n")
@@ -201,7 +309,7 @@ def render_histogram_points(name: str, snapshot: HistogramStorageSnapshot) -> st
     return result
 
 def render_metric(metric: MetricSnapshot) -> str:
-    name: str = prometheus_family_name(metric.descriptor.name, metric.descriptor.kind)
+    name: str = prometheus_family_name_with_unit(metric.descriptor.name, metric.descriptor.kind, metric.descriptor.unit)
     result: str = render_family_header(name, metric.descriptor.description, metric.descriptor.kind)
     match metric.data:
         case MetricData.Counter(snapshot):
@@ -267,7 +375,7 @@ def render_metrics_with_prefix(collection: MetricCollection, max_output_bytes: i
     if nox.strings.byte_len(prefix) > 0:
         families["target_info"] = True
     for metric in collection.metrics:
-        family: str = prometheus_family_name(metric.descriptor.name, metric.descriptor.kind)
+        family: str = prometheus_family_name_with_unit(metric.descriptor.name, metric.descriptor.kind, metric.descriptor.unit)
         if family in families:
             raise TelemetryError("Prometheus metric family names must be unique after normalization")
         families[family] = True

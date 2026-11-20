@@ -19,7 +19,7 @@ while IFS= read -r example_file; do
   grep -Fxq '# TYPE target_info gauge' <<<"$output"
   grep -Fxq 'target_info{service_name="checkout-example"} 1' <<<"$output"
   grep -Fxq '# TYPE checkout_requests_total counter' <<<"$output"
-  grep -Fq 'checkout_duration_count{route="/checkout"} 1' <<<"$output"
+  grep -Fq 'checkout_duration_milliseconds_count{route="/checkout"} 1' <<<"$output"
 done < <(find examples -type f -name '*.nox' -print | sort)
 
 printf 'pulse examples: backend=%s compile=pass run=pass\n' "$backend"

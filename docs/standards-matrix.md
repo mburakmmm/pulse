@@ -5,7 +5,7 @@ Status: Standards selected on 2026-11-07; NOX baseline refreshed and locally ver
 | Contract | Exact version / commit | Pulse surface | Status |
 |---|---|---|---|
 | NOX language and stdlib | `2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e` | All modules | Pinned; isolated QBE/LLVM local gates pass |
-| OpenTelemetry specification | `v1.62.0`, `18c5c1706e346fec3bdb5e135a6e3a78f461e586` | API/SDK semantics | Pinned |
+| OpenTelemetry specification | `v1.62.0`, `18c5c1706e346fec3bdb5e135a6e3a78f461e586` | API/SDK semantics and Prometheus unit translation | Pinned; metric-name unit table/rate/annotation rules implemented |
 | OTLP protocol/protobuf | `v1.11.1`, `b3f75588eb23c5fca62264edd05d382de49beb1a` | Traces and metrics encoding | Pinned; schema checksum pending |
 | OpenTelemetry semantic conventions | `v1.45.0`, `fb30ca17193b551473b1f43c315482918ab6987c` | HTTP/DB/resource attributes | Pinned |
 | W3C Trace Context | Recommendation, 23 November 2021 | `traceparent`, `tracestate` | Pinned; fixtures pending |
@@ -32,6 +32,10 @@ Status: Standards selected on 2026-11-07; NOX baseline refreshed and locally ver
 - Semantic conventions versioning is independent from the core specification and is pinned separately.
 - W3C Baggage is a Candidate Recommendation Snapshot, not a W3C Recommendation. Pulse must preserve this maturity distinction in documentation.
 - Initial Prometheus output targets text format `0.0.4`. OpenMetrics remains unsupported until its own renderer and conformance tests exist.
+- Prometheus unit suffixes follow the pinned compatibility specification at
+  `specification/compatibility/prometheus_and_openmetrics.md`: known UCUM atoms
+  become words, annotations are dropped, rates use `_per_`, and the unit suffix
+  precedes the type suffix. Pulse does not rescale metric values.
 
 ## Feature-to-test matrix
 

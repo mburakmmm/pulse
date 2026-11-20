@@ -32,7 +32,7 @@ is now in `v0.3.0`, beginning with a bounded Prometheus text renderer.
 | Cardinality and aggregation-memory bounds | Implemented with deterministic overflow routing |
 | Cumulative metric reader | Implemented with deterministic collection timestamps |
 | In-memory and console metric exporters | Experimental, bounded and tested on QBE + LLVM |
-| Prometheus exposition | Experimental text 0.0.4 renderer + pure scrape handler; real QBE/LLVM HTTP integration and promtool 3.16.0 pass, listener remains application-owned |
+| Prometheus exposition | Experimental text 0.0.4 renderer with pinned unit suffixes + pure scrape handler; real QBE/LLVM HTTP integration and promtool 3.16.0 pass, listener remains application-owned |
 | Tracing and W3C propagation | Planned for `v0.4.0`–`v0.5.0` |
 | OTLP/HTTP traces and metrics | Planned for `v0.7.0`–`v0.8.0` |
 | Concurrent recording provider | Not implemented; atomic same-series 10×1,000 proof only |
@@ -154,7 +154,7 @@ The dependency rules and rationale are documented in
 ## Roadmap
 
 1. Complete the general concurrent recording-provider lifecycle.
-2. Complete Prometheus unit translation and document production listener deployment.
+2. Complete general concurrent collection and production listener deployment guidance.
 3. Implement tracing, explicit context and W3C propagation.
 4. Add bounded processors, sampling and lifecycle control.
 5. Implement pinned OTLP protobuf mapping and real Collector interoperability.

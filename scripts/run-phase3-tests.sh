@@ -30,4 +30,4 @@ if ! cmp -s "$output_root/prometheus-golden.expected" "$output_root/prometheus-g
   exit 1
 fi
 
-printf 'pulse phase3 renderer tests: backend=%s text_format=0.0.4 pure_renderer=pass escaping=pass counter=pass gauge=pass histogram=pass resource_allowlist=pass output_bound=pass golden=pass terminal_redirect=audit scrape_adapter=pass real_endpoint=pass external_parser=separate-gate listener_ownership=application\n' "$backend"
+printf 'pulse phase3 renderer tests: backend=%s text_format=0.0.4 pure_renderer=pass escaping=pass unit_translation=pass value_scaling=none counter=pass gauge=pass histogram=pass resource_allowlist=pass output_bound=pass golden=pass terminal_redirect=audit scrape_adapter=pass real_endpoint=pass external_parser=separate-gate listener_ownership=application\n' "$backend"
