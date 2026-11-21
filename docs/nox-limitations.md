@@ -40,8 +40,9 @@ The current audit uses an isolated official archive verified before extraction.
 
 ### NOX-IO-001 — Redirected `nox.terminal.write_raw` fails on Windows
 
-- Status: `AUDIT-PENDING` for Windows x64 on 2.2.38. Local macOS ARM64
-  redirected bytes pass on QBE and LLVM. The defect was confirmed on 2.1.64.
+- Status: `CLOSED` on 2.2.38. The Windows x64 core job in
+  [CI run #16](https://github.com/mburakmmm/pulse/actions/runs/44891047883/job/136806805128)
+  passed exact redirected bytes on QBE and LLVM. The defect was confirmed on 2.1.64.
 - Observed: a program using the public `nox.terminal.write_raw()` API throws
   `nox_terminal_TerminalError` when standard output is redirected to a file on
   Windows. The same operation succeeds on macOS and Linux. This was first
@@ -57,8 +58,6 @@ The current audit uses an isolated official archive verified before extraction.
 - Remote evidence: [CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141)
   observed `write_raw=known-incompatible` on Windows x64 LLVM and QBE, while the
   portable golden renderer test passed on both backends.
-- Close when: redirected output from the minimal fixture succeeds byte-exactly on
-  Windows x64 QBE and LLVM, and the containment/audit documentation is retired.
 
 ## Closed historical defects
 
@@ -233,6 +232,10 @@ The current audit uses an isolated official archive verified before extraction.
 - Scope: a worker can mutate a nested dictionary and the parent observes it
   after join. Test shared provider state, runtime memory ownership and races
   separately before advertising concurrent collection.
+- Evidence: [CI run #16](https://github.com/mburakmmm/pulse/actions/runs/44891047883)
+  passed the joined and locked dictionary probes on both backends in all three
+  Unix capability jobs. See the upgrade audit for the original ARM64 assertion
+  failure and the bounded contention probe used in the follow-up.
 - Gate: `bash scripts/run-backend-transfer-audit.sh`.
 
 ### NOX-MODULE-001 — Mutable module state is worker-local

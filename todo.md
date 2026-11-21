@@ -277,7 +277,7 @@ Bağımlılık: `v0.2.0`.
 - [~] Immutable collection render internally consistent; concurrent provider collection hâlâ single-owner sınırı nedeniyle açık.
 - [x] Renderer yalnız snapshot/string modüllerine bağlı saf fonksiyon; render sırasında ağ I/O veya recursive telemetry yolu yok.
 - [x] Saf HTTP scrape handler adapter'ı: yalnız `GET` + bounded configured path/4 KiB target, query-safe routing, 404/405/400/414/500 containment, correct content type ve no-store headers iki backend'de geçti; import/start side effect yok.
-- [~] Gerçek fixture `nox.http.configure` ile body/header/read/connections/drain sınırlarını kullanıyor. Public server API bind address almadığı ve `0.0.0.0` kullandığı için Pulse listener sahiplenmiyor; `NOX-HTTP-004` altında application/deployment kararı zorunlu.
+- [x] Gerçek fixture `nox.http.configure` ile body/header/read/connections/drain sınırları ve IPv4 loopback kullanıyor. Uygulama listener'ı ve erişim politikasını yönetiyor.
 - [x] Dış Prometheus parser doğrulaması: checksum-verified `promtool` 3.16.0 golden fixture'ı kabul etti; OpenMetrics desteklenmiyor.
 - [x] Gerçek NOX HTTP server/client scrape integration testi CI run #12'de dört platform × LLVM/QBE için 200/media-type/exact counter/Resource privacy/graceful shutdown ile geçti; Linux conformance işi iki response body'yi promtool ile kabul etti.
 - [x] `examples/hello_metrics.nox` gerçek cumulative collection'ı allowlisted `target_info` ile text 0.0.4 çıktısına çeviriyor; QBE/LLVM script exact satırları doğruluyor.
@@ -664,10 +664,10 @@ Bu liste her PR/commit için uygulanır:
 
 | Risk | Etki | Azaltma / karar kapısı | Durum |
 |---|---|---|---|
-| NOX API'leri plan metninden farklı olabilir | Compile/runtime hatası | 2.1.64 exact build-info pin + compiling smoke | Azaltıldı / upgrade başına audit |
+| NOX API'leri plan metninden farklı olabilir | Compile/runtime hatası | 2.2.38 exact build-info pin + compiling smoke | Azaltıldı / upgrade başına audit |
 | Formatter regresyonu generic veya binary kaynak semantiğini bozabilir | Kamu API kaynakları bozulur | check→fmt→check capability fixtures | Kapatıldı / regresyon kapısı aktif |
-| Pass-only class formatter gövdeyi siliyor (`NOX-FMT-004`) | Format sonrası geçersiz kaynak | Pulse sınıfları gerçek metot gövdesi kullanır; fixture upstream kusuru yeniden üretir | Açık / contained |
-| Optional float class state codegen olmuyor (`NOX-CODEGEN-001`) | Histogram empty min/max temsili build'i durdurur | `has_min_max` + concrete floats; fixture check-pass/build-fail'i yeniden üretir | Açık / contained |
+| Pass-only class formatter gövdeyi siliyordu (`NOX-FMT-004`) | Format sonrası geçersiz kaynak | Pozitif check → format → check regresyonu | 2.2.38'de kapalı |
+| Optional float class state codegen olmuyordu (`NOX-CODEGEN-001`) | Histogram empty min/max temsili build'i durdurur | Pozitif QBE ve LLVM build regresyonu | 2.2.38'de kapalı |
 | Redirected `nox.terminal.write_raw` Windows'ta hata veriyor (`NOX-IO-001`) | Golden/CLI helper redirected stdout altında düşer | Minimal platform/backend probe + portable `print` helper; CI run #12 Windows LLVM/QBE containment geçti | Açık / contained |
 | Typed enum/match regress edebilir | `AttributeValue` exhaustiveness bozulur | ADR-0006 + iki-backend smoke | Kapatıldı / regresyon kapısı aktif |
 | `str` protobuf binary fidelity bozulabilir | OTLP bozulur | NUL/high-byte, byte bridge, protobuf ve HTTP round-trip kapıları | Azaltıldı / Collector açık |
@@ -679,7 +679,7 @@ Bu liste her PR/commit için uygulanır:
 | Şema derleyici yok; field numaraları elle eşlenir | Wire-format hata riski | Public wire codec + pinned schema + independent fixtures/decoder | Faz 7 açık |
 | HTTP/TLS ayrıntıları eksik olabilir | Exporter hataları | Binary/header/redirect/timeout/self-signed rejection geçti; trusted-chain/hostname matrisi açık | Azaltıldı |
 | HTTP method/body validasyonu regress edebilir | Yanlış request config veri kaybeder | İki-backend loopback regression | Kapatıldı / kapı aktif |
-| NOX HTTP server bind address seçtirmiyor (`NOX-HTTP-004`) | İstenmeden tüm arayüzlere metrics açılabilir | Pulse listener başlatmaz; saf handler + açık deployment/firewall/reverse-proxy kararı | Tasarım limiti / contained |
+| NOX HTTP server varsayılan olarak wildcard bind kullanıyor (`NOX-HTTP-004`) | İstenmeden tüm arayüzlere metrics açılabilir | 2.2.38 ile explicit bind. Fixture IPv4 loopback kullanıyor. | Bind API açığı kapalı |
 | Cardinality/queue kopyaları gizli bellek büyütür | OOM | Allocation-before-limit yasağı ve total memory budget | Açık |
 | Adapter dependency cycle | Core taşınabilirliği bozulur | Leaf packages + import graph CI | Açık |
 
@@ -767,7 +767,7 @@ Commit/tag:
 - [x] Formatter, optional float, import edilen enum payload ve QBE sınıf/TaskLocal aktarımı pozitif regresyona çevrildi.
 - [x] Gerçek scrape fixture'ı IPv4 loopback kullanıyor. Uygulama için loopback ve açık erişim yapılandırması belgelendi.
 - [x] İç içe sözlükte join sonrası görünürlük ve CAS korumalı 2 × 1.000 yazma iki backend'de denetlendi.
-- [ ] Yeni pinin uzak matrisi ve Windows redirected output sonucu kaydedilecek.
+- [x] [CI run #16](https://github.com/mburakmmm/pulse/actions/runs/44891047883) tüm dokuz işi geçti. Windows x64 redirected output QBE ve LLVM ile byte-exact geçti ve `NOX-IO-001` kapatıldı.
 - [ ] Genel concurrent provider ve tutarlı scrape snapshot için sahiplik, kaynak temizliği ve yarış senaryoları tamamlanacak.
 - Kanıtlar [uyumluluk denetimi](docs/nox-upgrade-analysis-2.2.38.md) ve [NOX limitasyon kaydı](docs/nox-limitations.md) içinde.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.

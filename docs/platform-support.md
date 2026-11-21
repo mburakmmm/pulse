@@ -4,17 +4,18 @@ Pulse separates a configured CI target from a verified support claim. A target
 is marked verified only after its workflow has completed against the pinned NOX
 compiler and both required backends.
 
-## Current pin and historical matrix
+## Current matrix
 
-Pulse pins NOX 2.2.38. The table below records the previous pin, NOX 2.1.64.
-See the [upgrade audit](nox-upgrade-analysis-2.2.38.md) for new results.
+NOX 2.2.38 passed all required jobs in
+[CI run #16](https://github.com/mburakmmm/pulse/actions/runs/44891047883)
+on commit `ecee56a24d552390a3679c3824656f2dee8937e9`.
 
 | Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|
-| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #12 |
-| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #12 |
-| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, CI run #12 |
-| Windows x64 | QBE + LLVM | Not yet claimed | Portable core, real scrape, Resource privacy and Phase 3 containment `PASS`, CI run #12; `NOX-IO-001` reproduced as expected |
+| macOS ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS` |
+| Linux x64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS`, including independent promtool conformance |
+| Linux ARM64 | QBE + LLVM | runtime, type, HTTP/TLS, transfer | `PASS` |
+| Windows x64 | QBE + LLVM | Unix capability jobs outside Windows scope | `PASS`, including exact redirected raw output and real scrape |
 
 The core suite includes module checking, smoke build/run, unit, property,
 security, golden and cardinality stress tests, the compiling example and a

@@ -41,3 +41,11 @@ Its original busy-loop budget and output did not distinguish acquisition
 exhaustion from an incorrect total. The probe now uses a five-second monotonic
 deadline, pauses for 1 ms after a failed acquisition, and prints both worker
 totals and the shared total before checking the same exact values.
+The updated probe passed 100 runs per backend on macOS ARM64. The Linux ARM64
+capability job also passed in [CI run #16](https://github.com/mburakmmm/pulse/actions/runs/44891047883),
+alongside the Linux x64 and macOS ARM64 capability jobs and the independent
+Prometheus conformance job. The four core jobs and the final required-gates
+job passed in the same run. Windows x64 passed the exact-byte terminal
+redirection check on QBE and LLVM, closing `NOX-IO-001` on the current pin.
+The original ARM64 assertion failure remains documented because its exact
+cause was not observable in the first run.
