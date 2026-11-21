@@ -23,5 +23,5 @@ def handle(request: HttpRequest) -> HttpResponse:
     return response
 
 port: int = int(nox.os.arg(1))
-nox.http.configure(1, 4096, 1000, 8, 1000, 0)
+nox.http.configure(1, 4096, 1000, 8, 1000, 0, "127.0.0.1")
 nox.http.serve(port, handle, 1)

@@ -1,0 +1,38 @@
+import nox.atomic
+import nox.test
+import nox.thread
+
+class Payload:
+    lock: nox.atomic.AtomicInt
+    values: dict[str, int]
+
+    def __init__(self) -> None:
+        self.lock = nox.atomic.new_int(0)
+        self.values = {"count": 0}
+
+async def mutate(payload: Payload) -> int:
+    recorded: int = 0
+    attempts: int = 0
+    while recorded < 1000 and attempts < 1000000:
+        attempts += 1
+        if payload.lock.compare_and_swap(0, 1):
+            try:
+                payload.values["count"] = payload.values["count"] + 1
+                recorded += 1
+            finally:
+                payload.lock.store(0)
+    return recorded
+
+async def run_probe() -> None:
+    payload: Payload = Payload()
+    first: ThreadHandle[int] = nox.thread.start(mutate, payload)
+    second: ThreadHandle[int] = nox.thread.start(mutate, payload)
+    first_count: int = await first.join()
+    second_count: int = await second.join()
+    payload.lock.free()
+    nox.test.assert_eq_int(first_count, 1000, "first worker finished")
+    nox.test.assert_eq_int(second_count, 1000, "second worker finished")
+    nox.test.assert_eq_int(payload.values["count"], 2000, "protected dictionary preserves both writes")
+
+probe: Task[None] = spawn run_probe()
+await probe

@@ -63,4 +63,4 @@ server_pid=""
 if [[ -n "${PROMTOOL:-}" ]]; then
   "$PROMTOOL" check metrics <"$output_root/metrics.txt"
 fi
-printf 'pulse Prometheus scrape integration: backend=%s listener=fixture-wildcard application_bind_decision=required endpoint=real status=200 content_type=pass resource_allowlist=pass exact_counter=pass privacy=pass shutdown=pass\n' "$backend"
+printf 'pulse Prometheus scrape integration: backend=%s listener=explicit-ipv4-loopback endpoint=real status=200 content_type=pass resource_allowlist=pass exact_counter=pass privacy=pass shutdown=pass\n' "$backend"

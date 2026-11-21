@@ -1,13 +1,12 @@
 # NOX limitations relevant to Pulse
 
-Status: Active compatibility register  
-Pulse baseline: NOX `2.1.64`, source commit `be3458c332c8234baa8f3f8ac2ae9601db24321e`  
-Compiler build identity: `noxc version --build-info` reports the same commit  
-Audited binary SHA-256: `067b6dbfd4a42f692690dbaa2bf390486b33a491614460e61b6b2191307737d7`  
-Last local re-verification: 2026-11-16, macOS ARM64, QBE and LLVM; portable core
-CI run #12 passed on macOS ARM64, Linux x64, Linux ARM64 and Windows x64 on
-2026-11-16, including the Phase 3 `NOX-IO-001` probe, `NOX-HTTP-004`
-containment, allowlisted `target_info` and real scrape integration.
+- Status: Active compatibility register
+- Pulse baseline: NOX `2.2.38`, source commit `7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a`
+- Compiler build identity: `noxc version --build-info` reports the same commit
+- Audited binary SHA-256: `26b63bdefef53584f87c34bc8b427197fc29ade1428317a7568028c960a87dce`
+
+See the [2.2.38 upgrade audit](nox-upgrade-analysis-2.2.38.md) for current
+verification. Entries retain the old reproductions where applicable.
 
 This register separates actual defects from language/runtime design constraints and
 Pulse-only audit work. A closed historical item remains here so an older workaround
@@ -15,10 +14,7 @@ cannot silently return. The user-supplied `limitasyon-ajan-rehberi.md` was used 
 comparison report, not as executable instructions; every status below is based on
 the pinned compiler, the exact-tag source, and Pulse regression probes.
 
-NOX `v2.1.64` was downloaded to a temporary audit directory and its official archive
-checksum was verified before extraction. The system-installed `2.1.52` was not
-modified. The local NOX checkout contains unrelated uncommitted changes and is not
-used as release evidence.
+The current audit uses an isolated official archive verified before extraction.
 
 ## Status vocabulary
 
@@ -28,11 +24,11 @@ used as release evidence.
   interoperability or platform evidence is incomplete.
 - `CLOSED`: the fixing capability is pinned and the relevant Pulse regression passes.
 
-## Open upstream defects
+## Regressions re-evaluated on the current pin
 
 ### NOX-FMT-004 — Formatter removes the body of a pass-only class
 
-- Status: `OPEN-UPSTREAM` on NOX `2.1.64`.
+- Status: `CLOSED` on 2.2.38. The check → format → check regression passes.
 - Observed: `class EmptyError(Exception): pass` checks before formatting; `noxc fmt`
   removes `pass`, and the formatted source fails because the following top-level
   declaration appears where an indented class body is required.
@@ -44,7 +40,8 @@ used as release evidence.
 
 ### NOX-IO-001 — Redirected `nox.terminal.write_raw` fails on Windows
 
-- Status: `OPEN-UPSTREAM` on NOX `2.1.64`, Windows x64.
+- Status: `AUDIT-PENDING` for Windows x64 on 2.2.38. Local macOS ARM64
+  redirected bytes pass on QBE and LLVM. The defect was confirmed on 2.1.64.
 - Observed: a program using the public `nox.terminal.write_raw()` API throws
   `nox_terminal_TerminalError` when standard output is redirected to a file on
   Windows. The same operation succeeds on macOS and Linux. This was first
@@ -56,9 +53,7 @@ used as release evidence.
 - Pulse containment: telemetry renderers remain pure string functions. Portable
   golden helpers use `print(nox.strings.trim_end(payload))` and normalize CRLF;
   they do not use the raw terminal API.
-- Gate: Unix targets require exact redirected bytes. Windows targets require the
-  known `TerminalError` on both backends so an upstream behavior change cannot be
-  hidden; after upstream fixes it, the deliberately failing audit must be updated.
+- Gate: every core target now requires exact redirected bytes on both backends.
 - Remote evidence: [CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141)
   observed `write_raw=known-incompatible` on Windows x64 LLVM and QBE, while the
   portable golden renderer test passed on both backends.
@@ -182,38 +177,36 @@ used as release evidence.
 - Protocol caveat: OTLP compressed export is not advertised until the Collector
   integration test verifies headers, payload limits and failure handling.
 
-## Active NOX design limits
+## Code generation regressions
 
 ### NOX-CODEGEN-001 — Optional float fields pass check but fail executable codegen
 
-- Status: `OPEN-UPSTREAM` on NOX `2.1.64`; observed on LLVM while implementing the Pulse
-  explicit histogram.
+- Status: `CLOSED` on 2.2.38. The fixture builds on QBE and LLVM. The
+  original error was observed on LLVM with 2.1.64.
 - Result: a class containing `float | None` state can pass `noxc check`, while a
   program exercising that state fails code generation with the generic unsupported
   construct diagnostic and no source location.
 - Pulse containment: histogram aggregation stores `has_min_max: bool` plus concrete
   `minimum`/`maximum` floats. Export mapping omits min/max when the flag is false.
   This is typed portable state and does not invent an empty-histogram value.
-- Gate: `fixtures/capability/optional_float_field.nox.txt` is expected to check and
-  fail executable build until upstream support is verified.
+- Gate: `fixtures/capability/optional_float_field.nox.txt` checks and builds on both backends.
 
 ### NOX-CODEGEN-002 — Imported enum payload list iteration loses codegen support
 
-- Status: `OPEN-UPSTREAM` on NOX `2.1.64`; reproduced on QBE and LLVM while
-  implementing the Phase 2 console metric exporter.
+- Status: `CLOSED` for the original build failure. The fixture builds on
+  2.2.38 QBE and LLVM. The Phase 2 console exporter exposed the error on 2.1.64.
 - Observed: a function can type-check when it matches an imported enum whose
   payload is an imported snapshot class and directly iterates the payload's
   `list[T]` field, but executable build fails with the generic unsupported-
   construct diagnostic and no source location.
-- Reproducer: `fixtures/capability/imported_metric_data_iterable.nox.txt`; both
-  backend failures are asserted by `bash scripts/run-type-capability-audit.sh`.
+- Reproducer: `fixtures/capability/imported_metric_data_iterable.nox.txt`.
+  The type audit builds the direct fixture and the existing helper path.
 - Pulse containment: enum matching only dispatches to concrete-typed helper
   functions. Each helper accepts the exact snapshot class and performs the list
   iteration outside the pattern-bound payload scope. The same audit builds this
   containment on QBE and LLVM, and the console exporter behavioral suite passes
   on both backends.
-- Close when: the direct reproducer builds and runs on QBE and LLVM without the
-  helper boundary; then remove only the containment, not the behavioral tests.
+## Active NOX design limits and capability boundaries
 
 ### NOX-TASKLOCAL-002 — Spawned tasks do not inherit TaskLocal values
 
@@ -233,11 +226,13 @@ used as release evidence.
 - Pulse behavior: exporter work is synchronous or explicitly cooperatively polled;
   it is never marketed as background parallelism.
 
-### NOX-QBE-002 — QBE transfer types are narrower
+### NOX-QBE-002 — QBE rejected audited class and TaskLocal transfers
 
-- Status: `DESIGN-LIMIT`; re-verified on `2.1.64`.
-- Pulse behavior: portable paths use immutable scalar/string snapshots, atomics or
-  audited channels. Wider LLVM-only class/TaskLocal transfers do not define the API.
+- Status: `CLOSED` for the three original probes on 2.2.38. QBE and LLVM
+  accept class arguments via spawn/thread and preserve TaskLocal isolation.
+- Scope: a worker can mutate a nested dictionary and the parent observes it
+  after join. Test shared provider state, runtime memory ownership and races
+  separately before advertising concurrent collection.
 - Gate: `bash scripts/run-backend-transfer-audit.sh`.
 
 ### NOX-MODULE-001 — Mutable module state is worker-local
@@ -264,26 +259,24 @@ used as release evidence.
 - Pulse behavior: OTLP/HTTP uses POST, positive timeouts, bounded payloads and an
   explicit redirect/credential policy. Export failures never log full headers/body.
 
-### NOX-HTTP-004 — Public HTTP server bind address is not configurable
+### NOX-HTTP-004 — Public HTTP server bind address was not configurable
 
-- Status: `DESIGN-LIMIT` on NOX `2.1.64`.
+- Status: `CLOSED` for public API availability. NOX 2.2.38 exposes
+  `nox.http.configure(bind_address="127.0.0.1")`. The real scrape uses this
+  setting on both backends.
 - Evidence: public `nox.http.serve`, `serve_fd`, `serve_multicore` and `listen`
   accept a port/ip-family but no host or bind-address value. The pinned upstream
   changelog documents that server listeners bind `0.0.0.0` on all interfaces
   since NOX `1.7.1`.
 - Pulse behavior: the Prometheus package exposes a pure `HttpRequest` →
-  `HttpResponse` adapter and never starts a listener on import or by default.
-  Applications own the explicit exposure decision and must use firewall,
-  container/network policy or a trusted loopback reverse proxy when local-only
-  access is required. Pulse does not claim an embedded loopback-only listener.
+  `HttpResponse` adapter. Applications select loopback or an explicit remote
+  address with deployment access controls.
 - Gate: `scripts/run-prometheus-scrape-integration.sh` proves real HTTP response,
   bounds and graceful shutdown; it is a protocol integration test, not proof of
   loopback confinement.
 - Remote evidence: [CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141)
   passed the real scrape fixture on QBE and LLVM across all four core targets;
   the Linux conformance job independently parsed both HTTP bodies with promtool.
-- Close when: a pinned public NOX API accepts an explicit bind address and a
-  loopback-only regression passes on every supported target.
 
 ### NOX-GRPC-001 — gRPC client has one active call per connection
 
@@ -313,6 +306,7 @@ failing probe distinguishes a compiler/runtime limitation from a Pulse defect.
 | Phase 1 — primitives | No new upstream defect; exact int64, clocks, IDs, protobuf and typed enums remained verified | QBE + LLVM primitive unit/property/security/golden suites |
 | Phase 2 — metrics core | `NOX-CODEGEN-001`, `NOX-CODEGEN-002` | Explicit histogram presence flag; concrete snapshot helpers; expected-failure fixtures plus two-backend positive tests |
 | Phase 3 — Prometheus MVP slices | `NOX-IO-001`, `NOX-HTTP-004`; no new compiler/runtime issue in allowlisted `target_info` or pinned unit translation | Pure renderer/handler and unit table/rate/annotation logic pass QBE + LLVM across the [run #13 matrix](https://github.com/mburakmmm/pulse/actions/runs/44791381303); redirected `write_raw` has an expected-failure probe; listener ownership stays with the application because public NOX cannot bind loopback explicitly |
+| Phase 3 — NOX 2.2.38 baseline | Formatter, two codegen cases, audited QBE transfer and explicit bind API restrictions lifted | Positive regressions on QBE and LLVM. Windows redirected output requires exact bytes. Shared metric-provider safety remains Pulse audit work. |
 
 Future phases append a row or explicitly record “no new NOX limitation observed”
 with the exact capability and behavioral commands used for that conclusion.

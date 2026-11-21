@@ -39,30 +39,18 @@ fi
 
 "$noxc_bin" check "$probe_root/pass_only_class.nox"
 "$noxc_bin" fmt "$probe_root/pass_only_class.nox"
-if "$noxc_bin" check "$probe_root/pass_only_class.nox" >"$probe_root/pass-only-class.log" 2>&1; then
-  echo "expected pass-only class formatter reproducer to expose NOX-FMT-004" >&2
-  exit 1
-fi
-grep -Fq "unexpected 'value' (expected indent)" "$probe_root/pass-only-class.log"
+"$noxc_bin" check "$probe_root/pass_only_class.nox"
 
 "$noxc_bin" check "$probe_root/optional_float_field.nox"
-if "$noxc_bin" build -o "$probe_root/optional-float-field" "$probe_root/optional_float_field.nox" >"$probe_root/optional-float-field.log" 2>&1; then
-  echo "expected optional float field reproducer to expose NOX-CODEGEN-001" >&2
-  exit 1
-fi
-grep -Fq "codegen: this program contains a construct that is not supported" "$probe_root/optional-float-field.log"
 
 project_probe_root="$(mktemp -d "$project_root/.pulse-codegen-audit.XXXXXX")"
 project_probe="$project_probe_root/imported_metric_data_iterable.nox"
 cp "$project_root/fixtures/capability/imported_metric_data_iterable.nox.txt" "$project_probe"
 "$noxc_bin" check "$project_probe"
 for backend in qbe llvm; do
-  if "$noxc_bin" build --backend "$backend" -o "$probe_root/imported-metric-data-$backend" "$project_probe" >"$probe_root/imported-metric-data-$backend.log" 2>&1; then
-    echo "expected imported metric data iterable reproducer to expose NOX-CODEGEN-002 on $backend" >&2
-    exit 1
-  fi
-  grep -Fq "codegen: this program contains a construct that is not supported" "$probe_root/imported-metric-data-$backend.log"
+  "$noxc_bin" build --backend "$backend" -o "$probe_root/optional-float-$backend" "$probe_root/optional_float_field.nox"
+  "$noxc_bin" build --backend "$backend" -o "$probe_root/imported-metric-data-$backend" "$project_probe"
   "$noxc_bin" build --backend "$backend" -o "$probe_root/metric-data-containment-$backend" "$project_root/tests/capability/metric_data_codegen_probe.nox"
 done
 
-printf 'pulse type capability audit: generic-class-format=pass large-float-format=pass min-int-literal=pass nul-escape-format=pass pass-only-class=known-incompatible optional-float-field=known-incompatible imported-metric-data-iterable=known-incompatible containment=qbe+llvm-pass\n'
+printf 'pulse type capability audit: generic-class-format=pass large-float-format=pass min-int-literal=pass nul-escape-format=pass pass-only-class=pass optional-float-field=qbe+llvm-pass imported-metric-data-iterable=qbe+llvm-pass containment=qbe+llvm-pass\n'

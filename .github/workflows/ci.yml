@@ -15,8 +15,8 @@ permissions:
   contents: read
 
 env:
-  NOX_VERSION: v2.1.64
-  NOX_COMMIT: be3458c332c8234baa8f3f8ac2ae9601db24321e
+  NOX_VERSION: v2.2.38
+  NOX_COMMIT: 7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a
   NOX_REPOSITORY: mburakmmm/nox-lang
   PROMETHEUS_VERSION: 3.16.0
   PROMETHEUS_LINUX_AMD64_SHA256: 68727009472a2c02e1ff7f062fd5b3e637285bffc8fc2d340c76fb449d6e0f34
@@ -86,7 +86,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(noxc --version 2>&1)" = "noxc 2.1.64"
+          test "$(noxc --version 2>&1)" = "noxc ${NOX_VERSION#v}"
           noxc version --build-info | grep -Fx "commit: ${NOX_COMMIT}"
 
       - name: Verify NOX formatting
@@ -156,7 +156,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(noxc --version 2>&1)" = "noxc 2.1.64"
+          test "$(noxc --version 2>&1)" = "noxc ${NOX_VERSION#v}"
           noxc version --build-info | grep -Fx "commit: ${NOX_COMMIT}"
 
       - name: Runtime divergence audit
@@ -187,7 +187,7 @@ jobs:
             echo "### ${{ matrix.label }} capability audit"
             echo
             echo "- Runtime and HTTP behavior: executed on QBE + LLVM"
-            echo "- Transfer restrictions: executed per backend"
+            echo "- Class and TaskLocal transfer regressions: executed per backend"
             echo "- OTLP Collector: SKIPPED; OTLP exporters are not implemented"
             echo "- Prometheus parser: executed by the dedicated Linux x64 conformance job"
           } >>"$GITHUB_STEP_SUMMARY"
@@ -228,7 +228,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(noxc --version 2>&1)" = "noxc 2.1.64"
+          test "$(noxc --version 2>&1)" = "noxc ${NOX_VERSION#v}"
           noxc version --build-info | grep -Fx "commit: ${NOX_COMMIT}"
 
       - name: Validate text exposition with promtool

@@ -95,6 +95,11 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ### Changed
 
+- Pin CI and contributor builds to NOX 2.2.38 and its exact release commit.
+- Bind the real Prometheus scrape fixture explicitly to IPv4 loopback.
+- Require positive compiler, transfer and redirected terminal regressions for
+  capabilities that were restricted on the previous NOX pin.
+
 - Historical NOX 2.1.0 workarounds were retired after 2.1.64 regression verification.
 - A formatter defect still present in NOX 2.1.64 for pass-only classes is recorded as `NOX-FMT-004`; Pulse uses real method bodies as containment.
 - TaskLocal non-inheritance, QBE cooperative scheduling, worker-local module state and bounded fiber stacks remain explicit design constraints.

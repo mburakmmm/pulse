@@ -19,24 +19,7 @@ if [[ -f "$probe_binary.exe" ]]; then
   probe_binary="$probe_binary.exe"
 fi
 
-platform="$(uname -s)"
-case "$platform" in
-  MINGW*|MSYS*|CYGWIN*)
-    if "$probe_binary" >"$output_root/stdout" 2>"$output_root/stderr"; then
-      echo "NOX-IO-001 unexpectedly closed on $platform/$backend; update the limitation register and audit" >&2
-      exit 1
-    fi
-    if ! grep -F "nox_terminal_TerminalError" "$output_root/stderr" >/dev/null; then
-      echo "NOX-IO-001 failure changed on $platform/$backend" >&2
-      cat "$output_root/stderr" >&2
-      exit 1
-    fi
-    printf 'pulse terminal redirect audit: platform=%s backend=%s write_raw=known-incompatible\n' "$platform" "$backend"
-    ;;
-  *)
-    "$probe_binary" >"$output_root/stdout"
-    printf 'terminal-redirect-ok\n' >"$output_root/expected"
-    cmp "$output_root/expected" "$output_root/stdout"
-    printf 'pulse terminal redirect audit: platform=%s backend=%s write_raw=pass\n' "$platform" "$backend"
-    ;;
-esac
+"$probe_binary" >"$output_root/stdout"
+printf 'terminal-redirect-ok\n' >"$output_root/expected"
+cmp "$output_root/expected" "$output_root/stdout"
+printf 'pulse terminal redirect audit: platform=%s backend=%s write_raw=pass\n' "$(uname -s)" "$backend"

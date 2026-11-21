@@ -1,7 +1,7 @@
 # Pulse
 
 [![CI](https://github.com/mburakmmm/pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/mburakmmm/pulse/actions/workflows/ci.yml)
-[![NOX](https://img.shields.io/badge/NOX-2.1.64-6f42c1)](https://github.com/mburakmmm/nox-lang/releases/tag/v2.1.64)
+[![NOX](https://img.shields.io/badge/NOX-2.2.38-6f42c1)](https://github.com/mburakmmm/nox-lang/releases/tag/v2.2.38)
 [![Status](https://img.shields.io/badge/status-experimental-orange)](#project-status)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -60,9 +60,9 @@ known NOX constraints are tracked in
 ## Quick start
 
 Pulse currently targets the checksum-verified
-[`noxc 2.1.64`](https://github.com/mburakmmm/nox-lang/releases/tag/v2.1.64)
+[`noxc 2.2.38`](https://github.com/mburakmmm/nox-lang/releases/tag/v2.2.38)
 release at source commit
-[`be3458c`](https://github.com/mburakmmm/nox-lang/commit/be3458c332c8234baa8f3f8ac2ae9601db24321e).
+[`7f879fe`](https://github.com/mburakmmm/nox-lang/commit/7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a).
 
 ```sh
 git clone https://github.com/mburakmmm/pulse.git
@@ -113,7 +113,7 @@ security, golden, stress, example and downstream package-import gates. See
 [`docs/platform-support.md`](docs/platform-support.md) for the precise support
 policy.
 
-Run the complete local gate with an isolated `noxc 2.1.64` on `PATH`:
+Run the complete local gate with an isolated `noxc 2.2.38` on `PATH`:
 
 ```sh
 bash scripts/run-ci-core.sh
@@ -147,7 +147,7 @@ framework adapters (leaf packages only) ──► API/SDK
 ```
 
 Public modules are resolved from repository-root paths such as `api.metrics`.
-NOX `2.1.64` does not use a Python-style `pulse/__init__.nox` package facade.
+NOX resolves Pulse modules from the repository root.
 The dependency rules and rationale are documented in
 [`docs/architecture.md`](docs/architecture.md) and enforced by CI.
 

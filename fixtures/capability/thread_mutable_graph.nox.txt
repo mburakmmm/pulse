@@ -1,0 +1,21 @@
+import nox.test
+import nox.thread
+
+class Payload:
+    values: dict[str, int]
+
+    def __init__(self) -> None:
+        self.values = {"count": 1}
+
+async def mutate(payload: Payload) -> int:
+    payload.values["count"] = 2
+    return payload.values["count"]
+
+async def run_probe() -> None:
+    payload: Payload = Payload()
+    worker: ThreadHandle[int] = nox.thread.start(mutate, payload)
+    nox.test.assert_eq_int(await worker.join(), 2, "worker observed its write")
+    nox.test.assert_eq_int(payload.values["count"], 2, "parent sees nested dictionary write after join")
+
+probe: Task[None] = spawn run_probe()
+await probe

@@ -760,5 +760,15 @@ Commit/tag:
 - Security/resources: output/path/target/Resource allowlist hard bound; non-GET/body/oversized target containment; sensitive Resource sentinel yok; 100.000 label → 1.000 series sınırı devam ediyor.
 - Bilinen NOX sınırlamaları: `NOX-IO-001` expected-failure audit ile contained; `NOX-HTTP-004` nedeniyle public NOX listener yalnız wildcard bind sunuyor, bu yüzden listener exposure uygulama/deployment sorumluluğunda.
 - Açık işler: general concurrent provider/scrape snapshot ve production listener deployment guidance.
+
+#### NOX 2.2.38 uyumluluk dilimi — 2026-11-21
+
+- [x] İzole resmî NOX `2.2.38` arşivi ve tam kaynak SHA doğrulandı. CI pini güncellendi.
+- [x] Formatter, optional float, import edilen enum payload ve QBE sınıf/TaskLocal aktarımı pozitif regresyona çevrildi.
+- [x] Gerçek scrape fixture'ı IPv4 loopback kullanıyor. Uygulama için loopback ve açık erişim yapılandırması belgelendi.
+- [x] İç içe sözlükte join sonrası görünürlük ve CAS korumalı 2 × 1.000 yazma iki backend'de denetlendi.
+- [ ] Yeni pinin uzak matrisi ve Windows redirected output sonucu kaydedilecek.
+- [ ] Genel concurrent provider ve tutarlı scrape snapshot için sahiplik, kaynak temizliği ve yarış senaryoları tamamlanacak.
+- Kanıtlar [uyumluluk denetimi](docs/nox-upgrade-analysis-2.2.38.md) ve [NOX limitasyon kaydı](docs/nox-limitations.md) içinde.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.
 - Commit/tag: uygulama commit'i `8d01f51e6d1a6adb816c0e8cf5c24ac4830f17ec`; tag yok.

@@ -4,7 +4,10 @@ Pulse separates a configured CI target from a verified support claim. A target
 is marked verified only after its workflow has completed against the pinned NOX
 compiler and both required backends.
 
-## Current matrix
+## Current pin and historical matrix
+
+Pulse pins NOX 2.2.38. The table below records the previous pin, NOX 2.1.64.
+See the [upgrade audit](nox-upgrade-analysis-2.2.38.md) for new results.
 
 | Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|
@@ -51,5 +54,5 @@ outside that concurrency proof.
 GitHub Actions logs are the source of truth for remote runs. Documentation is
 updated only after those results are observed.
 
-The current evidence is [CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141),
+The historical evidence is [CI run #12](https://github.com/mburakmmm/pulse/actions/runs/43823208141),
 completed successfully on 2026-11-16 for commit `6cf77920778029c927566c98edb5b268ede83a10`.

@@ -1,28 +1,23 @@
 # NOX compatibility audit
 
-Status: Phase 0 local gate passed on 2026-11-11, the isolated NOX 2.1.64
-upgrade gate passed on 2026-11-12 and the four-target remote core matrix passed
-with the latest Phase 3 coverage on 2026-11-16. This document records runtime
-capabilities; it does not claim pending exporters or integrations are implemented.
+The current compiler pin is NOX 2.2.38. See the
+[upgrade audit](nox-upgrade-analysis-2.2.38.md) for current local evidence and
+the [platform matrix](platform-support.md) for remote evidence.
 
 ## Selected baseline
 
 | Item | Value | Evidence |
 |---|---|---|
-| Published NOX release | `2.1.64` | Latest GitHub release returned by the official repository API during 2026-11-12 audit |
-| Exact source commit | `be3458c332c8234baa8f3f8ac2ae9601db24321e` | Annotated tag `v2.1.64` |
+| Published NOX release | `2.2.38` | Official `v2.2.38` release |
+| Exact source commit | `7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a` | Release tag and compiler build identity |
 | Compiler build identity | same commit | `noxc version --build-info` |
-| Audited compiler SHA-256 | `067b6dbfd4a42f692690dbaa2bf390486b33a491614460e61b6b2191307737d7` | Isolated release binary, locally measured |
-| Release archive SHA-256 | `d20b38293161ab7d776320d3eed4dd78ee4f4b54729e31c29b78cebf4633ea29` | Official checksum file verified before extraction |
+| Audited compiler SHA-256 | `26b63bdefef53584f87c34bc8b427197fc29ade1428317a7568028c960a87dce` | Isolated macOS ARM64 binary |
+| Release archive SHA-256 | `7e973be6020fb908fed3d5194b87bff59ce5b4a0194cb81dee78fd7ff6abfcca` | Official macOS ARM64 archive checksum |
 | Compiler toolchain | Zig `0.16.0`, `aarch64-macos`, `ReleaseFast` | build-info output |
-| System compiler | `2.1.52`, unchanged | User requested that the system installation not be modified |
+| Test installation | Isolated archive | System installation untouched |
 | Profile | `hosted` | Required for clock, network, filesystem and secure entropy |
 | Locally tested backends | LLVM and QBE | 10-file smoke suite plus capability audits |
-| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | Core matrix passed in CI run #12 against the pinned compiler |
-| Windows x64 | Portable core `PASS` | Official checksum-verified toolchain plus QBE/LLVM suite and Phase 3 containment passed; Unix-only capability audits remain unclaimed |
-
-Pulse pins `2.1.64` for CI after testing its official archive from a temporary
-directory. The system-installed `2.1.52` was not upgraded or replaced.
+| CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | See platform matrix for the tested revision |
 
 ## Verified public capabilities
 
@@ -54,33 +49,28 @@ directory. The system-installed `2.1.52` was not upgraded or replaced.
 
 - QBE scheduling is cooperative. Pulse uses synchronous or explicitly polled
   export there and does not advertise background parallelism.
-- QBE transfer types are narrower than LLVM. Shared code uses the portable scalar,
-  string, atomic and audited-channel subset.
+- Both backends pass the targeted class, nested-dictionary and TaskLocal transfer
+  probes. The joined dictionary probe has a single writer. Provider-wide
+  concurrent mutation, ownership and cleanup still need dedicated tests.
 - Mutable module state is worker-local. Providers, readers and contexts are passed
   explicitly; there is no module-global current span.
 - TaskLocal values are not inherited by spawned tasks. Parent context handoff is
   explicit even though the old teardown leak is fixed.
 - Fiber stacks are 192 KiB. Protobuf/propagation parsers are iterative and bounded.
-- Optional `float | None` class state type-checks but fails executable codegen on
-  2.1.64. Histogram min/max state uses an explicit presence flag; see
-  `NOX-CODEGEN-001`.
-- Direct list iteration through an imported enum's snapshot payload type-checks but
-  fails codegen. Export rendering dispatches to concrete-typed helpers; see
-  `NOX-CODEGEN-002`.
-- Redirected `nox.terminal.write_raw()` fails with `TerminalError` on Windows x64.
-  Golden helpers use portable `print` output; a platform/backend probe keeps the
-  upstream defect visible as `NOX-IO-001`.
+- The optional float, imported enum iteration and pass-only formatter regressions
+  pass on 2.2.38. The limitation register retains the original reproducers.
+- Redirected `nox.terminal.write_raw()` has an exact-byte regression on the core
+  matrix. Golden helpers continue to use portable `print`.
 - `nox.http.request` buffers bodies. Pulse enforces request/response payload caps,
   positive deadlines and a credential-safe redirect policy.
-- Public `nox.http.serve`/`listen` has no bind-address parameter and binds wildcard
-  interfaces. Pulse supplies a pure scrape handler, not an implicit listener; see
-  `NOX-HTTP-004`.
+- `nox.http.configure(bind_address="127.0.0.1")` selects IPv4 loopback before
+  serving. The application owns its listener and access controls.
 - gRPC permits one active call/stream per connection and has no client-side read
   timeout. OTLP/gRPC remains optional until those lifecycle constraints are tested.
 - No Zig/NNI glue is approved for the initial primitives; current required runtime
   features are public NOX APIs.
 
-## Local evidence — 2026-11-16
+## Historical local evidence — NOX 2.1.64, 2026-11-16
 
 | Command | Result |
 |---|---|
@@ -155,7 +145,7 @@ passed. No new NOX compiler or runtime limitation was observed in this slice.
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.
 - Vendored OTLP schema checksum manifest and independent protobuf decoder fixtures.
-- Real OpenTelemetry Collector integration and Prometheus HTTP scrape integration in their phases.
+- Real OpenTelemetry Collector integration.
 - Optional gRPC and UDP integration only if Pulse elects to support those exporters.
 
 See [`nox-limitations.md`](nox-limitations.md) for closed historical defects and

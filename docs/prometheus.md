@@ -32,11 +32,11 @@ recording operation, so it cannot recursively instrument itself. Configured path
 are capped at 256 bytes and direct request targets at 4 KiB; oversized targets
 return 414 even when the adapter is invoked outside the NOX server.
 
-Pulse intentionally does not own a listener. NOX 2.1.64 server APIs accept a port
-but not a bind address and bind `0.0.0.0`; see `NOX-HTTP-004`. Applications must
-make the exposure decision explicitly and apply firewall/container policy or a
-trusted loopback reverse proxy for local-only access. The integration fixture's
-wildcard listener is test infrastructure, not a secure production default.
+The application owns the listener. Call
+`nox.http.configure(bind_address="127.0.0.1")` before serving metrics locally, as
+in the real scrape fixture. NOX defaults to wildcard binding when no address is
+configured. For a remote scraper, select the bind address explicitly and apply
+network or reverse-proxy access controls.
 
 Current mappings are:
 
@@ -95,9 +95,9 @@ aggregation.
 
 `scripts/run-phase3-tests.sh <llvm|qbe>` type-checks the renderer, runs behavioral
 and failure tests, and compares byte-for-byte output against
-`fixtures/prometheus/text-0.0.4.golden.txt`. The helper uses portable `print`
-output rather than `nox.terminal.write_raw`; `NOX-IO-001` tracks the latter's
-redirected-output failure on Windows independently from renderer correctness.
+`fixtures/prometheus/text-0.0.4.golden.txt`. The golden helper uses portable
+`print` output. A separate exact-byte regression checks redirected
+`nox.terminal.write_raw` on each core CI target (`NOX-IO-001`).
 
 `scripts/run-prometheus-conformance.sh` then feeds that fixture to Prometheus
 `promtool check metrics`. CI downloads the official Linux x64 Prometheus 3.16.0

@@ -4,7 +4,7 @@ Status: Standards selected on 2026-11-07; NOX baseline refreshed and locally ver
 
 | Contract | Exact version / commit | Pulse surface | Status |
 |---|---|---|---|
-| NOX language and stdlib | `2.1.64`, `be3458c332c8234baa8f3f8ac2ae9601db24321e` | All modules | Pinned; isolated QBE/LLVM local gates pass |
+| NOX language and stdlib | `2.2.38`, `7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a` | All modules | Pinned with QBE/LLVM regressions and exact build identity |
 | OpenTelemetry specification | `v1.62.0`, `18c5c1706e346fec3bdb5e135a6e3a78f461e586` | API/SDK semantics and Prometheus unit translation | Pinned; metric-name unit table/rate/annotation rules implemented |
 | OTLP protocol/protobuf | `v1.11.1`, `b3f75588eb23c5fca62264edd05d382de49beb1a` | Traces and metrics encoding | Pinned; schema checksum pending |
 | OpenTelemetry semantic conventions | `v1.45.0`, `fb30ca17193b551473b1f43c315482918ab6987c` | HTTP/DB/resource attributes | Pinned |

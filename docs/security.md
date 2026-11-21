@@ -16,9 +16,9 @@ Automatic instrumentation uses allowlists. Redaction, dropping, hashing, masking
 - Export endpoints and redirects are SSRF-relevant configuration.
 - OTLP headers and endpoint credentials never appear in diagnostics.
 - TLS certificate verification is enabled by default; no silent insecure fallback.
-- Pulse never starts a Prometheus listener. Pinned NOX server APIs bind wildcard
-  interfaces and cannot select loopback (`NOX-HTTP-004`), so applications must
-  make an explicit deployment/firewall/reverse-proxy exposure decision.
+- Applications own the Prometheus listener and access control. Configure
+  `nox.http.configure(bind_address="127.0.0.1")` before serving local-only metrics.
+  Require an explicit bind address and deployment access controls for remote scrapers.
 - Prometheus Resource promotion is disabled in `render_metrics()`. The explicit
   `render_metrics_with_resource()` path emits only configured allowlist keys,
   rejects sensitive keys and bounds the allowlist to 32 labels.
