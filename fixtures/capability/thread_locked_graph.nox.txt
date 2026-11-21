@@ -1,6 +1,7 @@
 import nox.atomic
 import nox.test
 import nox.thread
+import nox.time
 
 class Payload:
     lock: nox.atomic.AtomicInt
@@ -12,15 +13,16 @@ class Payload:
 
 async def mutate(payload: Payload) -> int:
     recorded: int = 0
-    attempts: int = 0
-    while recorded < 1000 and attempts < 1000000:
-        attempts += 1
+    deadline_ns: int = nox.time.monotonic_ns() + 5000000000
+    while recorded < 1000 and nox.time.monotonic_ns() < deadline_ns:
         if payload.lock.compare_and_swap(0, 1):
             try:
                 payload.values["count"] = payload.values["count"] + 1
                 recorded += 1
             finally:
                 payload.lock.store(0)
+        else:
+            nox.time.sleep_ms(1)
     return recorded
 
 async def run_probe() -> None:
@@ -30,6 +32,7 @@ async def run_probe() -> None:
     first_count: int = await first.join()
     second_count: int = await second.join()
     payload.lock.free()
+    print("locked dictionary first, second, total:", first_count, second_count, payload.values["count"])
     nox.test.assert_eq_int(first_count, 1000, "first worker finished")
     nox.test.assert_eq_int(second_count, 1000, "second worker finished")
     nox.test.assert_eq_int(payload.values["count"], 2000, "protected dictionary preserves both writes")

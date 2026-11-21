@@ -34,3 +34,10 @@ scrapes. The existing `SingleOwnerMeterProvider` remains single-owner.
 Windows terminal redirection and the remote Linux targets are tracked in the
 [platform matrix](platform-support.md). The OTLP Collector gate is deferred to
 the OTLP phases.
+
+The first [Linux ARM64 capability job](https://github.com/mburakmmm/pulse/actions/runs/44890897228/job/136806248345)
+built the QBE locked-dictionary probe and then raised `nox_test_AssertionError`.
+Its original busy-loop budget and output did not distinguish acquisition
+exhaustion from an incorrect total. The probe now uses a five-second monotonic
+deadline, pauses for 1 ms after a failed acquisition, and prints both worker
+totals and the shared total before checking the same exact values.
