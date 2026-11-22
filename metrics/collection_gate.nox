@@ -1,0 +1,46 @@
+import nox.atomic
+import nox.time
+from nox.atomic import AtomicInt
+from core.errors import TelemetryError
+
+class MetricCollectionGate:
+    handle: int
+    wait_ms: int
+    released: bool
+
+    def __init__(self, wait_ms: int) -> None:
+        if wait_ms < 0 or wait_ms > 60000:
+            raise TelemetryError("metric lock wait must be within 0..60000 ms")
+        self.wait_ms = wait_ms
+        self.released = False
+        self.handle = 0
+        if wait_ms > 0:
+            self.handle = nox.atomic.new_int(0).handle
+
+    def acquire(self) -> None:
+
+        if self.released:
+            raise TelemetryError("metric provider is closed")
+        if self.handle == 0:
+            return
+        lock: AtomicInt = nox.atomic.from_int_handle(self.handle)
+        started_ns: int = nox.time.monotonic_ns()
+        timeout_ns: int = self.wait_ms * 1000000
+        while not lock.compare_and_swap(0, 1):
+            nox.time.sleep_ms(1)
+            if nox.time.monotonic_ns() - started_ns >= timeout_ns:
+                raise TelemetryError("metric provider lock timed out")
+
+    def unlock(self) -> None:
+
+        if self.handle != 0:
+            nox.atomic.from_int_handle(self.handle).store(0)
+
+    def close_after_join(self) -> None:
+
+        if self.released:
+            return
+        if self.handle != 0:
+            nox.atomic.from_int_handle(self.handle).free()
+        self.handle = 0
+        self.released = True

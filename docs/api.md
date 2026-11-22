@@ -72,8 +72,14 @@ precede `_total`. An HTTP scrape listener remains application-owned.
 `scrape_response` and `scrape_response_with_resource` are
 pure `HttpRequest` → `HttpResponse` adapters with method/path/body validation and
 generic error containment. They do not bind a port; listener exposure remains an
-explicit application decision because pinned NOX cannot select a bind address.
-This is therefore experimental Prometheus support, not a production listener.
+explicit application decision. NOX 2.2.38 supports
+`nox.http.configure(bind_address="127.0.0.1")` for loopback.
+
+`metrics.provider.ConcurrentMeterProvider(attribute_limits, metric_limits,
+record_limits, lock_wait_ms=1000, max_scopes=256)` is the opt-in shared provider.
+It implements the same recording contract and works with
+`CumulativeMetricReader.collect(provider)`. Keep each reader, clock and exporter
+owned by one caller. See [metrics ownership](metrics.md#concurrency-status).
 
 `metrics.concurrency.AtomicCounterCell` is an internal concurrency proof for one
 attribute-free counter series. Ten real workers recording 1,000 increments each

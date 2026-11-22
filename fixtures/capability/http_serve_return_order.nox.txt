@@ -1,0 +1,15 @@
+import nox.http
+import nox.os
+from nox.http import HttpRequest, HttpResponse
+
+serve_returned: bool = False
+
+def handle(request: HttpRequest) -> HttpResponse:
+    nox.http.shutdown()
+    if serve_returned:
+        return HttpResponse(200, "serve-returned", {})
+    return HttpResponse(200, "handler-first", {})
+
+nox.http.configure(bind_address="127.0.0.1")
+nox.http.serve(int(nox.os.arg(1)), handle, 1)
+serve_returned = True

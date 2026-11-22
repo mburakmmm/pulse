@@ -207,6 +207,29 @@ The current audit uses an isolated official archive verified before extraction.
   on both backends.
 ## Active NOX design limits and capability boundaries
 
+### NOX-CODEGEN-003 — Context manager on a class field fails executable codegen
+
+- Status: `OPEN-UPSTREAM` on NOX 2.2.38, verified locally on macOS ARM64.
+- Evidence: copy `fixtures/capability/context_manager_field.nox.txt` to a
+  temporary `.nox` file. `noxc check` succeeds. Both
+  `noxc build --backend qbe` and `noxc build --backend llvm` return the
+  generic unsupported-construct diagnostic for `with self.guard as held`.
+- Containment: acquire explicitly and unlock in `finally`. The provider
+  regression verifies both normal returns and recovery after a rejected record.
+
+### NOX-HTTP-005 — Top-level `serve()` is not a handler join barrier
+
+- Status: `OPEN-UPSTREAM` on NOX 2.2.38, verified locally on macOS ARM64.
+- Evidence: compile `fixtures/capability/http_serve_return_order.nox.txt`
+  as a temporary `.nox` on either backend. Run the binary with an unused
+  loopback port and issue a GET to that port. Both backends return
+  `serve-returned`, so code following top-level `serve()` has executed
+  before the handler. Closing a Pulse provider at that point made the live
+  handler reject collection with `metric provider is closed`.
+- Containment: the HTTP fixture hands the handler a detached snapshot. Users
+  must establish quiescence through explicit worker ownership before freeing
+  a provider shared with live handlers.
+
 ### NOX-TASKLOCAL-002 — Spawned tasks do not inherit TaskLocal values
 
 - Status: `DESIGN-LIMIT`.

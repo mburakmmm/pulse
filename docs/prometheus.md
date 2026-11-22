@@ -82,14 +82,16 @@ aggregation.
 - `render_metrics()` intentionally receives no Resource. Callers that need
   `target_info` must choose `render_metrics_with_resource()` and provide the
   allowlist; bulk/default promotion is unsupported.
-- Scrape-time concurrent consistency is limited by the current single-owner
-  provider. An immutable collection is consistent after it has been collected;
-  concurrent provider collection is not yet supported.
+- The opt-in concurrent provider takes a defensive snapshot under its metric
+  gate. Render after collection and use a reader per scraper when reader
+  timestamps are needed. A lock timeout raises `TelemetryError`; the application
+  should return a generic failure response.
 - No timestamps are emitted. Prometheus assigns scrape time.
 - OpenMetrics is unsupported.
-- Golden fixtures and real HTTP scrape responses pass QBE and LLVM plus
-  checksum-verified `promtool` 3.16.0. General concurrent collection remains
-  unsupported because the provider is still single-owner.
+- The real HTTP fixture serves a detached snapshot from the opt-in provider.
+  The worker test renders a snapshot after recording starts and before writers
+  can finish. On NOX 2.2.38, top-level `serve()` is not a join barrier. Confirm
+  handler quiescence before releasing an application-owned provider.
 
 ## Evidence
 

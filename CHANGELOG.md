@@ -6,6 +6,11 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ### Added
 
+- Opt-in concurrent cumulative metrics with bounded lock waiting, scope
+  cardinality, defensive scrape snapshots and explicit post-join cleanup.
+- A three-recorder and one-scraper gate for duplicate registration, overflow
+  aggregation, histogram snapshot consistency, timeout and stale handles.
+
 - A professional repository landing page with an honest capability matrix,
   quick start, architecture, roadmap and verification instructions.
 - MIT licensing for use, modification and redistribution of Pulse.

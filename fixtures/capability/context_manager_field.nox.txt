@@ -1,0 +1,19 @@
+class Guard:
+    def __enter__(self) -> Guard:
+        return self
+
+    def __exit__(self) -> None:
+        return
+
+class Owner:
+    guard: Guard
+
+    def __init__(self) -> None:
+        self.guard = Guard()
+
+    def read(self) -> int:
+        with self.guard as held:
+            return 42
+
+owner: Owner = Owner()
+print(owner.read())

@@ -26,3 +26,13 @@ Phase 0 probes verified `spawn`/`await`, bounded task channels, cancellation del
 - “Thread-safe” is not a package-wide label. It is granted per type only after stress and race-oriented evidence.
 - Module globals cannot own the default provider until an isolation and reconfiguration design is separately accepted.
 - Phase 0 smoke evidence establishes primitives only; it does not establish the future batch processor's correctness.
+
+## Phase 3 metric ownership amendment
+
+The optional concurrent meter provider owns a single bounded atomic gate
+for its metric graph. Cross-worker mutation is limited to synchronous
+provider, meter and instrument methods. Collection copies data under the
+gate. Rendering and export use the detached copy afterward. Callers join all
+users before closing the provider. Readers and exporters each retain a single
+owner. This amendment applies only to the metric graph and relies on the
+NOX 2.2.38 transfer audit and the provider concurrency regression.

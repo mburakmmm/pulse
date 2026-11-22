@@ -13,11 +13,9 @@ privacy, bounded resource use and reproducible behavior across the LLVM and QBE
 backends.
 
 > [!WARNING]
-> Pulse is pre-1.0 and experimental. The current recording provider is
-> single-owner only. The Prometheus renderer and pure HTTP handler adapter are
-> experimental. Pulse does not start a listener: pinned NOX cannot select a bind
-> address and its server binds all interfaces. Golden and real scrape output pass
-> checksum-verified `promtool`; tracing and OTLP exporters remain planned.
+> Pulse is pre-1.0 and experimental. Shared metric recording is opt-in via
+> `ConcurrentMeterProvider`. Applications own their Prometheus listeners and
+> can configure loopback with pinned NOX. Tracing and OTLP exporters remain planned.
 
 ## Project status
 
@@ -28,14 +26,14 @@ is now in `v0.3.0`, beginning with a bounded Prometheus text renderer.
 |---|---|
 | Typed attributes, resources, scopes, clocks and secure IDs | Implemented and tested on QBE + LLVM |
 | No-op metrics and tracing API | Implemented; no import-time network or worker activity |
-| Counter, UpDownCounter and explicit-boundary Histogram | Experimental single-owner implementation |
+| Counter, UpDownCounter and explicit-boundary Histogram | Experimental single-owner and opt-in concurrent providers |
 | Cardinality and aggregation-memory bounds | Implemented with deterministic overflow routing |
 | Cumulative metric reader | Implemented with deterministic collection timestamps |
 | In-memory and console metric exporters | Experimental, bounded and tested on QBE + LLVM |
 | Prometheus exposition | Experimental text 0.0.4 renderer with pinned unit suffixes + pure scrape handler; real QBE/LLVM HTTP integration and promtool 3.16.0 pass, listener remains application-owned |
 | Tracing and W3C propagation | Planned for `v0.4.0`–`v0.5.0` |
 | OTLP/HTTP traces and metrics | Planned for `v0.7.0`–`v0.8.0` |
-| Concurrent recording provider | Not implemented; atomic same-series 10×1,000 proof only |
+| Concurrent recording provider | Experimental bounded gate, consistent snapshots and explicit post-join close |
 
 The evidence-gated roadmap is maintained in [`todo.md`](todo.md). Compiler and
 platform evidence lives in [`docs/compatibility.md`](docs/compatibility.md), and

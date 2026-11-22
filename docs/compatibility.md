@@ -50,8 +50,9 @@ the [platform matrix](platform-support.md) for remote evidence.
 - QBE scheduling is cooperative. Pulse uses synchronous or explicitly polled
   export there and does not advertise background parallelism.
 - Both backends pass the targeted class, nested-dictionary and TaskLocal transfer
-  probes. The joined dictionary probe has a single writer. Provider-wide
-  concurrent mutation, ownership and cleanup still need dedicated tests.
+  probes. The shared provider uses the public scalar atomic handle and
+  explicit post-join cleanup. See the provider concurrency gate in
+  `scripts/run-phase2-tests.sh`.
 - Mutable module state is worker-local. Providers, readers and contexts are passed
   explicitly; there is no module-global current span.
 - TaskLocal values are not inherited by spawned tasks. Parent context handoff is
@@ -65,6 +66,10 @@ the [platform matrix](platform-support.md) for remote evidence.
   positive deadlines and a credential-safe redirect policy.
 - `nox.http.configure(bind_address="127.0.0.1")` selects IPv4 loopback before
   serving. The application owns its listener and access controls.
+- Top-level `nox.http.serve()` can continue to subsequent statements before
+  handling requests. Handler teardown requires an explicit quiescence barrier.
+- `with self.field as value` passes type checking but fails executable codegen.
+  Pulse uses explicit `try/finally` for metric gate release.
 - gRPC permits one active call/stream per connection and has no client-side read
   timeout. OTLP/gRPC remains optional until those lifecycle constraints are tested.
 - No Zig/NNI glue is approved for the initial primitives; current required runtime

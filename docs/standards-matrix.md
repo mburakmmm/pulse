@@ -45,9 +45,9 @@ This table will expand with each phase. No feature is advertised merely because 
 |---|---:|---:|---:|---:|---:|
 | Package/module loading | Pass | N/A | N/A | N/A | Downstream consumer pass on LLVM/QBE |
 | Clock and secure IDs | Pass | N/A | Planned | N/A | N/A |
-| Metrics | Pass | Pass | Pass | Atomic same-series pass; general provider pending | N/A |
+| Metrics | Pass | Pass | Pass | Atomic 10×1,000 and shared provider registration, overflow and snapshot tests | N/A |
 | Tracing | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 | W3C propagation | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
-| Prometheus | Pure renderer/handler + allowlisted `target_info` pass | Text 0.0.4 pass | Malformed/bound/sensitive-resource/HTTP checks pass | Immutable snapshot only; concurrent provider pending | promtool 3.16.0 golden + real HTTP body pass; listener exposure application-owned |
+| Prometheus | Pure renderer/handler + allowlisted `target_info` pass | Text 0.0.4 pass | Malformed/bound/sensitive-resource/HTTP checks pass | Shared recording and snapshot rendering gate | promtool 3.16.0 golden + real HTTP body pass; listener exposure application-owned |
 | OTLP protobuf/HTTP | Not implemented | Not implemented | Not implemented | Not implemented | Not implemented |
 

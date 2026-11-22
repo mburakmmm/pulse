@@ -1,4 +1,5 @@
 import nox.protobuf
+import nox.strings
 from nox.protobuf import Writer
 from api.metrics import Counter, Histogram, Meter, MeterProvider, NoopMeter, UpDownCounter
 from core.attributes import AttributeValue
@@ -6,6 +7,7 @@ from core.errors import TelemetryError
 from core.limits import AttributeLimits, MetricLimits, RecordLimits
 from core.scope import InstrumentationScope
 from metrics.cardinality import MetricBudget
+from metrics.collection_gate import MetricCollectionGate
 from metrics.counter_storage import CounterStorage, CounterStorageSnapshot
 from metrics.histogram_storage import HistogramStorage, HistogramStorageSnapshot
 from metrics.instruments import InstrumentDescriptor, InstrumentKind, InstrumentRegistry, RegistrationResult
@@ -31,36 +33,64 @@ def scope_key(name: str, version: str | None, schema_url: str | None) -> str:
     return writer.to_str()
 
 class RecordingCounter(Counter):
+    gate: MetricCollectionGate
     storage: CounterStorage
 
-    def __init__(self, storage: CounterStorage) -> None:
+    def __init__(self, storage: CounterStorage, gate: MetricCollectionGate | None = None) -> None:
+        if gate is None:
+            self.gate = MetricCollectionGate(0)
+        else:
+            self.gate = gate
         self.storage = storage
 
     def add(self, value: int, attributes: dict[str, AttributeValue]) -> None:
 
-        self.storage.record(value, attributes)
+        self.gate.acquire()
+        try:
+            self.storage.record(value, attributes)
+        finally:
+            self.gate.unlock()
 
 class RecordingUpDownCounter(UpDownCounter):
+    gate: MetricCollectionGate
     storage: UpDownStorage
 
-    def __init__(self, storage: UpDownStorage) -> None:
+    def __init__(self, storage: UpDownStorage, gate: MetricCollectionGate | None = None) -> None:
+        if gate is None:
+            self.gate = MetricCollectionGate(0)
+        else:
+            self.gate = gate
         self.storage = storage
 
     def add(self, value: int, attributes: dict[str, AttributeValue]) -> None:
 
-        self.storage.record(value, attributes)
+        self.gate.acquire()
+        try:
+            self.storage.record(value, attributes)
+        finally:
+            self.gate.unlock()
 
 class RecordingHistogram(Histogram):
+    gate: MetricCollectionGate
     storage: HistogramStorage
 
-    def __init__(self, storage: HistogramStorage) -> None:
+    def __init__(self, storage: HistogramStorage, gate: MetricCollectionGate | None = None) -> None:
+        if gate is None:
+            self.gate = MetricCollectionGate(0)
+        else:
+            self.gate = gate
         self.storage = storage
 
     def record(self, value: float, attributes: dict[str, AttributeValue]) -> None:
 
-        self.storage.record(value, attributes)
+        self.gate.acquire()
+        try:
+            self.storage.record(value, attributes)
+        finally:
+            self.gate.unlock()
 
 class RecordingMeter(Meter):
+    gate: MetricCollectionGate
     scope: InstrumentationScope
     attribute_limits: AttributeLimits
     metric_limits: MetricLimits
@@ -71,7 +101,11 @@ class RecordingMeter(Meter):
     updown_storages: dict[str, UpDownStorage]
     histogram_storages: dict[str, HistogramStorage]
 
-    def __init__(self, scope: InstrumentationScope, attribute_limits: AttributeLimits, metric_limits: MetricLimits, record_limits: RecordLimits, budget: MetricBudget) -> None:
+    def __init__(self, scope: InstrumentationScope, attribute_limits: AttributeLimits, metric_limits: MetricLimits, record_limits: RecordLimits, budget: MetricBudget, gate: MetricCollectionGate | None = None) -> None:
+        if gate is None:
+            self.gate = MetricCollectionGate(0)
+        else:
+            self.gate = gate
         self.scope = scope
         self.attribute_limits = attribute_limits
         self.metric_limits = metric_limits
@@ -84,90 +118,121 @@ class RecordingMeter(Meter):
 
     def create_counter(self, name: str, unit: str, description: str) -> Counter:
 
-        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Counter, unit, description, self.metric_limits)
-        classification: RegistrationResult = self.registry.classify(descriptor)
-        match classification:
-            case RegistrationResult.Existing(existing_key):
-                return RecordingCounter(self.counter_storages[existing_key])
-            case RegistrationResult.New(new_key):
-                storage: CounterStorage = CounterStorage(self.attribute_limits, self.metric_limits, self.budget)
-                self.counter_storages[new_key] = storage
-                self.registry.commit(descriptor)
-                return RecordingCounter(storage)
-            case RegistrationResult.Conflict(conflict_key):
-                conflict_storage: CounterStorage = CounterStorage(self.attribute_limits, self.metric_limits, self.budget)
-                self.counter_storages[conflict_key] = conflict_storage
-                self.registry.commit(descriptor)
-                return RecordingCounter(conflict_storage)
+        self.gate.acquire()
+        try:
+            descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Counter, unit, description, self.metric_limits)
+            classification: RegistrationResult = self.registry.classify(descriptor)
+            match classification:
+                case RegistrationResult.Existing(existing_key):
+                    return RecordingCounter(self.counter_storages[existing_key], self.gate)
+                case RegistrationResult.New(new_key):
+                    storage: CounterStorage = CounterStorage(self.attribute_limits, self.metric_limits, self.budget)
+                    self.counter_storages[new_key] = storage
+                    self.registry.commit(descriptor)
+                    return RecordingCounter(storage, self.gate)
+                case RegistrationResult.Conflict(conflict_key):
+                    conflict_storage: CounterStorage = CounterStorage(self.attribute_limits, self.metric_limits, self.budget)
+                    self.counter_storages[conflict_key] = conflict_storage
+                    self.registry.commit(descriptor)
+                    return RecordingCounter(conflict_storage, self.gate)
+        finally:
+            self.gate.unlock()
 
     def create_up_down_counter(self, name: str, unit: str, description: str) -> UpDownCounter:
 
-        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.UpDownCounter, unit, description, self.metric_limits)
-        classification: RegistrationResult = self.registry.classify(descriptor)
-        match classification:
-            case RegistrationResult.Existing(existing_key):
-                return RecordingUpDownCounter(self.updown_storages[existing_key])
-            case RegistrationResult.New(new_key):
-                storage: UpDownStorage = UpDownStorage(self.attribute_limits, self.metric_limits, self.budget)
-                self.updown_storages[new_key] = storage
-                self.registry.commit(descriptor)
-                return RecordingUpDownCounter(storage)
-            case RegistrationResult.Conflict(conflict_key):
-                conflict_storage: UpDownStorage = UpDownStorage(self.attribute_limits, self.metric_limits, self.budget)
-                self.updown_storages[conflict_key] = conflict_storage
-                self.registry.commit(descriptor)
-                return RecordingUpDownCounter(conflict_storage)
+        self.gate.acquire()
+        try:
+            descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.UpDownCounter, unit, description, self.metric_limits)
+            classification: RegistrationResult = self.registry.classify(descriptor)
+            match classification:
+                case RegistrationResult.Existing(existing_key):
+                    return RecordingUpDownCounter(self.updown_storages[existing_key], self.gate)
+                case RegistrationResult.New(new_key):
+                    storage: UpDownStorage = UpDownStorage(self.attribute_limits, self.metric_limits, self.budget)
+                    self.updown_storages[new_key] = storage
+                    self.registry.commit(descriptor)
+                    return RecordingUpDownCounter(storage, self.gate)
+                case RegistrationResult.Conflict(conflict_key):
+                    conflict_storage: UpDownStorage = UpDownStorage(self.attribute_limits, self.metric_limits, self.budget)
+                    self.updown_storages[conflict_key] = conflict_storage
+                    self.registry.commit(descriptor)
+                    return RecordingUpDownCounter(conflict_storage, self.gate)
+        finally:
+            self.gate.unlock()
 
     def create_histogram(self, name: str, unit: str, description: str) -> Histogram:
 
-        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Histogram, unit, description, self.metric_limits)
-        classification: RegistrationResult = self.registry.classify(descriptor)
-        match classification:
-            case RegistrationResult.Existing(existing_key):
-                return RecordingHistogram(self.histogram_storages[existing_key])
-            case RegistrationResult.New(new_key):
-                storage: HistogramStorage = HistogramStorage(self.attribute_limits, self.metric_limits, self.record_limits, self.budget, default_histogram_boundaries())
-                self.histogram_storages[new_key] = storage
-                self.registry.commit(descriptor)
-                return RecordingHistogram(storage)
-            case RegistrationResult.Conflict(conflict_key):
-                conflict_storage: HistogramStorage = HistogramStorage(self.attribute_limits, self.metric_limits, self.record_limits, self.budget, default_histogram_boundaries())
-                self.histogram_storages[conflict_key] = conflict_storage
-                self.registry.commit(descriptor)
-                return RecordingHistogram(conflict_storage)
+        self.gate.acquire()
+        try:
+            descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Histogram, unit, description, self.metric_limits)
+            classification: RegistrationResult = self.registry.classify(descriptor)
+            match classification:
+                case RegistrationResult.Existing(existing_key):
+                    return RecordingHistogram(self.histogram_storages[existing_key], self.gate)
+                case RegistrationResult.New(new_key):
+                    storage: HistogramStorage = HistogramStorage(self.attribute_limits, self.metric_limits, self.record_limits, self.budget, default_histogram_boundaries())
+                    self.histogram_storages[new_key] = storage
+                    self.registry.commit(descriptor)
+                    return RecordingHistogram(storage, self.gate)
+                case RegistrationResult.Conflict(conflict_key):
+                    conflict_storage: HistogramStorage = HistogramStorage(self.attribute_limits, self.metric_limits, self.record_limits, self.budget, default_histogram_boundaries())
+                    self.histogram_storages[conflict_key] = conflict_storage
+                    self.registry.commit(descriptor)
+                    return RecordingHistogram(conflict_storage, self.gate)
+        finally:
+            self.gate.unlock()
 
     def counter_snapshot(self, name: str, unit: str, description: str) -> CounterStorageSnapshot:
 
-        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Counter, unit, description, self.metric_limits)
-        key: str = descriptor.key()
-        if key not in self.counter_storages:
-            raise TelemetryError("counter is not registered in this meter")
-        return self.counter_storages[key].snapshot()
+        self.gate.acquire()
+        try:
+            descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Counter, unit, description, self.metric_limits)
+            key: str = descriptor.key()
+            if key not in self.counter_storages:
+                raise TelemetryError("counter is not registered in this meter")
+            return self.counter_storages[key].snapshot()
+        finally:
+            self.gate.unlock()
 
     def updown_snapshot(self, name: str, unit: str, description: str) -> UpDownStorageSnapshot:
 
-        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.UpDownCounter, unit, description, self.metric_limits)
-        key: str = descriptor.key()
-        if key not in self.updown_storages:
-            raise TelemetryError("up/down counter is not registered in this meter")
-        return self.updown_storages[key].snapshot()
+        self.gate.acquire()
+        try:
+            descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.UpDownCounter, unit, description, self.metric_limits)
+            key: str = descriptor.key()
+            if key not in self.updown_storages:
+                raise TelemetryError("up/down counter is not registered in this meter")
+            return self.updown_storages[key].snapshot()
+        finally:
+            self.gate.unlock()
 
     def histogram_snapshot(self, name: str, unit: str, description: str) -> HistogramStorageSnapshot:
 
-        descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Histogram, unit, description, self.metric_limits)
-        key: str = descriptor.key()
-        if key not in self.histogram_storages:
-            raise TelemetryError("histogram is not registered in this meter")
-        return self.histogram_storages[key].snapshot()
+        self.gate.acquire()
+        try:
+            descriptor: InstrumentDescriptor = InstrumentDescriptor(name, InstrumentKind.Histogram, unit, description, self.metric_limits)
+            key: str = descriptor.key()
+            if key not in self.histogram_storages:
+                raise TelemetryError("histogram is not registered in this meter")
+            return self.histogram_storages[key].snapshot()
+        finally:
+            self.gate.unlock()
 
 class SingleOwnerMeterProvider(MeterProvider):
+    gate: MetricCollectionGate
+    max_scopes: int
     attribute_limits: AttributeLimits
     metric_limits: MetricLimits
     record_limits: RecordLimits
     budget: MetricBudget
     meters: dict[str, RecordingMeter]
 
-    def __init__(self, attribute_limits: AttributeLimits, metric_limits: MetricLimits, record_limits: RecordLimits) -> None:
+    def __init__(self, attribute_limits: AttributeLimits, metric_limits: MetricLimits, record_limits: RecordLimits, gate: MetricCollectionGate | None = None, max_scopes: int = 0) -> None:
+        if gate is None:
+            self.gate = MetricCollectionGate(0)
+        else:
+            self.gate = gate
+        self.max_scopes = max_scopes
         self.attribute_limits = attribute_limits
         self.metric_limits = metric_limits
         self.record_limits = record_limits
@@ -182,41 +247,67 @@ class SingleOwnerMeterProvider(MeterProvider):
 
     def get_recording_meter(self, name: str, version: str | None, schema_url: str | None) -> RecordingMeter:
 
-        if len(name) == 0:
-            raise TelemetryError("recording meter scope name must not be empty")
-        key: str = scope_key(name, version, schema_url)
-        if key in self.meters:
-            return self.meters[key]
-        scope: InstrumentationScope = InstrumentationScope(name, version, schema_url, {}, self.attribute_limits)
-        meter: RecordingMeter = RecordingMeter(scope, self.attribute_limits, self.metric_limits, self.record_limits, self.budget)
-        self.meters[key] = meter
-        return meter
+        self.gate.acquire()
+        try:
+            if len(name) == 0:
+                raise TelemetryError("recording meter scope name must not be empty")
+            if self.max_scopes > 0:
+                if nox.strings.byte_len(name) > 1024 or version is not None and nox.strings.byte_len(version) > 1024 or schema_url is not None and nox.strings.byte_len(schema_url) > 1024:
+                    raise TelemetryError("metric scope identity exceeds 1024 bytes per field")
+            key: str = scope_key(name, version, schema_url)
+            if key in self.meters:
+                return self.meters[key]
+            if self.max_scopes > 0 and len(self.meters) >= self.max_scopes:
+                raise TelemetryError("metric provider scope limit reached")
+            scope: InstrumentationScope = InstrumentationScope(name, version, schema_url, {}, self.attribute_limits)
+            meter: RecordingMeter = RecordingMeter(scope, self.attribute_limits, self.metric_limits, self.record_limits, self.budget, self.gate)
+            self.meters[key] = meter
+            return meter
+        finally:
+            self.gate.unlock()
 
     def collection_snapshot(self, start_time_ns: int, time_ns: int) -> MetricCollection:
 
-        if start_time_ns < 0 or time_ns < start_time_ns:
-            raise TelemetryError("collection timestamps must be nonnegative and ordered")
-        meter_keys: list[str] = []
-        for meter_key in self.meters:
-            meter_keys.append(meter_key)
-        meter_keys.sort()
+        self.gate.acquire()
+        try:
+            if start_time_ns < 0 or time_ns < start_time_ns:
+                raise TelemetryError("collection timestamps must be nonnegative and ordered")
+            meter_keys: list[str] = []
+            for meter_key in self.meters:
+                meter_keys.append(meter_key)
+            meter_keys.sort()
 
-        metrics: list[MetricSnapshot] = []
-        for meter_key in meter_keys:
-            meter: RecordingMeter = self.meters[meter_key]
-            descriptor_keys: list[str] = []
-            for descriptor_key in meter.registry.descriptors:
-                descriptor_keys.append(descriptor_key)
-            descriptor_keys.sort()
-            for descriptor_key in descriptor_keys:
-                descriptor: InstrumentDescriptor = meter.registry.descriptor(descriptor_key)
-                data: MetricData = MetricData.Counter(CounterStorageSnapshot([], 0, 0))
-                match descriptor.kind:
-                    case InstrumentKind.Counter:
-                        data = MetricData.Counter(meter.counter_storages[descriptor_key].snapshot())
-                    case InstrumentKind.UpDownCounter:
-                        data = MetricData.UpDownCounter(meter.updown_storages[descriptor_key].snapshot())
-                    case InstrumentKind.Histogram:
-                        data = MetricData.Histogram(meter.histogram_storages[descriptor_key].snapshot())
-                metrics.append(MetricSnapshot(snapshot_scope(meter.scope), snapshot_descriptor(descriptor), start_time_ns, time_ns, data))
-        return MetricCollection(start_time_ns, time_ns, metrics)
+            metrics: list[MetricSnapshot] = []
+            for meter_key in meter_keys:
+                meter: RecordingMeter = self.meters[meter_key]
+                descriptor_keys: list[str] = []
+                for descriptor_key in meter.registry.descriptors:
+                    descriptor_keys.append(descriptor_key)
+                descriptor_keys.sort()
+                for descriptor_key in descriptor_keys:
+                    descriptor: InstrumentDescriptor = meter.registry.descriptor(descriptor_key)
+                    data: MetricData = MetricData.Counter(CounterStorageSnapshot([], 0, 0))
+                    match descriptor.kind:
+                        case InstrumentKind.Counter:
+                            data = MetricData.Counter(meter.counter_storages[descriptor_key].snapshot())
+                        case InstrumentKind.UpDownCounter:
+                            data = MetricData.UpDownCounter(meter.updown_storages[descriptor_key].snapshot())
+                        case InstrumentKind.Histogram:
+                            data = MetricData.Histogram(meter.histogram_storages[descriptor_key].snapshot())
+                    metrics.append(MetricSnapshot(snapshot_scope(meter.scope), snapshot_descriptor(descriptor), start_time_ns, time_ns, data))
+            return MetricCollection(start_time_ns, time_ns, metrics)
+        finally:
+            self.gate.unlock()
+
+class ConcurrentMeterProvider(SingleOwnerMeterProvider):
+    def __init__(self, attribute_limits: AttributeLimits, metric_limits: MetricLimits, record_limits: RecordLimits, lock_wait_ms: int = 1000, max_scopes: int = 256) -> None:
+        if lock_wait_ms <= 0:
+            raise TelemetryError("concurrent metric lock wait must be positive")
+        if max_scopes <= 0 or max_scopes > 4096:
+            raise TelemetryError("concurrent metric scope limit must be within 1..4096")
+        super().__init__(attribute_limits, metric_limits, record_limits, MetricCollectionGate(lock_wait_ms), max_scopes)
+
+    def close_after_join(self) -> None:
+
+        self.gate.close_after_join()
+        self.meters = {}

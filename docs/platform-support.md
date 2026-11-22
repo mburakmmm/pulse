@@ -35,12 +35,10 @@ preserving the expected upstream failure evidence.
 
 ## Thread safety
 
-The current `SingleOwnerMeterProvider` is explicitly not concurrency-safe. The
-CI matrix validates its single-owner semantics on each target, but does not
-convert that into a thread-safety claim. The narrower atomic same-series path
-produces exactly 10,000 from 10 workers × 1,000 increments on QBE and LLVM. The
-instrument registry, cardinality maps, histograms, readers and exporters remain
-outside that concurrency proof.
+`SingleOwnerMeterProvider` requires caller isolation. The opt-in
+`ConcurrentMeterProvider` has a separate QBE/LLVM gate for concurrent
+registration, bounded aggregation and scrape snapshots. CI run #16 predates
+that gate. Readers, clocks and exporters remain caller-owned.
 
 ## Result vocabulary
 

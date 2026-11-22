@@ -233,7 +233,7 @@ Amaç: Gerçek ölçümlere dayanan, bounded-cardinality cumulative metrics moto
 
 Bağımlılık: `v0.1.0`.
 
-- [~] `MeterProvider`, `Meter`, instrument registry ve scope bağlama: single-owner recording ve explicit reader yolu tamam; provider-owned lifecycle/concurrent-safe provider açık.
+- [x] `MeterProvider`, `Meter`, instrument registry ve scope bağlama. Tek sahipli yol korunuyor. Paylaşılan sağlayıcıda bounded gate ve join sonrası close var.
 - [x] Counter: public recording bağlantısı, cumulative bounded series, exact int64 total, overflow ve defensive snapshot iki backend'de geçti.
 - [x] UpDownCounter: public recording bağlantısı, signed delta, bounded series ve overflow/underflow davranışı geçti.
 - [x] Explicit-boundary Histogram: public recording bağlantısı, finite/strict boundaries, bounded series ve pre-aggregation geçti.
@@ -250,7 +250,7 @@ Bağımlılık: `v0.1.0`.
 - [x] Console metric exporter: `JsonWriter` ile structured/sanitized çıktı, exact int64, output byte bound ve shutdown davranışı iki backend'de geçti; format OTLP olarak sunulmuyor.
 - [x] 10 worker × 1.000 increment acceptance testi: public `nox.atomic` kullanan tek-series hücre QBE ve LLVM'de tam 10.000 üretti; genel provider thread-safety iddiası değildir.
 - [x] 100.000 benzersiz untrusted label / 1.000 metric-point hard-bound testi QBE ve LLVM'de geçti; toplam tam 100.000.
-- [~] QBE ve LLVM real worker atomik sayaç testi geçti; instrument registry/cardinality/histogram/reader/exporter concurrent-provider senaryoları açık.
+- [~] QBE ve LLVM atomik sayaç ve eşzamanlı sağlayıcı testleri geçti. Reader ve exporter örnekleri tek sahipli kalıyor.
 - [x] API, limit, cumulative temporality ve thread-safety durumları `docs/api.md`, `docs/metrics.md`, `docs/exporter-support.md` ve limitation kaydında belgelendi.
 
 Çıkış kapısı:
@@ -274,7 +274,7 @@ Bağımlılık: `v0.2.0`.
 - [x] Resource attribute promotion default kapalı; açıkça seçilen, 32-key hard-bound allowlist yalnız eşleşen güvenli alanları deterministik `target_info` olarak üretir, sensitive/collision config fail-closed; CI run #11 dört platformda geçti.
 - [x] Stable deterministic text `0.0.4` output ve byte-for-byte golden fixture QBE/LLVM'de geçti.
 - [x] Windows redirected `nox.terminal.write_raw` hatası `NOX-IO-001` olarak minimal fixture ve iki-backend audit ile kaydedildi; portable `print` containment CI run #12'de Windows LLVM/QBE dahil tüm matriste geçti.
-- [~] Immutable collection render internally consistent; concurrent provider collection hâlâ single-owner sınırı nedeniyle açık.
+- [x] Sağlayıcı kayıt sürerken tutarlı snapshot alabiliyor. Scrape renderer snapshot'ı kilit dışında işliyor.
 - [x] Renderer yalnız snapshot/string modüllerine bağlı saf fonksiyon; render sırasında ağ I/O veya recursive telemetry yolu yok.
 - [x] Saf HTTP scrape handler adapter'ı: yalnız `GET` + bounded configured path/4 KiB target, query-safe routing, 404/405/400/414/500 containment, correct content type ve no-store headers iki backend'de geçti; import/start side effect yok.
 - [x] Gerçek fixture `nox.http.configure` ile body/header/read/connections/drain sınırları ve IPv4 loopback kullanıyor. Uygulama listener'ı ve erişim politikasını yönetiyor.
@@ -768,7 +768,10 @@ Commit/tag:
 - [x] Gerçek scrape fixture'ı IPv4 loopback kullanıyor. Uygulama için loopback ve açık erişim yapılandırması belgelendi.
 - [x] İç içe sözlükte join sonrası görünürlük ve CAS korumalı 2 × 1.000 yazma iki backend'de denetlendi.
 - [x] [CI run #16](https://github.com/mburakmmm/pulse/actions/runs/44891047883) tüm dokuz işi geçti. Windows x64 redirected output QBE ve LLVM ile byte-exact geçti ve `NOX-IO-001` kapatıldı.
-- [ ] Genel concurrent provider ve tutarlı scrape snapshot için sahiplik, kaynak temizliği ve yarış senaryoları tamamlanacak.
+- [x] `ConcurrentMeterProvider` için ortak kayıt/toplama kilidi, scope sınırı ve kullanıcılara join sonrasında açıkça kapatma eklendi.
+- [x] Üç kayıt işçisi ve bir scrape işçisi ile bounded overflow, tam toplamlar, kayıt arasında snapshot ve kapanış sonrası eski handle engeli yerelde doğrulandı.
+- [ ] Concurrent provider için uzak CI matris kanıtını kaydet.
+- [ ] Canlı HTTP handler sahipliği ve join bilgisi `NOX-HTTP-005` kapsamında açık. Gerçek HTTP fixture bağımsız snapshot kullanıyor.
 - Kanıtlar [uyumluluk denetimi](docs/nox-upgrade-analysis-2.2.38.md) ve [NOX limitasyon kaydı](docs/nox-limitations.md) içinde.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.
 - Commit/tag: uygulama commit'i `8d01f51e6d1a6adb816c0e8cf5c24ac4830f17ec`; tag yok.

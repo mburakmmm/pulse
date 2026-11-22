@@ -1,0 +1,150 @@
+import nox.atomic
+import nox.test
+import nox.thread
+import nox.time
+from nox.atomic import AtomicInt
+from api.metrics import Counter, Histogram, Meter, UpDownCounter
+from core.attributes import AttributeValue
+from core.clock import TestClock
+from core.errors import TelemetryError
+from core.limits import MetricLimits, default_attribute_limits, default_record_limits
+from exporters.prometheus import render_metrics
+from metrics.counter_storage import CounterStorageSnapshot
+from metrics.histogram_storage import HistogramStorageSnapshot
+from metrics.model import MetricCollection, MetricData
+from metrics.provider import ConcurrentMeterProvider, RecordingMeter
+from metrics.reader import CumulativeMetricReader
+
+class WorkerInput:
+    provider: ConcurrentMeterProvider
+    stage_handle: int
+
+    def __init__(self, provider: ConcurrentMeterProvider, stage_handle: int) -> None:
+        self.provider = provider
+        self.stage_handle = stage_handle
+
+def wait_for_stage(stage: AtomicInt, expected: int) -> None:
+    started: int = nox.time.monotonic_ns()
+    while stage.load() < expected and nox.time.monotonic_ns() - started < 5000000000:
+        nox.time.sleep_ms(1)
+    nox.test.assert_true(stage.load() >= expected, "recorders and scraper reach the checkpoint")
+
+async def record_metrics(input: WorkerInput) -> None:
+    meter: Meter = input.provider.get_meter("shared", None, None)
+    stage: AtomicInt = nox.atomic.from_int_handle(input.stage_handle)
+    counter: Counter = meter.create_counter("requests", "1", "requests")
+    active: UpDownCounter = meter.create_up_down_counter("active", "1", "active")
+    latency: Histogram = meter.create_histogram("latency", "ms", "latency")
+    index: int = 0
+    while index < 1000:
+        counter.add(1, {"route": AttributeValue.Text(str(index))})
+        active.add(2, {})
+        active.add(-1, {})
+        latency.record(5.0, {})
+        index += 1
+        if index == 1:
+            stage.compare_and_swap(0, 1)
+            wait_for_stage(stage, 2)
+
+def check_histogram(snapshot: HistogramStorageSnapshot) -> None:
+    for point in snapshot.points:
+        bucket_total: int = 0
+        for count in point.data.bucket_counts:
+            bucket_total += count
+        nox.test.assert_eq_int(bucket_total, point.data.count, "snapshot bucket total matches count")
+        nox.test.assert_eq_float(point.data.sum, float(point.data.count) * 5.0, "snapshot sum matches count")
+
+async def scrape_metrics(input: WorkerInput) -> None:
+    reader: CumulativeMetricReader = CumulativeMetricReader(TestClock(100, 50))
+    stage: AtomicInt = nox.atomic.from_int_handle(input.stage_handle)
+    wait_for_stage(stage, 1)
+    index: int = 0
+    while index < 100:
+        collection: MetricCollection = reader.collect(input.provider)
+        saw_histogram: bool = False
+        for metric in collection.metrics:
+            match metric.data:
+                case MetricData.Histogram(snapshot):
+                    check_histogram(snapshot)
+                    saw_histogram = len(snapshot.points) > 0
+                    if index == 0:
+                        nox.test.assert_true(snapshot.points[0].data.count <= 3, "first scrape occurs before writers finish")
+                case _:
+                    pass
+        render_metrics(collection, 16384)
+        if index == 0:
+            nox.test.assert_true(saw_histogram, "first scrape includes measurements")
+            stage.store(2)
+        index += 1
+
+async def run_probe() -> None:
+    provider: ConcurrentMeterProvider = ConcurrentMeterProvider(default_attribute_limits(), MetricLimits(4, 12, 1048576, 1023), default_record_limits(), 5000, 1)
+    stage: AtomicInt = nox.atomic.new_int(0)
+    input: WorkerInput = WorkerInput(provider, stage.handle)
+    first: ThreadHandle[None] = nox.thread.start(record_metrics, input)
+    second: ThreadHandle[None] = nox.thread.start(record_metrics, input)
+    third: ThreadHandle[None] = nox.thread.start(record_metrics, input)
+    scraper: ThreadHandle[None] = nox.thread.start(scrape_metrics, input)
+    await first.join()
+    await second.join()
+    await third.join()
+    await scraper.join()
+    stage.free()
+
+    meter: RecordingMeter = provider.get_recording_meter("shared", None, None)
+    total: int = 0
+    overflow_points: int = 0
+    counter_snapshot: CounterStorageSnapshot = meter.counter_snapshot("requests", "1", "requests")
+    for point in counter_snapshot.points:
+        total += point.total
+        if point.overflow:
+            overflow_points += 1
+    nox.test.assert_eq_int(total, 3000, "all counter measurements are recorded")
+    nox.test.assert_eq_int(len(counter_snapshot.points), 4, "cardinality remains bounded")
+    nox.test.assert_eq_int(overflow_points, 1, "one reserved overflow point")
+    nox.test.assert_eq_int(meter.updown_snapshot("active", "1", "active").points[0].total, 3000, "signed additions preserve exact total")
+    histogram: HistogramStorageSnapshot = meter.histogram_snapshot("latency", "ms", "latency")
+    check_histogram(histogram)
+    nox.test.assert_eq_int(histogram.points[0].data.count, 3000, "all histogram observations are recorded")
+    nox.test.assert_eq_int(len(provider.collection_snapshot(100, 200).metrics), 3, "concurrent registration creates three instruments")
+
+    scope_rejected: bool = False
+    try:
+        provider.get_meter("extra", None, None)
+    except TelemetryError as error:
+        scope_rejected = True
+    nox.test.assert_true(scope_rejected, "scope limit rejects new entries")
+    counter: Counter = meter.create_counter("requests", "1", "requests")
+    invalid_rejected: bool = False
+    try:
+        counter.add(-1, {})
+    except TelemetryError as error:
+        invalid_rejected = True
+    nox.test.assert_true(invalid_rejected, "invalid measurement is rejected under the gate")
+    counter.add(1, {})
+    provider.close_after_join()
+    provider.close_after_join()
+    stale_rejected: bool = False
+    try:
+        counter.add(1, {})
+    except TelemetryError as error:
+        stale_rejected = True
+    nox.test.assert_true(stale_rejected, "stale instrument cannot use a released gate")
+
+def test_wait_limit() -> None:
+    provider: ConcurrentMeterProvider = ConcurrentMeterProvider(default_attribute_limits(), MetricLimits(2, 2, 1048576, 1023), default_record_limits(), 10)
+    timed_out: bool = False
+    provider.gate.acquire()
+    try:
+        provider.collection_snapshot(100, 200)
+    except TelemetryError as error:
+        timed_out = True
+    finally:
+        provider.gate.unlock()
+    nox.test.assert_true(timed_out, "a held gate bounds collection wait")
+    nox.test.assert_eq_int(len(provider.collection_snapshot(100, 200).metrics), 0, "collection recovers after a timeout")
+    provider.close_after_join()
+
+test_wait_limit()
+probe: Task[None] = spawn run_probe()
+await probe

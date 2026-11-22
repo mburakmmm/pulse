@@ -23,5 +23,6 @@ done < <(find tests/unit -type f -name 'metrics_*_test.nox' -print | sort)
 "$noxc_bin" test --backend "$backend" tests/security/metrics_export_privacy_test.nox
 "$noxc_bin" test --backend "$backend" tests/stress/metrics_cardinality_stress_test.nox
 "$noxc_bin" test --backend "$backend" tests/concurrency/metrics_counter_concurrency_test.nox
+NOX_POOL_WORKERS=4 "$noxc_bin" test --backend "$backend" tests/concurrency/metrics_provider_concurrency_test.nox
 
-printf 'pulse phase2 tests: backend=%s provider=single-owner-pass reader=cumulative-pass exporters=memory+console-pass privacy=pass instruments=pass counter=pass updown=pass histogram=property-pass series=pass cardinality=pass stress_100k=pass atomic_workers_10x1000=pass\n' "$backend"
+printf 'pulse phase2 tests: backend=%s provider=single-owner+concurrent-pass reader=cumulative-pass exporters=memory+console-pass privacy=pass instruments=pass counter=pass updown=pass histogram=property-pass series=pass cardinality=pass stress_100k=pass atomic_workers_10x1000=pass concurrent_scrape_snapshot=pass\n' "$backend"

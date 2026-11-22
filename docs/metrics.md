@@ -1,9 +1,7 @@
 # Metrics implementation status
 
-Status: the `v0.2.0` local exit gate is complete and `v0.3.0` is active. A cumulative, single-owner recording provider,
-deterministic cumulative reader, bounded in-memory exporter and bounded structured
-console exporter exist for development and tests. No general thread-safe or
-production-ready `MeterProvider` claim exists.
+The `v0.3.0` development line includes the opt-in concurrent recording
+provider, the single-owner provider, a cumulative reader and bounded exporters.
 
 ## Canonical series identity
 
@@ -105,19 +103,33 @@ acceptance is independently verified. Resource promotion remains default-off; an
 explicit maximum-32-key allowlist can produce one deterministic `target_info`
 family and rejects sensitive keys. Pinned OpenTelemetry unit words, annotations,
 rates and suffix ordering are translated into family names without changing
-recorded values. Production listener deployment remains application-owned: a pure
-handler and real server/client integration exist, but Pulse does not own a
-listener and pinned NOX cannot select a bind address. See `docs/prometheus.md`.
+recorded values. The application owns the listener and chooses its bind address.
+See `docs/prometheus.md`.
 
 ## Concurrency status
 
-The general provider and its attribute-series dictionaries remain single-owner.
-`AtomicCounterCell` is a narrower audited primitive for one counter series: it uses
-a CAS loop to prevent lost increments and signed-64-bit overflow. Ten joined
-workers × 1,000 increments produce exactly 10,000 on QBE and LLVM. The owning cell
-is freed only after every handle joins; borrowed worker wrappers cannot free it.
-This proves the acceptance arithmetic for the atomic path, not thread safety for
-instrument creation, cardinality maps, histograms, readers or exporters.
+`ConcurrentMeterProvider` uses one atomic gate across meter registration,
+instrument registration, recording and defensive collection snapshots. Each
+operation enters once and leaves in `finally`. Individual measurements are
+atomic with respect to a snapshot. Multiple measurements across instruments
+remain separate operations. Rendering and exporting run after leaving the gate.
+
+The lock acquisition budget defaults to 1,000 ms and accepts 1–60,000 ms.
+Contention past that budget raises `TelemetryError` before mutation. The gate
+does not promise fairness or a hard real-time deadline. Scope count defaults to
+256 and accepts 1–4,096. Each scope identity field is limited to 1,024 bytes.
+Existing metric and attribute budgets apply under the same gate.
+
+Share the provider, meters and instruments through their methods. Treat their
+internal mutable state and input limits as read-only. Callers own reader, clock,
+exporter and snapshot objects. Give each simultaneous scraper its own reader
+or call `collection_snapshot` with application-provided timestamps.
+
+Stop and join all instrument users and scrapers before calling
+`close_after_join()` from the owner. Close frees the shared atomic, drops the
+provider's meter references and is idempotent. Stale instrument operations
+reject with `TelemetryError`. `SingleOwnerMeterProvider` remains available with
+no native lock or explicit close requirement.
 
 ## Evidence
 

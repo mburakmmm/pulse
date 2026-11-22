@@ -114,8 +114,8 @@ jobs:
             echo "### ${{ matrix.label }}"
             echo
             echo "- Portable core: QBE + LLVM"
-            echo "- Metrics provider: single-owner only"
-            echo "- Concurrent-provider claim: UNSUPPORTED in the current Pulse phase"
+            echo "- Metrics providers: single-owner and opt-in bounded shared recording"
+            echo "- Concurrent reader/exporter instances: unsupported; keep them caller-owned"
           } >>"$GITHUB_STEP_SUMMARY"
 
   capability:
