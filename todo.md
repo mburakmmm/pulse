@@ -770,7 +770,7 @@ Commit/tag:
 - [x] [CI run #16](https://github.com/mburakmmm/pulse/actions/runs/44891047883) tüm dokuz işi geçti. Windows x64 redirected output QBE ve LLVM ile byte-exact geçti ve `NOX-IO-001` kapatıldı.
 - [x] `ConcurrentMeterProvider` için ortak kayıt/toplama kilidi, scope sınırı ve kullanıcılara join sonrasında açıkça kapatma eklendi.
 - [x] Üç kayıt işçisi ve bir scrape işçisi ile bounded overflow, tam toplamlar, kayıt arasında snapshot ve kapanış sonrası eski handle engeli yerelde doğrulandı.
-- [ ] Concurrent provider için uzak CI matris kanıtını kaydet.
+- [x] Concurrent provider ve scrape kapıları [CI run #17](https://github.com/mburakmmm/pulse/actions/runs/45024714272) ile dört platformda QBE ve LLVM üzerinde geçti. Dokuz CI işi de başarılı.
 - [ ] Canlı HTTP handler sahipliği ve join bilgisi `NOX-HTTP-005` kapsamında açık. Gerçek HTTP fixture bağımsız snapshot kullanıyor.
 - Kanıtlar [uyumluluk denetimi](docs/nox-upgrade-analysis-2.2.38.md) ve [NOX limitasyon kaydı](docs/nox-limitations.md) içinde.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.

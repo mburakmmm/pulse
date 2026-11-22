@@ -7,8 +7,8 @@ compiler and both required backends.
 ## Current matrix
 
 NOX 2.2.38 passed all required jobs in
-[CI run #16](https://github.com/mburakmmm/pulse/actions/runs/44891047883)
-on commit `ecee56a24d552390a3679c3824656f2dee8937e9`.
+[CI run #17](https://github.com/mburakmmm/pulse/actions/runs/45024714272)
+on commit `443b49f4dd120d79da2e59db482aabffddafe6a3`.
 
 | Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|
@@ -37,8 +37,9 @@ preserving the expected upstream failure evidence.
 
 `SingleOwnerMeterProvider` requires caller isolation. The opt-in
 `ConcurrentMeterProvider` has a separate QBE/LLVM gate for concurrent
-registration, bounded aggregation and scrape snapshots. CI run #16 predates
-that gate. Readers, clocks and exporters remain caller-owned.
+registration, bounded aggregation and scrape snapshots. CI run #17 passed
+that gate on all four core targets. Readers, clocks and exporters remain
+caller-owned.
 
 ## Result vocabulary
 

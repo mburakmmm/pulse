@@ -146,6 +146,29 @@ Windows x64. The independent Linux x64 promtool 3.16.0 job accepted the updated
 golden fixture; all three capability jobs and the final required-gates job also
 passed. No new NOX compiler or runtime limitation was observed in this slice.
 
+## Concurrent metrics evidence — 2026-11-22
+
+The opt-in provider keeps the single-owner API available unchanged. On isolated
+NOX 2.2.38, commit `7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a`,
+`bash scripts/run-ci-core.sh` passed locally on QBE and LLVM with `PROMTOOL`
+set to the official 3.16.0 binary. The provider concurrency executable passed
+ten consecutive runs per backend with `NOX_POOL_WORKERS=4`.
+
+Three recording workers each run 1,000 iterations across a counter, an up/down
+counter and a histogram. A checkpoint forces the first scrape after a histogram
+write and before any recorder can finish. The test checks exact totals, cumulative histogram
+invariants, finite series cardinality, lock timeout recovery and post-join
+cleanup. A separate real loopback integration serves a detached provider
+snapshot and independently validates the response with promtool. The
+[limitation register](nox-limitations.md) records the context-manager codegen
+and top-level HTTP lifecycle reproducers. Protocol pins remain unchanged.
+
+[CI run #17](https://github.com/mburakmmm/pulse/actions/runs/45024714272)
+passed all nine jobs on commit `443b49f4dd120d79da2e59db482aabffddafe6a3`.
+The shared-provider and scrape gates passed on QBE and LLVM on macOS ARM64,
+Linux x64, Linux ARM64 and Windows x64. Independent Prometheus conformance
+passed on Linux x64. OTLP Collector coverage remains deferred.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.
