@@ -10,6 +10,29 @@ enum SpanKind:
     Producer
     Consumer
 
+enum SpanStatus:
+    Unset
+    Error
+    Ok
+
+class SpanEvent:
+    name: str
+    time_ns: int
+    attributes: AttributeSet
+
+    def __init__(self, name: str, time_ns: int, attributes: AttributeSet) -> None:
+        self.name = name
+        self.time_ns = time_ns
+        self.attributes = attributes
+
+class SpanLink:
+    context: SpanContext
+    attributes: AttributeSet
+
+    def __init__(self, context: SpanContext, attributes: AttributeSet) -> None:
+        self.context = context
+        self.attributes = attributes
+
 class SpanSnapshot:
     name: str
     kind: SpanKind
@@ -20,6 +43,12 @@ class SpanSnapshot:
     end_time_ns: int
     duration_ns: int
     attributes: AttributeSet
+    status: SpanStatus
+    status_description: str
+    events: list[SpanEvent]
+    links: list[SpanLink]
+    dropped_events: int
+    dropped_links: int
 
     def __init__(self, name: str, kind: SpanKind, context: SpanContext, parent_span_id: SpanId | None, scope: InstrumentationScope, start_time_ns: int, end_time_ns: int, duration_ns: int, attributes: AttributeSet) -> None:
         self.name = name
@@ -31,6 +60,12 @@ class SpanSnapshot:
         self.end_time_ns = end_time_ns
         self.duration_ns = duration_ns
         self.attributes = attributes
+        self.status = SpanStatus.Unset
+        self.status_description = ""
+        self.events = []
+        self.links = []
+        self.dropped_events = 0
+        self.dropped_links = 0
 
 class Span:
     def span_context(self) -> SpanContext | None:
@@ -41,6 +76,18 @@ class Span:
         return False
 
     def set_attribute(self, key: str, value: AttributeValue) -> None:
+
+        return
+
+    def set_status(self, status: SpanStatus, description: str = "") -> None:
+
+        return
+
+    def add_event(self, name: str, attributes: dict[str, AttributeValue] | None = None, time_ns: int | None = None) -> None:
+
+        return
+
+    def add_link(self, context: SpanContext, attributes: dict[str, AttributeValue] | None = None) -> None:
 
         return
 

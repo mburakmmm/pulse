@@ -6,6 +6,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ### Added
 
+- OpenTelemetry span status precedence and bounded event and link snapshots
+  with defensive copies, per-record drop counts and shared span byte limits.
+
 - Experimental single-owner tracing with explicit parents, span kinds,
   injected clocks and IDs, bounded attributes and one-shot local snapshots.
 

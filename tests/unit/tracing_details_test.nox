@@ -1,0 +1,116 @@
+import nox.test
+from api.context import SpanContext, TraceFlags, empty_context
+from api.tracing import NoopSpan, Span, SpanSnapshot, SpanStatus, Tracer
+from core.attributes import AttributeValue
+from core.clock import TestClock
+from core.errors import TelemetryError
+from core.ids import SequenceIdGenerator, SpanId, TraceId
+from core.limits import RecordLimits, default_attribute_limits
+from tracing.provider import RecordingTracerProvider
+
+def finish(span: Span) -> SpanSnapshot:
+    span.end()
+    snapshot: SpanSnapshot | None = span.take_snapshot()
+    if snapshot is not None:
+        return snapshot
+    raise TelemetryError("expected a completed snapshot")
+
+clock: TestClock = TestClock(100, 20)
+limits: RecordLimits = RecordLimits(2, 1, 2, 3, 32, 15, 1024, 1)
+provider: RecordingTracerProvider = RecordingTracerProvider(clock, SequenceIdGenerator(0, 0), default_attribute_limits(), limits)
+tracer: Tracer = provider.get_tracer("tracing-details", None, None)
+span: Span = tracer.start_span("operation", empty_context())
+span.set_status(SpanStatus.Error, "previous")
+span.set_status(SpanStatus.Error, "operation_failed")
+span.set_status(SpanStatus.Unset, "ignored")
+
+event_values: list[int] = [7]
+clock.advance(10, 5)
+span.add_event("first", {"codes": AttributeValue.IntegerArray(event_values), "authorization": AttributeValue.Text("secret")})
+event_values[0] = 8
+span.add_event("historical", {"a": AttributeValue.Boolean(True), "b": AttributeValue.Boolean(True), "c": AttributeValue.Boolean(True)}, 50)
+span.add_event("over-limit", {}, 1)
+
+linked_id: SpanId = SpanId("0000000000000020")
+linked: SpanContext = SpanContext(TraceId("00000000000000000000000000000010"), linked_id, TraceFlags.Sampled, "v=1", True)
+invalid: SpanContext = SpanContext(linked.trace_id, SpanId("0000000000000030"), TraceFlags.Default, "", False)
+invalid.span_id.value = "0000000000000000"
+span.add_link(invalid, {})
+link_values: list[int] = [9]
+span.add_link(linked, {"v": AttributeValue.IntegerArray(link_values), "email": AttributeValue.Text("private"), "z": AttributeValue.Text("exceeds link byte limit")})
+linked_id.value = "ffffffffffffffff"
+link_values[0] = 10
+span.add_link(linked, {})
+
+span.end()
+span.add_event("after", {})
+span.add_link(linked, {})
+span.set_status(SpanStatus.Ok)
+snapshot: SpanSnapshot = finish(span)
+match snapshot.status:
+    case SpanStatus.Error:
+        pass
+    case _:
+        nox.test.assert_true(False, "unset and post-end status changes are ignored")
+nox.test.assert_eq_str(snapshot.status_description, "operation_failed", "valid Error description is retained")
+nox.test.assert_eq_int(len(snapshot.events), 2, "event cardinality")
+nox.test.assert_eq_int(snapshot.dropped_events, 1, "events beyond limit are counted once")
+nox.test.assert_eq_int(snapshot.events[0].time_ns, 110, "automatic timestamp observes wall time")
+nox.test.assert_eq_int(snapshot.events[1].time_ns, 50, "explicit timestamp can precede span start")
+nox.test.assert_eq_str(snapshot.events[0].name, "first", "original event order is retained")
+nox.test.assert_eq_int(snapshot.events[0].attributes.dropped_count, 1, "sensitive event attribute is dropped")
+nox.test.assert_eq_int(snapshot.events[1].attributes.dropped_count, 1, "per-event count limit is enforced")
+match snapshot.events[0].attributes.entries[0].value:
+    case AttributeValue.IntegerArray(events):
+        nox.test.assert_eq_int(events[0], 7, "event attribute array is detached")
+    case _:
+        nox.test.assert_true(False, "unexpected event attribute type")
+
+nox.test.assert_eq_int(len(snapshot.links), 1, "link cardinality")
+nox.test.assert_eq_int(snapshot.dropped_links, 2, "invalid and excess links are counted")
+nox.test.assert_eq_int(snapshot.links[0].attributes.dropped_count, 2, "sensitive and oversized link attributes are dropped")
+nox.test.assert_eq_str(snapshot.links[0].context.span_id.value, "0000000000000020", "link copied the original span ID")
+nox.test.assert_true(snapshot.links[0].context.remote, "link preserves remote flag")
+match snapshot.links[0].attributes.entries[0].value:
+    case AttributeValue.IntegerArray(links):
+        nox.test.assert_eq_int(links[0], 9, "link attribute array is detached")
+    case _:
+        nox.test.assert_true(False, "unexpected link attribute type")
+
+ok_span: Span = tracer.start_span("completed", empty_context())
+ok_span.set_status(SpanStatus.Error, "prior")
+ok_span.add_event("bytes", {"data": AttributeValue.Text("more_than_thirty_two_ascii_characters")})
+ok_span.add_event("no-attributes")
+ok_span.set_status(SpanStatus.Ok, "ignored")
+ok_span.set_status(SpanStatus.Error, "later")
+ok_snapshot: SpanSnapshot = finish(ok_span)
+match ok_snapshot.status:
+    case SpanStatus.Ok:
+        pass
+    case _:
+        nox.test.assert_true(False, "Ok takes priority over Error")
+nox.test.assert_eq_str(ok_snapshot.status_description, "", "Ok discards descriptions")
+nox.test.assert_eq_int(ok_snapshot.events[0].attributes.dropped_count, 1, "per-event byte limit is enforced")
+nox.test.assert_eq_int(ok_snapshot.events[1].attributes.len(), 0, "event attributes can be omitted")
+
+tight_limits: RecordLimits = RecordLimits(2, 2, 2, 2, 8, 8, 291, 1)
+tight_provider: RecordingTracerProvider = RecordingTracerProvider(clock, SequenceIdGenerator(0, 0), default_attribute_limits(), tight_limits)
+tight: Span = tight_provider.get_tracer("s", None, None).start_span("x", empty_context())
+tight.add_event("n", {}, -1)
+tight.add_event("e", {"size": AttributeValue.Boolean(True)})
+tight.set_attribute("k", AttributeValue.Boolean(True))
+tight.add_link(linked, {})
+tight.set_status(SpanStatus.Error, "budget")
+tight_snapshot: SpanSnapshot = finish(tight)
+nox.test.assert_eq_int(tight_snapshot.dropped_events, 1, "negative event timestamp is counted")
+nox.test.assert_eq_int(tight_snapshot.events[0].attributes.dropped_count, 1, "event attributes share the span byte budget")
+nox.test.assert_eq_int(tight_snapshot.attributes.dropped_count, 1, "event budget reduces available span attribute bytes")
+nox.test.assert_eq_int(tight_snapshot.dropped_links, 1, "link admission honors the shared byte budget")
+nox.test.assert_eq_str(tight_snapshot.status_description, "", "description respects the shared byte budget")
+
+noop: Span = NoopSpan(None)
+noop.add_event("ignored", {})
+noop.add_link(linked, {})
+noop.set_status(SpanStatus.Error, "ignored")
+noop.end()
+nox.test.assert_true(noop.take_snapshot() is None, "no-op spans ignore detail calls")

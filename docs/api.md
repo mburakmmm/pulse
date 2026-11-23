@@ -13,8 +13,9 @@ live outside that layer. The current compiling surface contains:
   `TelemetryContext` replacement via `with_span`, and `empty_context`;
 - `api.metrics`: `Counter`, `UpDownCounter`, `Histogram`, `Meter`,
   `MeterProvider` contracts and no-op variants;
-- `api.tracing`: `Span`, `SpanKind`, `SpanSnapshot`, `Tracer`,
-  `TracerProvider` and no-op variants.
+- `api.tracing`: `Span`, `SpanKind`, `SpanStatus`, `SpanEvent`,
+  `SpanLink`, `SpanSnapshot`, `Tracer`, `TracerProvider` and no-op
+  variants.
 
 NOX 2.1.64 cannot use a structural protocol as a value type when one protocol
 method returns another protocol. The API therefore uses ordinary base classes for

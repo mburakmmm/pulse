@@ -297,15 +297,15 @@ Bağımlılık: `v0.1.0`; metrics yalnız diagnostics için opsiyonel.
 
 - [x] `TracerProvider`, `Tracer`, `Span`, `SpanContext`, `TraceFlags` için tek sahipli kayıt yolu ve no-op uyumu.
 - [x] `SpanKind`: INTERNAL, SERVER, CLIENT, PRODUCER, CONSUMER.
-- [ ] Status semantiği ve pinned OTel uyumu.
+- [x] Sabit OTel sözleşmesine göre `Ok > Error > Unset` ve sadece Error için opsiyonel açıklama.
 - [x] Span start/end wall timestamp ve monotonic nonnegative duration.
 - [x] Recording ve no-op span ayrımı. Sampling kararları Faz 6'da.
 - [x] Explicit parent `TelemetryContext` ve defensive span context.
 - [x] `end()` idempotent ve `take_snapshot()` en fazla bir kez veri teslim ediyor.
 - [x] End sonrası attribute yazımı snapshot'ı değiştirmiyor.
 - [x] Clock anomaly deterministik davranışı.
-- [~] Attribute count/byte sınırı ve dropped count var. Event ve link bekliyor.
-- [ ] Event/link attribute defensive copy.
+- [x] Span, event ve link count/byte sınırları, ortak bütçe ve dropped count.
+- [x] Event ve link attribute'ları kaydetme sırasında deep copy ve hassas anahtar filtresinden geçiyor.
 - [ ] Exception event privacy sanitizer; raw args/stack default yok.
 - [~] Snapshot scope taşıyor. Resource bağlantısı açık.
 - [ ] In-memory trace exporter ve simple deterministic assertions.

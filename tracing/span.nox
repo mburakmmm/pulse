@@ -1,15 +1,30 @@
 import nox.strings
 from api.context import SpanContext
-from api.tracing import Span, SpanKind, SpanSnapshot
+from api.tracing import Span, SpanEvent, SpanKind, SpanLink, SpanSnapshot, SpanStatus
 from core.attributes import AttributeSet, AttributeValue, estimated_attribute_value_bytes, is_sensitive_key, snapshot_attribute_value, snapshot_attributes
 from core.clock import Clock
 from core.errors import TelemetryError
-from core.ids import SpanId, TraceId
-from core.limits import AttributeLimits
+from core.ids import SpanId, TraceId, is_lower_hex
+from core.limits import AttributeLimits, RecordLimits, default_record_limits
 from core.scope import InstrumentationScope
 
 def copy_span_context(context: SpanContext) -> SpanContext:
     return SpanContext(TraceId(context.trace_id.value), SpanId(context.span_id.value), context.trace_flags, context.tracestate, context.remote)
+
+def snapshot_detail_attributes(values: dict[str, AttributeValue] | None, limits: AttributeLimits, max_count: int, max_bytes: int) -> AttributeSet:
+    if values is None:
+        return AttributeSet([], 0, 0)
+    if max_bytes == 0:
+        return AttributeSet([], len(values), 0)
+    admitted: dict[str, AttributeValue] = {}
+    for key in values:
+        if len(admitted) >= max_count:
+            break
+        admitted[key] = values[key]
+    detail_limits: AttributeLimits = AttributeLimits(max_count, limits.max_key_bytes, limits.max_string_bytes, limits.max_array_elements, limits.max_string_array_element_bytes, max_bytes)
+    recorded: AttributeSet = snapshot_attributes(admitted, detail_limits, True)
+    recorded.dropped_count += len(values) - len(admitted)
+    return recorded
 
 class RecordingSpan(Span):
     name: str
@@ -19,7 +34,15 @@ class RecordingSpan(Span):
     scope: InstrumentationScope
     clock: Clock
     limits: AttributeLimits
-    attribute_byte_limit: int
+    content_byte_limit: int
+    record_limits: RecordLimits
+    detail_bytes: int
+    status: SpanStatus
+    status_description: str
+    events: list[SpanEvent]
+    links: list[SpanLink]
+    dropped_events: int
+    dropped_links: int
     values: dict[str, AttributeValue]
     attribute_bytes: int
     dropped_attributes: int
@@ -30,7 +53,7 @@ class RecordingSpan(Span):
     ended: bool
     taken: bool
 
-    def __init__(self, name: str, kind: SpanKind, context: SpanContext, parent_span_id: SpanId | None, scope: InstrumentationScope, clock: Clock, limits: AttributeLimits, attribute_byte_limit: int) -> None:
+    def __init__(self, name: str, kind: SpanKind, context: SpanContext, parent_span_id: SpanId | None, scope: InstrumentationScope, clock: Clock, limits: AttributeLimits, attribute_byte_limit: int, record_limits: RecordLimits | None = None) -> None:
         self.name = name
         self.kind = kind
         self.context = context
@@ -38,7 +61,18 @@ class RecordingSpan(Span):
         self.scope = scope
         self.clock = clock
         self.limits = limits
-        self.attribute_byte_limit = attribute_byte_limit
+        self.content_byte_limit = attribute_byte_limit
+        if record_limits is None:
+            self.record_limits = default_record_limits()
+        else:
+            self.record_limits = record_limits
+        self.detail_bytes = 0
+        self.status = SpanStatus.Unset
+        self.status_description = ""
+        self.events = []
+        self.links = []
+        self.dropped_events = 0
+        self.dropped_links = 0
         self.values = {}
         self.attribute_bytes = 0
         self.dropped_attributes = 0
@@ -85,11 +119,80 @@ class RecordingSpan(Span):
             self.note_dropped_attribute()
             return
         entry_bytes: int = key_bytes + estimated_attribute_value_bytes(copied)
-        if entry_bytes > self.attribute_byte_limit - used_without_key:
+        if entry_bytes > min(self.limits.max_total_bytes, self.content_byte_limit - self.detail_bytes) - used_without_key:
             self.note_dropped_attribute()
             return
         self.values[key] = copied
         self.attribute_bytes = used_without_key + entry_bytes
+
+    def remaining_bytes(self) -> int:
+
+        return self.content_byte_limit - self.attribute_bytes - self.detail_bytes
+
+    def set_status(self, status: SpanStatus, description: str = "") -> None:
+
+        if self.ended:
+            return
+        match self.status:
+            case SpanStatus.Ok:
+                return
+            case _:
+                pass
+        match status:
+            case SpanStatus.Unset:
+                return
+            case _:
+                pass
+        self.detail_bytes -= nox.strings.byte_len(self.status_description)
+        self.status_description = ""
+        self.status = status
+        match status:
+            case SpanStatus.Error:
+                description_bytes: int = nox.strings.byte_len(description)
+                if description_bytes <= 255 and description_bytes <= self.remaining_bytes():
+                    self.status_description = description
+                    self.detail_bytes += description_bytes
+            case _:
+                pass
+
+    def add_event(self, name: str, attributes: dict[str, AttributeValue] | None = None, time_ns: int | None = None) -> None:
+
+        if self.ended:
+            return
+        name_bytes: int = nox.strings.byte_len(name)
+        fixed_bytes: int = 32 + name_bytes
+        if name_bytes == 0 or name_bytes > 255 or len(self.events) >= self.record_limits.max_events or fixed_bytes > self.remaining_bytes():
+            self.dropped_events = min(self.dropped_events, 9223372036854775806) + 1
+            return
+        observed_ns: int = 0
+        if time_ns is not None:
+            if time_ns < 0:
+                self.dropped_events = min(self.dropped_events, 9223372036854775806) + 1
+                return
+            observed_ns = time_ns
+        else:
+            observed_ns = max(0, self.clock.wall_time_ns())
+        max_bytes: int = min(self.limits.max_total_bytes, min(self.record_limits.max_event_attribute_bytes, self.remaining_bytes() - fixed_bytes))
+        recorded: AttributeSet = snapshot_detail_attributes(attributes, self.limits, self.record_limits.max_event_attributes, max_bytes)
+        self.events.append(SpanEvent(name, observed_ns, recorded))
+        self.detail_bytes += fixed_bytes + recorded.estimated_bytes
+
+    def add_link(self, context: SpanContext, attributes: dict[str, AttributeValue] | None = None) -> None:
+
+        if self.ended:
+            return
+        state_bytes: int = nox.strings.byte_len(context.tracestate)
+        fixed_bytes: int = 96 + state_bytes
+        if state_bytes > 512 or len(self.links) >= self.record_limits.max_links or fixed_bytes > self.remaining_bytes():
+            self.dropped_links = min(self.dropped_links, 9223372036854775806) + 1
+            return
+        if not is_lower_hex(context.trace_id.value, 16) or not is_lower_hex(context.span_id.value, 8):
+            self.dropped_links = min(self.dropped_links, 9223372036854775806) + 1
+            return
+        max_bytes: int = min(self.limits.max_total_bytes, min(self.record_limits.max_link_attribute_bytes, self.remaining_bytes() - fixed_bytes))
+        recorded: AttributeSet = snapshot_detail_attributes(attributes, self.limits, self.record_limits.max_link_attributes, max_bytes)
+        self.links.append(SpanLink(copy_span_context(context), recorded))
+        self.detail_bytes += fixed_bytes + recorded.estimated_bytes
 
     def end(self) -> None:
 
@@ -109,6 +212,14 @@ class RecordingSpan(Span):
         attributes.dropped_count = self.dropped_attributes
         scope: InstrumentationScope = InstrumentationScope(self.scope.name, self.scope.version, self.scope.schema_url, {}, self.limits)
         snapshot: SpanSnapshot = SpanSnapshot(self.name, self.kind, copy_span_context(self.context), self.parent_span_id, scope, self.start_time_ns, self.end_time_ns, self.duration_ns, attributes)
+        snapshot.status = self.status
+        snapshot.status_description = self.status_description
+        snapshot.events = self.events
+        snapshot.links = self.links
+        snapshot.dropped_events = self.dropped_events
+        snapshot.dropped_links = self.dropped_links
         self.values = {}
+        self.events = []
+        self.links = []
         self.taken = True
         return snapshot

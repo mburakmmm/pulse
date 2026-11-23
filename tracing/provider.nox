@@ -53,8 +53,7 @@ class RecordingTracer(Tracer):
         fixed_bytes: int = 256 + name_bytes + nox.strings.byte_len(tracestate) + nox.strings.byte_len(self.scope.name) + optional_byte_len(self.scope.version) + optional_byte_len(self.scope.schema_url)
         if fixed_bytes > self.record_limits.max_span_bytes:
             raise TelemetryError("span metadata exceeds max_span_bytes")
-        attribute_bytes: int = min(self.attribute_limits.max_total_bytes, self.record_limits.max_span_bytes - fixed_bytes)
-        return RecordingSpan(name, kind, SpanContext(trace_id, span_id, flags, tracestate, False), parent_span_id, self.scope, self.clock, self.attribute_limits, attribute_bytes)
+        return RecordingSpan(name, kind, SpanContext(trace_id, span_id, flags, tracestate, False), parent_span_id, self.scope, self.clock, self.attribute_limits, self.record_limits.max_span_bytes - fixed_bytes, self.record_limits)
 
     def trace_id_for(self, parent: SpanContext | None) -> TraceId:
 
