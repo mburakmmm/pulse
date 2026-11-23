@@ -1,0 +1,66 @@
+from api.tracing import SpanSnapshot
+from core.errors import ErrorKind, ExportResult, FlushResult, ShutdownResult, TelemetryError
+from exporters.interface import SpanExporter
+from exporters.span_copy import SpanCopyBudget, TraceExportLimitError
+
+class InMemorySpanExporter(SpanExporter):
+    max_spans: int
+    max_bytes: int
+    retained_bytes: int
+    dropped_spans: int
+    spans: list[SpanSnapshot]
+    is_shutdown: bool
+
+    def __init__(self, max_spans: int, max_bytes: int = 1048576) -> None:
+        if max_spans <= 0 or max_bytes <= 0 or max_bytes > 67108864:
+            raise TelemetryError("invalid in-memory span exporter capacity")
+        self.max_spans = max_spans
+        self.max_bytes = max_bytes
+        self.retained_bytes = 0
+        self.dropped_spans = 0
+        self.spans = []
+        self.is_shutdown = False
+
+    def full_result(self) -> ExportResult:
+
+        self.dropped_spans += min(1, 9223372036854775807 - self.dropped_spans)
+        return ExportResult.Failure(ErrorKind.LimitExceeded, "in-memory span exporter capacity exceeded")
+
+    def export_span(self, snapshot: SpanSnapshot) -> ExportResult:
+
+        if self.is_shutdown:
+            return ExportResult.Failure(ErrorKind.InvalidState, "in-memory span exporter is shut down")
+        remaining: int = self.max_bytes - self.retained_bytes
+        if len(self.spans) >= self.max_spans or remaining == 0:
+            return self.full_result()
+        budget: SpanCopyBudget = SpanCopyBudget(remaining)
+        try:
+            copied: SpanSnapshot = budget.copy_snapshot(snapshot)
+            self.spans.append(copied)
+            self.retained_bytes += remaining - budget.remaining
+        except TraceExportLimitError as error:
+            return self.full_result()
+        except TelemetryError as error:
+            return ExportResult.Failure(ErrorKind.InvalidArgument, "invalid span snapshot")
+        return ExportResult.Success
+
+    def snapshot(self) -> list[SpanSnapshot]:
+
+        budget: SpanCopyBudget = SpanCopyBudget(self.max_bytes)
+        copies: list[SpanSnapshot] = []
+        for span in self.spans:
+            copies.append(budget.copy_snapshot(span))
+        return copies
+
+    def force_flush(self) -> FlushResult:
+
+        if self.is_shutdown:
+            return FlushResult.Shutdown
+        return FlushResult.Success
+
+    def shutdown(self) -> ShutdownResult:
+
+        if self.is_shutdown:
+            return ShutdownResult.AlreadyShutdown
+        self.is_shutdown = True
+        return ShutdownResult.Success

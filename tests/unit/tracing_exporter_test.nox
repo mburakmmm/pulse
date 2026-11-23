@@ -1,0 +1,132 @@
+import nox.strings
+import nox.test
+from api.context import SpanContext, TraceFlags, empty_context
+from api.tracing import Span, SpanSnapshot, SpanStatus, Tracer
+from core.attributes import AttributeEntry, AttributeValue
+from core.clock import TestClock
+from core.errors import ErrorKind, ExportResult, FlushResult, ShutdownResult, TelemetryError, export_succeeded
+from core.ids import SequenceIdGenerator, SpanId, TraceId
+from core.limits import default_attribute_limits, default_record_limits
+from exporters.interface import SpanExporter, export_ended_span
+from exporters.trace_console import ConsoleSpanExporter, TraceLineSink
+from exporters.trace_memory import InMemorySpanExporter
+from tracing.provider import RecordingTracerProvider
+
+def take(span: Span) -> SpanSnapshot:
+    snapshot: SpanSnapshot | None = span.take_snapshot()
+    if snapshot is not None:
+        return snapshot
+    raise TelemetryError("expected an ended span")
+
+def assert_failure(result: ExportResult, expected: ErrorKind) -> None:
+    match result:
+        case ExportResult.Failure(kind, message):
+            nox.test.assert_true(kind == expected, "export failure classification")
+            nox.test.assert_true(not nox.strings.contains(message, "secret"), "diagnostics contain no caller data")
+        case _:
+            nox.test.assert_true(False, "expected a failed export")
+
+class TestTraceSink(TraceLineSink):
+    output: list[str]
+    target: SpanExporter | None
+    nested: SpanSnapshot
+    fail_next: bool
+
+    def __init__(self, nested: SpanSnapshot) -> None:
+        self.output = []
+        self.target = None
+        self.nested = nested
+        self.fail_next = False
+
+    def write_line(self, payload: str) -> None:
+
+        if self.fail_next:
+            self.fail_next = False
+            raise ValueError("sink-secret")
+        target: SpanExporter | None = self.target
+        if target is not None:
+            assert_failure(target.export_span(self.nested), ErrorKind.InvalidState)
+        self.output.append(payload)
+
+clock: TestClock = TestClock(100, 10)
+provider: RecordingTracerProvider = RecordingTracerProvider(clock, SequenceIdGenerator(0, 0), default_attribute_limits(), default_record_limits())
+tracer: Tracer = provider.get_tracer("scope-secret", None, None)
+span: Span = tracer.start_span("operation", empty_context())
+memory: InMemorySpanExporter = InMemorySpanExporter(2, 8192)
+assert_failure(export_ended_span(span, memory), ErrorKind.InvalidState)
+span.end()
+nox.test.assert_true(export_succeeded(export_ended_span(span, memory)), "an ended span exports once")
+assert_failure(export_ended_span(span, memory), ErrorKind.InvalidState)
+nox.test.assert_eq_int(len(memory.snapshot()), 1, "repeated end export cannot duplicate an SDK span")
+
+second: Span = tracer.start_span("operation-secret", empty_context())
+second.set_status(SpanStatus.Error, "status-secret")
+second.add_event("event-secret", {"array": AttributeValue.IntegerArray([7]), "texts": AttributeValue.TextArray(["v"])})
+second.add_link(SpanContext(TraceId("00000000000000000000000000000010"), SpanId("0000000000000010"), TraceFlags.Sampled, "vendor=trace-secret", True))
+clock.advance(15, 5)
+second.end()
+snapshot: SpanSnapshot = take(second)
+snapshot.attributes.entries.append(AttributeEntry("authorization", AttributeValue.Text("auth-secret")))
+nox.test.assert_true(export_succeeded(memory.export_span(snapshot)), "explicit detached export succeeds")
+snapshot.events[0].name = "replaced"
+stored: list[SpanSnapshot] = memory.snapshot()
+nox.test.assert_eq_str(stored[1].events[0].name, "event-secret", "storage owns a defensive copy")
+nox.test.assert_eq_int(stored[1].attributes.len(), 0, "defensive copy filters sensitive keys")
+nox.test.assert_eq_int(stored[1].attributes.dropped_count, 1, "filter preserves drop accounting")
+match stored[1].events[0].attributes.entries[0].value:
+    case AttributeValue.IntegerArray(values):
+        values[0] = 99
+    case _:
+        nox.test.assert_true(False, "expected an integer array")
+stored_again: list[SpanSnapshot] = memory.snapshot()
+match stored_again[1].events[0].attributes.entries[0].value:
+    case AttributeValue.IntegerArray(again):
+        nox.test.assert_eq_int(again[0], 7, "snapshot readers cannot modify retained arrays")
+    case _:
+        nox.test.assert_true(False, "expected an integer array")
+assert_failure(memory.export_span(snapshot), ErrorKind.LimitExceeded)
+nox.test.assert_eq_int(memory.dropped_spans, 1, "count overflow drops one span")
+byte_bound: InMemorySpanExporter = InMemorySpanExporter(4, 128)
+assert_failure(byte_bound.export_span(snapshot), ErrorKind.LimitExceeded)
+nox.test.assert_eq_int(byte_bound.retained_bytes, 0, "failed copy has no retained-byte side effects")
+rejected: Span = tracer.start_span("rejected", empty_context())
+rejected.end()
+assert_failure(export_ended_span(rejected, byte_bound), ErrorKind.LimitExceeded)
+assert_failure(export_ended_span(rejected, memory), ErrorKind.InvalidState)
+shared_budget: InMemorySpanExporter = InMemorySpanExporter(4, 600)
+nox.test.assert_true(export_succeeded(shared_budget.export_span(stored_again[0])), "first span fits the shared byte budget")
+assert_failure(shared_budget.export_span(stored_again[0]), ErrorKind.LimitExceeded)
+nox.test.assert_eq_int(len(shared_budget.snapshot()), 1, "byte overflow preserves existing data")
+match memory.shutdown():
+    case ShutdownResult.Success:
+        pass
+    case _:
+        nox.test.assert_true(False, "first shutdown succeeds")
+match memory.shutdown():
+    case ShutdownResult.AlreadyShutdown:
+        pass
+    case _:
+        nox.test.assert_true(False, "shutdown is idempotent")
+match memory.force_flush():
+    case FlushResult.Shutdown:
+        pass
+    case _:
+        nox.test.assert_true(False, "closed exporter rejects flush")
+assert_failure(memory.export_span(snapshot), ErrorKind.InvalidState)
+
+sink: TestTraceSink = TestTraceSink(snapshot)
+console: ConsoleSpanExporter = ConsoleSpanExporter(512, sink)
+sink.target = console
+sink.fail_next = True
+assert_failure(console.export_span(snapshot), ErrorKind.Permanent)
+nox.test.assert_true(export_succeeded(console.export_span(snapshot)), "sink failure releases the reentrancy guard")
+nox.test.assert_eq_int(len(sink.output), 1, "reentrant export emits no extra line")
+nox.test.assert_eq_str(sink.output[0], "{\"signal\":\"trace\",\"trace_id\":\"00000000000000000000000000000002\",\"span_id\":\"0000000000000002\",\"parent_span_id\":null,\"kind\":\"internal\",\"status\":\"error\",\"start_time_unix_nano\":100,\"end_time_unix_nano\":115,\"duration_ns\":5,\"event_count\":1,\"link_count\":1}", "console line uses a strict allowlist")
+small_console: ConsoleSpanExporter = ConsoleSpanExporter(1, sink)
+assert_failure(small_console.export_span(snapshot), ErrorKind.LimitExceeded)
+nox.test.assert_eq_int(len(sink.output), 1, "oversized output never reaches the sink")
+snapshot.context.trace_id.value = "secret"
+assert_failure(console.export_span(snapshot), ErrorKind.InvalidArgument)
+assert_failure(InMemorySpanExporter(1).export_span(snapshot), ErrorKind.InvalidArgument)
+console.shutdown()
+assert_failure(console.export_span(snapshot), ErrorKind.InvalidState)

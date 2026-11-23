@@ -1,0 +1,120 @@
+import nox.strings
+from api.tracing import SpanKind, SpanSnapshot, SpanStatus
+from nox.json import JsonWriter
+from core.errors import ErrorKind, ExportResult, FlushResult, ShutdownResult, TelemetryError
+from core.ids import SpanId
+from exporters.interface import SpanExporter
+from exporters.span_copy import validate_span_summary
+
+def span_kind_name(kind: SpanKind) -> str:
+    match kind:
+        case SpanKind.Internal:
+            return "internal"
+        case SpanKind.Server:
+            return "server"
+        case SpanKind.Client:
+            return "client"
+        case SpanKind.Producer:
+            return "producer"
+        case SpanKind.Consumer:
+            return "consumer"
+
+def span_status_name(status: SpanStatus) -> str:
+    match status:
+        case SpanStatus.Unset:
+            return "unset"
+        case SpanStatus.Error:
+            return "error"
+        case SpanStatus.Ok:
+            return "ok"
+
+def render_span_summary_json(span: SpanSnapshot) -> str:
+    validate_span_summary(span)
+    writer: JsonWriter = JsonWriter()
+    writer.begin_object()
+    writer.write_key("signal")
+    writer.write_string("trace")
+    writer.write_key("trace_id")
+    writer.write_string(span.context.trace_id.value)
+    writer.write_key("span_id")
+    writer.write_string(span.context.span_id.value)
+    writer.write_key("parent_span_id")
+    parent: SpanId | None = span.parent_span_id
+    if parent is None:
+        writer.write_null()
+    else:
+        writer.write_string(parent.value)
+    writer.write_key("kind")
+    writer.write_string(span_kind_name(span.kind))
+    writer.write_key("status")
+    writer.write_string(span_status_name(span.status))
+    writer.write_key("start_time_unix_nano")
+    writer.write_int(span.start_time_ns)
+    writer.write_key("end_time_unix_nano")
+    writer.write_int(span.end_time_ns)
+    writer.write_key("duration_ns")
+    writer.write_int(span.duration_ns)
+    writer.write_key("event_count")
+    writer.write_int(len(span.events))
+    writer.write_key("link_count")
+    writer.write_int(len(span.links))
+    writer.end_object()
+    return writer.build()
+
+class TraceLineSink:
+    def write_line(self, payload: str) -> None:
+        print(payload)
+
+class ConsoleSpanExporter(SpanExporter):
+    max_output_bytes: int
+    sink: TraceLineSink
+    is_shutdown: bool
+    writing: bool
+
+    def __init__(self, max_output_bytes: int, sink: TraceLineSink | None = None) -> None:
+        if max_output_bytes <= 0:
+            raise TelemetryError("max_output_bytes must be positive")
+        self.max_output_bytes = max_output_bytes
+        if sink is None:
+            self.sink = TraceLineSink()
+        else:
+            self.sink = sink
+        self.is_shutdown = False
+        self.writing = False
+
+    def export_span(self, snapshot: SpanSnapshot) -> ExportResult:
+
+        if self.is_shutdown or self.writing:
+            return ExportResult.Failure(ErrorKind.InvalidState, "console span exporter is unavailable")
+        payload: str = ""
+        try:
+            payload = render_span_summary_json(snapshot)
+        except TelemetryError as error:
+            return ExportResult.Failure(ErrorKind.InvalidArgument, "invalid span snapshot")
+        if nox.strings.byte_len(payload) > self.max_output_bytes:
+            return ExportResult.Failure(ErrorKind.LimitExceeded, "console span summary exceeds max_output_bytes")
+        self.writing = True
+        try:
+            self.sink.write_line(payload)
+        except Exception as error:
+            return ExportResult.Failure(ErrorKind.Permanent, "console span sink failed")
+        finally:
+            self.writing = False
+        return ExportResult.Success
+
+    def force_flush(self) -> FlushResult:
+
+        if self.is_shutdown:
+            return FlushResult.Shutdown
+        if self.writing:
+            return FlushResult.Timeout
+        return FlushResult.Success
+
+    def shutdown(self) -> ShutdownResult:
+
+        if self.is_shutdown:
+            return ShutdownResult.AlreadyShutdown
+        if self.writing:
+            return ShutdownResult.Timeout
+        self.is_shutdown = True
+        return ShutdownResult.Success

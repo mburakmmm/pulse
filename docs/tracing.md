@@ -86,4 +86,7 @@ errors and cancellation delivered while awaiting a task are covered by tests.
 Cancelling a task that waits on an empty channel can deadlock on the pinned
 runtime. Use an explicit wakeup path for those workers. See
 [`NOX-ASYNC-001`](nox-limitations.md#nox-async-001--cancelling-a-task-waiting-on-an-empty-channel-can-deadlock).
-Sampling and exporters remain open.
+Local in-memory and console exporters are available. See the
+[trace exporter contract](exporter-support.md#trace-exporter-contract) and
+[`hello_traces.nox`](../examples/hello_traces.nox). Sampling, processors and
+OTLP export remain open.

@@ -207,6 +207,15 @@ The current audit uses an isolated official archive verified before extraction.
   on both backends.
 ## Active NOX design limits and capability boundaries
 
+### NOX-TYPE-003 — Match arms share the checker scope for payload bindings
+
+- Status: `DESIGN-LIMIT` on NOX 2.2.38.
+- Evidence: copy `fixtures/capability/match_case_binding_scope.nox.txt` to a
+  temporary `.nox` file and run `noxc check`. Using `payload` for both a
+  string and an integer in distinct match arms yields `TypeMismatch`.
+- Containment: use distinct binding names for payloads of different types.
+  The trace snapshot copier uses different bindings for string and boolean arrays.
+
 ### NOX-ASYNC-001 — Cancelling a task waiting on an empty channel can deadlock
 
 - Status: `OPEN-UPSTREAM` on NOX 2.2.38, commit

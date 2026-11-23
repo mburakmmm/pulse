@@ -1,0 +1,12 @@
+enum Detail:
+    Text(value: str)
+    Count(value: int)
+
+def render(detail: Detail) -> str:
+    match detail:
+        case Detail.Text(payload):
+            return payload
+        case Detail.Count(payload):
+            return str(payload)
+
+print(render(Detail.Count(3)))

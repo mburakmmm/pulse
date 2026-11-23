@@ -63,6 +63,12 @@ configured byte limit. This JSON is a diagnostic console format, not OTLP JSON.
 Both exporters are synchronous and single-owner; neither creates a worker,
 listener or network request.
 
+Trace snapshots use `exporters.interface.SpanExporter`. The SDK's one-shot
+path is `export_ended_span(span, exporter)`. Use
+`exporters.trace_memory.InMemorySpanExporter` for bounded full snapshots
+or `exporters.trace_console.ConsoleSpanExporter` for allowlisted JSON
+summaries. See the [trace exporter contract](exporter-support.md#trace-exporter-contract).
+
 `exporters.prometheus.render_metrics` maps an immutable cumulative collection to
 bounded Prometheus text exposition `0.0.4`. It covers Counter, UpDownCounter and
 explicit Histogram output, and its golden fixture passes Prometheus `promtool`

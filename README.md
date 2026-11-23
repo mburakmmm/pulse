@@ -16,7 +16,8 @@ backends.
 > Pulse is pre-1.0 and experimental. Shared metric recording is opt-in via
 > `ConcurrentMeterProvider`. Applications own their Prometheus listeners and
 > can configure loopback with pinned NOX. Recording spans are experimental and
-> expose local snapshots. Trace export and propagation remain planned.
+> support local in-memory and console exporters. Trace propagation and OTLP
+> remain planned.
 
 ## Project status
 

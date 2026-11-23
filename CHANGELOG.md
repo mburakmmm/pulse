@@ -6,6 +6,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ### Added
 
+- Bounded in-memory trace snapshots and allowlisted JSON console summaries with
+  typed failures, defensive reads and one-shot ended-span export.
+
 - Defensive Resource and instrumentation scope snapshots with shared span budget accounting.
 - Typed exception events that retain only `exception.type`, with early-return,
   error and task-cancellation cleanup coverage.

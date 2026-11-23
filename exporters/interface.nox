@@ -1,3 +1,4 @@
+from api.tracing import Span, SpanSnapshot
 from core.errors import ErrorKind, ExportResult, FlushResult, ShutdownResult
 from metrics.model import MetricCollection
 
@@ -12,3 +13,20 @@ class MetricExporter:
     def shutdown(self) -> ShutdownResult:
 
         return ShutdownResult.Success
+class SpanExporter:
+    def export_span(self, snapshot: SpanSnapshot) -> ExportResult:
+        return ExportResult.Failure(ErrorKind.InvalidState, "span exporter is not configured")
+
+    def force_flush(self) -> FlushResult:
+
+        return FlushResult.Success
+
+    def shutdown(self) -> ShutdownResult:
+
+        return ShutdownResult.Success
+
+def export_ended_span(span: Span, exporter: SpanExporter) -> ExportResult:
+    snapshot: SpanSnapshot | None = span.take_snapshot()
+    if snapshot is None:
+        return ExportResult.Failure(ErrorKind.InvalidState, "span has no available ended snapshot")
+    return exporter.export_span(snapshot)

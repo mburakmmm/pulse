@@ -1,8 +1,10 @@
 from api.context import empty_context
 from api.tracing import Span, SpanSnapshot, Tracer
 from core.attributes import AttributeValue
-from core.errors import TelemetryError
+from core.errors import TelemetryError, export_succeeded
 from core.limits import default_attribute_limits, default_record_limits
+from exporters.interface import export_ended_span
+from exporters.trace_memory import InMemorySpanExporter
 from tracing.provider import new_recording_tracer_provider
 
 tracer: Tracer = new_recording_tracer_provider(default_attribute_limits(), default_record_limits()).get_tracer("checkout", None, None)
@@ -12,9 +14,10 @@ try:
 finally:
     span.end()
 
-snapshot: SpanSnapshot | None = span.take_snapshot()
-if snapshot is not None:
-    print("ended span", snapshot.name)
-    print("span attributes", snapshot.attributes.len())
-else:
-    raise TelemetryError("ended span snapshot is missing")
+memory: InMemorySpanExporter = InMemorySpanExporter(1)
+if not export_succeeded(export_ended_span(span, memory)):
+    raise TelemetryError("ended span export failed")
+snapshot: SpanSnapshot = memory.snapshot()[0]
+print("ended span", snapshot.name)
+print("span attributes", snapshot.attributes.len())
+memory.shutdown()

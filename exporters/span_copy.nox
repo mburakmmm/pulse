@@ -1,0 +1,121 @@
+import nox.strings
+from api.context import SpanContext
+from api.tracing import SpanEvent, SpanLink, SpanSnapshot
+from core.attributes import AttributeEntry, AttributeSet, AttributeValue, estimated_attribute_value_bytes, is_sensitive_key, snapshot_attribute_value
+from core.errors import TelemetryError
+from core.ids import SpanId, is_lower_hex
+from core.limits import AttributeLimits
+from core.resource import Resource
+from core.scope import InstrumentationScope
+from tracing.span import copy_span_context
+
+class TraceExportLimitError(Exception):
+    def is_trace_export_limit_error(self) -> bool:
+        return True
+
+def validate_span_summary(span: SpanSnapshot) -> None:
+    if not is_lower_hex(span.context.trace_id.value, 16) or not is_lower_hex(span.context.span_id.value, 8):
+        raise TelemetryError("invalid span identifier")
+    if span.start_time_ns < 0 or span.end_time_ns < span.start_time_ns or span.duration_ns < 0:
+        raise TelemetryError("invalid span timestamps")
+    parent: SpanId | None = span.parent_span_id
+    if parent is not None and not is_lower_hex(parent.value, 8):
+        raise TelemetryError("invalid parent span identifier")
+
+class SpanCopyBudget:
+    remaining: int
+    limits: AttributeLimits
+
+    def __init__(self, bytes: int) -> None:
+        if bytes <= 0 or bytes > 67108864:
+            raise TelemetryError("trace export bytes must be within 1..67108864")
+        self.remaining = bytes
+        self.limits = AttributeLimits(bytes, bytes, bytes, bytes, bytes, bytes)
+
+    def reserve(self, bytes: int) -> None:
+
+        if bytes < 0 or bytes > self.remaining:
+            raise TraceExportLimitError("trace export byte budget exceeded")
+        self.remaining -= bytes
+
+    def reserve_text(self, value: str) -> None:
+
+        self.reserve(nox.strings.byte_len(value))
+
+    def reserve_optional_text(self, value: str | None) -> None:
+
+        if value is not None:
+            self.reserve_text(value)
+
+    def copy_value(self, value: AttributeValue) -> AttributeValue:
+
+        match value:
+            case AttributeValue.TextArray(items):
+                if len(items) > self.remaining / 8:
+                    raise TraceExportLimitError("trace attribute array exceeds byte budget")
+                self.reserve(len(items) * 8)
+                for item in items:
+                    self.reserve_text(item)
+            case AttributeValue.BooleanArray(bools):
+                if len(bools) > self.remaining / 8:
+                    raise TraceExportLimitError("trace attribute array exceeds byte budget")
+                self.reserve(len(bools) * 8)
+            case _:
+                self.reserve(estimated_attribute_value_bytes(value))
+        return snapshot_attribute_value(value, self.limits)
+
+    def copy_attributes(self, attributes: AttributeSet) -> AttributeSet:
+
+        entries: list[AttributeEntry] = []
+        dropped: int = max(0, attributes.dropped_count)
+        estimated: int = 0
+        for entry in attributes.entries:
+            self.reserve(32)
+            self.reserve_text(entry.key)
+            if is_sensitive_key(entry.key):
+                dropped += min(1, 9223372036854775807 - dropped)
+                continue
+            value: AttributeValue = self.copy_value(entry.value)
+            estimated += nox.strings.byte_len(entry.key) + estimated_attribute_value_bytes(value)
+            entries.append(AttributeEntry(entry.key, value))
+        return AttributeSet(entries, dropped, estimated)
+
+    def copy_context(self, context: SpanContext) -> SpanContext:
+
+        self.reserve(96)
+        if nox.strings.byte_len(context.tracestate) > 512:
+            raise TelemetryError("trace context state is too long")
+        self.reserve_text(context.tracestate)
+        return copy_span_context(context)
+
+    def copy_snapshot(self, span: SpanSnapshot) -> SpanSnapshot:
+
+        validate_span_summary(span)
+        self.reserve(256)
+        self.reserve_text(span.name)
+        self.reserve_text(span.status_description)
+        self.reserve_text(span.scope.name)
+        self.reserve_optional_text(span.scope.version)
+        self.reserve_optional_text(span.scope.schema_url)
+        scope: InstrumentationScope = InstrumentationScope(span.scope.name, span.scope.version, span.scope.schema_url, {}, self.limits)
+        scope.attributes = self.copy_attributes(span.scope.attributes)
+        parent: SpanId | None = span.parent_span_id
+        parent_copy: SpanId | None = None
+        if parent is not None:
+            parent_copy = SpanId(parent.value)
+        copied: SpanSnapshot = SpanSnapshot(span.name, span.kind, self.copy_context(span.context), parent_copy, scope, span.start_time_ns, span.end_time_ns, span.duration_ns, self.copy_attributes(span.attributes))
+        copied.resource = Resource(self.copy_attributes(span.resource.attributes))
+        copied.status = span.status
+        copied.status_description = span.status_description
+        copied.dropped_events = max(0, span.dropped_events)
+        copied.dropped_links = max(0, span.dropped_links)
+        for event in span.events:
+            self.reserve(32)
+            if event.time_ns < 0:
+                raise TelemetryError("invalid span event timestamp")
+            self.reserve_text(event.name)
+            copied.events.append(SpanEvent(event.name, event.time_ns, self.copy_attributes(event.attributes)))
+        for link in span.links:
+            self.reserve(32)
+            copied.links.append(SpanLink(self.copy_context(link.context), self.copy_attributes(link.attributes)))
+        return copied

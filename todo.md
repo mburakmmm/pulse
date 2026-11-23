@@ -308,8 +308,8 @@ Bağımlılık: `v0.1.0`; metrics yalnız diagnostics için opsiyonel.
 - [x] Event ve link attribute'ları kaydetme sırasında deep copy ve hassas anahtar filtresinden geçiyor.
 - [x] Tip sınıflandırmalı exception event. Yalnız `exception.type` saklanıyor; mesaj, argüman veya stack kabul edilmiyor.
 - [x] Resource ve scope ayrı kopyalarla snapshot'a bağlanıyor ve span bütçesine dahil.
-- [ ] In-memory trace exporter ve simple deterministic assertions.
-- [ ] Console trace exporter; sanitized ve recursion-safe.
+- [x] Bellek içi trace exporter, span/byte sınırı ve bağımsız snapshot kopyaları.
+- [x] Konsol trace exporter, alan allowlist'i, byte sınırı ve yeniden giriş koruması.
 - [x] Early return, yakalanan hata ve task await cancellation için `finally` cleanup testleri. Boş channel recv'de NOX deadlock'u `NOX-ASYNC-001` olarak açık.
 - [x] Parent ended olsa da child aynı trace ID ile başlıyor.
 - [x] `examples/hello_traces.nox` derlenen örneği.
@@ -319,9 +319,9 @@ Bağımlılık: `v0.1.0`; metrics yalnız diagnostics için opsiyonel.
 
 Çıkış kapısı:
 
-- [ ] Hierarchy/lifecycle/double-end/clock tests iki backend'de geçiyor.
-- [ ] Ended span hiçbir yoldan ikinci kez export edilmiyor.
-- [ ] Default trace verisinde yasaklı hassas alan yok.
+- [x] Hierarchy/lifecycle/double-end/clock testleri QBE ve LLVM'de geçiyor.
+- [x] SDK `export_ended_span` yolu aynı span'ı ikinci kez dışa aktarmıyor. Elle verilen ayrık snapshot'lar çağıranın kontrolünde.
+- [x] Default trace verisinde hassas alan filtresi ve konsol allowlist'i regresyon testleriyle doğrulandı.
 
 ### `v0.5.0` — Faz 5: W3C context propagation
 
