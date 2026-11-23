@@ -1,0 +1,20 @@
+from api.context import empty_context
+from api.tracing import Span, SpanSnapshot, Tracer
+from core.attributes import AttributeValue
+from core.errors import TelemetryError
+from core.limits import default_attribute_limits, default_record_limits
+from tracing.provider import new_recording_tracer_provider
+
+tracer: Tracer = new_recording_tracer_provider(default_attribute_limits(), default_record_limits()).get_tracer("checkout", None, None)
+span: Span = tracer.start_span("checkout.validate", empty_context())
+try:
+    span.set_attribute("checkout.validated", AttributeValue.Boolean(True))
+finally:
+    span.end()
+
+snapshot: SpanSnapshot | None = span.take_snapshot()
+if snapshot is not None:
+    print("ended span", snapshot.name)
+    print("span attributes", snapshot.attributes.len())
+else:
+    raise TelemetryError("ended span snapshot is missing")

@@ -15,7 +15,8 @@ backends.
 > [!WARNING]
 > Pulse is pre-1.0 and experimental. Shared metric recording is opt-in via
 > `ConcurrentMeterProvider`. Applications own their Prometheus listeners and
-> can configure loopback with pinned NOX. Tracing and OTLP exporters remain planned.
+> can configure loopback with pinned NOX. Recording spans are experimental and
+> expose local snapshots. Trace export and propagation remain planned.
 
 ## Project status
 
@@ -31,7 +32,8 @@ is now in `v0.3.0`, beginning with a bounded Prometheus text renderer.
 | Cumulative metric reader | Implemented with deterministic collection timestamps |
 | In-memory and console metric exporters | Experimental, bounded and tested on QBE + LLVM |
 | Prometheus exposition | Experimental text 0.0.4 renderer with pinned unit suffixes + pure scrape handler; real QBE/LLVM HTTP integration and promtool 3.16.0 pass, listener remains application-owned |
-| Tracing and W3C propagation | Planned for `v0.4.0`–`v0.5.0` |
+| Tracing | Experimental parent context, span kinds, timestamps and bounded local snapshots |
+| W3C propagation | Planned for `v0.5.0` |
 | OTLP/HTTP traces and metrics | Planned for `v0.7.0`–`v0.8.0` |
 | Concurrent recording provider | Experimental bounded gate, consistent snapshots and explicit post-join close |
 

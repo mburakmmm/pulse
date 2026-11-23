@@ -295,24 +295,24 @@ Amaç: Deterministik parent-child ilişkili ve doğru lifecycle'a sahip span mod
 
 Bağımlılık: `v0.1.0`; metrics yalnız diagnostics için opsiyonel.
 
-- [ ] `TracerProvider`, `Tracer`, `Span`, `SpanContext`, `TraceFlags`.
-- [ ] `SpanKind`: INTERNAL, SERVER, CLIENT, PRODUCER, CONSUMER.
+- [x] `TracerProvider`, `Tracer`, `Span`, `SpanContext`, `TraceFlags` için tek sahipli kayıt yolu ve no-op uyumu.
+- [x] `SpanKind`: INTERNAL, SERVER, CLIENT, PRODUCER, CONSUMER.
 - [ ] Status semantiği ve pinned OTel uyumu.
-- [ ] Span start/end wall timestamp ve monotonic nonnegative duration.
-- [ ] Recording/non-recording span ayrımı.
-- [ ] Explicit parent `TelemetryContext`; mutable global context yok.
-- [ ] `end()` idempotent; en fazla bir export snapshot.
-- [ ] End sonrası mutation exported snapshot'ı değiştirmiyor.
-- [ ] Clock anomaly deterministik davranışı.
-- [ ] Bounded attributes/events/links ve dropped counts.
+- [x] Span start/end wall timestamp ve monotonic nonnegative duration.
+- [x] Recording ve no-op span ayrımı. Sampling kararları Faz 6'da.
+- [x] Explicit parent `TelemetryContext` ve defensive span context.
+- [x] `end()` idempotent ve `take_snapshot()` en fazla bir kez veri teslim ediyor.
+- [x] End sonrası attribute yazımı snapshot'ı değiştirmiyor.
+- [x] Clock anomaly deterministik davranışı.
+- [~] Attribute count/byte sınırı ve dropped count var. Event ve link bekliyor.
 - [ ] Event/link attribute defensive copy.
 - [ ] Exception event privacy sanitizer; raw args/stack default yok.
-- [ ] Resource ve scope doğru bağlanıyor.
+- [~] Snapshot scope taşıyor. Resource bağlantısı açık.
 - [ ] In-memory trace exporter ve simple deterministic assertions.
 - [ ] Console trace exporter; sanitized ve recursion-safe.
 - [ ] Early return/error/cancellation cleanup testleri.
-- [ ] Parent ended olsa da context propagation geçerliliği.
-- [ ] `examples/hello_traces.nox` derlenen örneği.
+- [x] Parent ended olsa da child aynı trace ID ile başlıyor.
+- [x] `examples/hello_traces.nox` derlenen örneği.
 
 Çıkış kapısı:
 

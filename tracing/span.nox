@@ -1,0 +1,114 @@
+import nox.strings
+from api.context import SpanContext
+from api.tracing import Span, SpanKind, SpanSnapshot
+from core.attributes import AttributeSet, AttributeValue, estimated_attribute_value_bytes, is_sensitive_key, snapshot_attribute_value, snapshot_attributes
+from core.clock import Clock
+from core.errors import TelemetryError
+from core.ids import SpanId, TraceId
+from core.limits import AttributeLimits
+from core.scope import InstrumentationScope
+
+def copy_span_context(context: SpanContext) -> SpanContext:
+    return SpanContext(TraceId(context.trace_id.value), SpanId(context.span_id.value), context.trace_flags, context.tracestate, context.remote)
+
+class RecordingSpan(Span):
+    name: str
+    kind: SpanKind
+    context: SpanContext
+    parent_span_id: SpanId | None
+    scope: InstrumentationScope
+    clock: Clock
+    limits: AttributeLimits
+    attribute_byte_limit: int
+    values: dict[str, AttributeValue]
+    attribute_bytes: int
+    dropped_attributes: int
+    start_time_ns: int
+    start_monotonic_ns: int
+    end_time_ns: int
+    duration_ns: int
+    ended: bool
+    taken: bool
+
+    def __init__(self, name: str, kind: SpanKind, context: SpanContext, parent_span_id: SpanId | None, scope: InstrumentationScope, clock: Clock, limits: AttributeLimits, attribute_byte_limit: int) -> None:
+        self.name = name
+        self.kind = kind
+        self.context = context
+        self.parent_span_id = parent_span_id
+        self.scope = scope
+        self.clock = clock
+        self.limits = limits
+        self.attribute_byte_limit = attribute_byte_limit
+        self.values = {}
+        self.attribute_bytes = 0
+        self.dropped_attributes = 0
+        self.start_time_ns = clock.wall_time_ns()
+        self.start_monotonic_ns = clock.monotonic_time_ns()
+        if self.start_time_ns < 0 or self.start_monotonic_ns < 0:
+            raise TelemetryError("span clocks must start at nonnegative timestamps")
+        self.end_time_ns = 0
+        self.duration_ns = 0
+        self.ended = False
+        self.taken = False
+
+    def span_context(self) -> SpanContext | None:
+
+        return copy_span_context(self.context)
+
+    def is_recording(self) -> bool:
+
+        return not self.ended
+
+    def note_dropped_attribute(self) -> None:
+
+        if self.dropped_attributes < 9223372036854775807:
+            self.dropped_attributes += 1
+
+    def set_attribute(self, key: str, value: AttributeValue) -> None:
+
+        if self.ended:
+            return
+        key_bytes: int = nox.strings.byte_len(key)
+        if key_bytes == 0 or key_bytes > self.limits.max_key_bytes or is_sensitive_key(key):
+            self.note_dropped_attribute()
+            return
+        used_without_key: int = self.attribute_bytes
+        if key in self.values:
+            used_without_key -= key_bytes + estimated_attribute_value_bytes(self.values[key])
+        elif len(self.values) >= self.limits.max_attributes:
+            self.note_dropped_attribute()
+            return
+        copied: AttributeValue = AttributeValue.Boolean(False)
+        try:
+            copied = snapshot_attribute_value(value, self.limits)
+        except TelemetryError as error:
+            self.note_dropped_attribute()
+            return
+        entry_bytes: int = key_bytes + estimated_attribute_value_bytes(copied)
+        if entry_bytes > self.attribute_byte_limit - used_without_key:
+            self.note_dropped_attribute()
+            return
+        self.values[key] = copied
+        self.attribute_bytes = used_without_key + entry_bytes
+
+    def end(self) -> None:
+
+        if self.ended:
+            return
+        wall: int = self.clock.wall_time_ns()
+        monotonic: int = self.clock.monotonic_time_ns()
+        self.end_time_ns = max(self.start_time_ns, wall)
+        self.duration_ns = max(self.start_monotonic_ns, monotonic) - self.start_monotonic_ns
+        self.ended = True
+
+    def take_snapshot(self) -> SpanSnapshot | None:
+
+        if not self.ended or self.taken:
+            return None
+        attributes: AttributeSet = snapshot_attributes(self.values, self.limits, True)
+        attributes.dropped_count = self.dropped_attributes
+        scope: InstrumentationScope = InstrumentationScope(self.scope.name, self.scope.version, self.scope.schema_url, {}, self.limits)
+        snapshot: SpanSnapshot = SpanSnapshot(self.name, self.kind, copy_span_context(self.context), self.parent_span_id, scope, self.start_time_ns, self.end_time_ns, self.duration_ns, attributes)
+        self.values = {}
+        self.taken = True
+        return snapshot

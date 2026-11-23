@@ -6,6 +6,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ### Added
 
+- Experimental single-owner tracing with explicit parents, span kinds,
+  injected clocks and IDs, bounded attributes and one-shot local snapshots.
+
 - Opt-in concurrent cumulative metrics with bounded lock waiting, scope
   cardinality, defensive scrape snapshots and explicit post-join cleanup.
 - A three-recorder and one-scraper gate for duplicate registration, overflow

@@ -1,10 +1,8 @@
 # Pulse API status
 
-Status: pre-1.0, Phase 2 local exit gate complete and Phase 3 active. A bounded
-single-owner recording metrics provider, cumulative reader and bounded in-memory
-and console metric exporters plus an experimental pure Prometheus text renderer
-exist for development and tests. No general concurrent metrics provider, tracing
-SDK or network exporter is implemented yet.
+Pulse is pre-1.0. The metrics path includes cumulative recording, opt-in
+concurrent collection and experimental Prometheus text exposition.
+Phase 4 adds single-owner recording spans and local snapshots.
 
 ## Stable direction
 
@@ -15,7 +13,8 @@ live outside that layer. The current compiling surface contains:
   `TelemetryContext` replacement via `with_span`, and `empty_context`;
 - `api.metrics`: `Counter`, `UpDownCounter`, `Histogram`, `Meter`,
   `MeterProvider` contracts and no-op variants;
-- `api.tracing`: `Span`, `Tracer`, `TracerProvider` contracts and no-op variants.
+- `api.tracing`: `Span`, `SpanKind`, `SpanSnapshot`, `Tracer`,
+  `TracerProvider` and no-op variants.
 
 NOX 2.1.64 cannot use a structural protocol as a value type when one protocol
 method returns another protocol. The API therefore uses ordinary base classes for
@@ -38,8 +37,8 @@ span: Span = tracer.start_span("disabled-operation", context)
 span.end()
 ```
 
-The no-op example is intentionally not presented as real tracing. Recording SDK
-providers and instrument registration arrive later in Phase 2/4.
+For recording spans, see [tracing core](tracing.md) and
+[`hello_traces.nox`](../examples/hello_traces.nox).
 
 The Phase 2 recording slice rejects negative Counter additions, detects signed
 64-bit overflow/underflow, supports signed UpDownCounter changes and implements

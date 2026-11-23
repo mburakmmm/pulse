@@ -58,6 +58,22 @@ def generate_trace_id() -> TraceId:
 def generate_span_id() -> SpanId:
     return SpanId(nox.crypto.secure_random_hex(8))
 
+protocol SpanIdSource:
+    def next_trace_id(self) -> TraceId:
+        pass
+
+    def next_span_id(self) -> SpanId:
+
+        pass
+
+class SecureSpanIdSource:
+    def next_trace_id(self) -> TraceId:
+        return generate_trace_id()
+
+    def next_span_id(self) -> SpanId:
+
+        return generate_span_id()
+
 class SequenceIdGenerator:
     trace_index: int
     span_index: int

@@ -207,6 +207,16 @@ The current audit uses an isolated official archive verified before extraction.
   on both backends.
 ## Active NOX design limits and capability boundaries
 
+### NOX-TYPE-002 — Top-level raising guard does not narrow an optional
+
+- Status: `DESIGN-LIMIT` on NOX 2.2.38.
+- Evidence: copy `fixtures/capability/optional_raise_narrowing.nox.txt`
+  to a temporary `.nox` file. `noxc check` reports
+  `OptionalNotNarrowed` at the field read following an `is None` branch
+  that unconditionally raises.
+- Containment: keep the field access inside the `is not None` branch.
+  The tracing test checks the parent ID inside that branch.
+
 ### NOX-CODEGEN-003 — Context manager on a class field fails executable codegen
 
 - Status: `OPEN-UPSTREAM` on NOX 2.2.38, verified locally on macOS ARM64.

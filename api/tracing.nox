@@ -1,5 +1,36 @@
 from api.context import SpanContext, TelemetryContext
-from core.attributes import AttributeValue
+from core.attributes import AttributeSet, AttributeValue
+from core.ids import SpanId
+from core.scope import InstrumentationScope
+
+enum SpanKind:
+    Internal
+    Server
+    Client
+    Producer
+    Consumer
+
+class SpanSnapshot:
+    name: str
+    kind: SpanKind
+    context: SpanContext
+    parent_span_id: SpanId | None
+    scope: InstrumentationScope
+    start_time_ns: int
+    end_time_ns: int
+    duration_ns: int
+    attributes: AttributeSet
+
+    def __init__(self, name: str, kind: SpanKind, context: SpanContext, parent_span_id: SpanId | None, scope: InstrumentationScope, start_time_ns: int, end_time_ns: int, duration_ns: int, attributes: AttributeSet) -> None:
+        self.name = name
+        self.kind = kind
+        self.context = context
+        self.parent_span_id = parent_span_id
+        self.scope = scope
+        self.start_time_ns = start_time_ns
+        self.end_time_ns = end_time_ns
+        self.duration_ns = duration_ns
+        self.attributes = attributes
 
 class Span:
     def span_context(self) -> SpanContext | None:
@@ -16,6 +47,10 @@ class Span:
     def end(self) -> None:
 
         return
+
+    def take_snapshot(self) -> SpanSnapshot | None:
+
+        return None
 
 class Tracer:
     def start_span(self, name: str, parent: TelemetryContext) -> Span:

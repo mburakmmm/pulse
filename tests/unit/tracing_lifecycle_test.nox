@@ -1,0 +1,113 @@
+import nox.test
+from api.context import SpanContext, TelemetryContext, TraceFlags, empty_context
+from api.tracing import Span, SpanKind, SpanSnapshot, Tracer, TracerProvider
+from core.attributes import AttributeValue
+from core.clock import TestClock
+from core.errors import TelemetryError
+from core.ids import SequenceIdGenerator, SpanId, TraceId
+from core.limits import AttributeLimits, RecordLimits, default_record_limits
+from tracing.provider import RecordingTracer, RecordingTracerProvider
+from tracing.span import RecordingSpan
+
+def require_context(span: Span) -> SpanContext:
+    context: SpanContext | None = span.span_context()
+    if context is None:
+        raise TelemetryError("expected a recording context")
+    return context
+
+def require_snapshot(span: RecordingSpan) -> SpanSnapshot:
+    snapshot: SpanSnapshot | None = span.take_snapshot()
+    if snapshot is None:
+        raise TelemetryError("expected an ended span snapshot")
+    return snapshot
+
+clock: TestClock = TestClock(100, 20)
+limits: AttributeLimits = AttributeLimits(2, 20, 20, 3, 10, 32)
+provider: RecordingTracerProvider = RecordingTracerProvider(clock, SequenceIdGenerator(0, 0), limits, default_record_limits())
+tracer: RecordingTracer = provider.get_recording_tracer("pulse.tests", "0.4.0", None)
+root: RecordingSpan = tracer.start_recording_span("GET /orders", empty_context(), SpanKind.Server)
+root_context: SpanContext = require_context(root)
+nox.test.assert_eq_str(root_context.trace_id.value, "00000000000000000000000000000001", "deterministic root trace ID")
+nox.test.assert_true(root.is_recording() and root.take_snapshot() is None, "open span cannot be drained")
+root_context.span_id.value = "ffffffffffffffff"
+nox.test.assert_eq_str(require_context(root).span_id.value, "0000000000000001", "returned context is detached")
+
+codes: list[int] = [7]
+root.set_attribute("codes", AttributeValue.IntegerArray(codes))
+codes[0] = 99
+root.set_attribute("count", AttributeValue.Integer(9007199254740993))
+root.set_attribute("count", AttributeValue.Text("too long for the remaining budget"))
+root.set_attribute("authorization", AttributeValue.Text("secret"))
+root.set_attribute("extra", AttributeValue.Boolean(True))
+clock.advance(40, 10)
+root.end()
+clock.advance(60, 10)
+root.end()
+root.set_attribute("count", AttributeValue.Integer(1))
+snapshot: SpanSnapshot = require_snapshot(root)
+nox.test.assert_true(not root.is_recording() and root.take_snapshot() is None, "ended snapshot is delivered once")
+nox.test.assert_true(snapshot.parent_span_id is None, "root has no parent")
+nox.test.assert_eq_str(snapshot.scope.name, "pulse.tests", "snapshot carries the tracer scope")
+nox.test.assert_eq_int(snapshot.start_time_ns, 100, "wall start timestamp")
+nox.test.assert_eq_int(snapshot.end_time_ns, 140, "repeated end preserves the first wall time")
+nox.test.assert_eq_int(snapshot.duration_ns, 10, "duration uses the monotonic clock")
+nox.test.assert_eq_int(snapshot.attributes.len(), 2, "only safe attributes within the limit are retained")
+nox.test.assert_eq_int(snapshot.attributes.dropped_count, 3, "invalid and over-limit writes are counted")
+match snapshot.attributes.entries[0].value:
+    case AttributeValue.IntegerArray(values):
+        nox.test.assert_eq_int(values[0], 7, "span owns a copy of caller arrays")
+    case _:
+        nox.test.assert_true(False, "expected the integer array")
+match snapshot.attributes.entries[1].value:
+    case AttributeValue.Integer(value):
+        nox.test.assert_eq_int(value, 9007199254740993, "invalid and post-end updates preserve the exact integer")
+    case _:
+        nox.test.assert_true(False, "expected the integer attribute")
+
+parent: SpanContext = require_context(root)
+remote: SpanContext = SpanContext(parent.trace_id, parent.span_id, TraceFlags.Sampled, "vendor=opaque", True)
+child: RecordingSpan = tracer.start_recording_span("query", TelemetryContext(remote), SpanKind.Client)
+remote.trace_id.value = "ffffffffffffffffffffffffffffffff"
+remote.span_id.value = "ffffffffffffffff"
+clock.wall_ns = 80
+clock.monotonic_ns = 2
+child.end()
+child_snapshot: SpanSnapshot = require_snapshot(child)
+parent_id: SpanId | None = child_snapshot.parent_span_id
+if parent_id is not None:
+    nox.test.assert_eq_str(parent_id.value, "0000000000000001", "parent ID was copied at start")
+else:
+    raise TelemetryError("child did not retain a parent ID")
+nox.test.assert_eq_str(child_snapshot.context.trace_id.value, "00000000000000000000000000000001", "child retains the trace ID")
+nox.test.assert_eq_str(child_snapshot.context.span_id.value, "0000000000000002", "child gets its own span ID")
+nox.test.assert_eq_str(child_snapshot.context.tracestate, "vendor=opaque", "child preserves opaque tracestate")
+nox.test.assert_true(not child_snapshot.context.remote, "child context is local")
+match child_snapshot.context.trace_flags:
+    case TraceFlags.Sampled:
+        pass
+    case _:
+        nox.test.assert_true(False, "child preserves the parent's sampled flag")
+nox.test.assert_eq_int(child_snapshot.end_time_ns, child_snapshot.start_time_ns, "wall clock reversal clamps end")
+nox.test.assert_eq_int(child_snapshot.duration_ns, 0, "monotonic reversal clamps duration")
+
+base_provider: TracerProvider = provider
+base_tracer: Tracer = base_provider.get_tracer("base", None, None)
+base_span: Span = base_tracer.start_span("base", empty_context())
+nox.test.assert_true(base_span.is_recording(), "base API dispatches to the recording implementation")
+base_span.end()
+nox.test.assert_true(base_span.take_snapshot() is not None, "base API transfers the ended snapshot")
+
+tiny: RecordLimits = RecordLimits(1, 1, 1, 1, 1, 1, 264, 1)
+tight_provider: RecordingTracerProvider = RecordingTracerProvider(clock, SequenceIdGenerator(0, 0), limits, tiny)
+tight: RecordingSpan = tight_provider.get_recording_tracer("s", None, None).start_recording_span("x", empty_context(), SpanKind.Internal)
+tight.set_attribute("a", AttributeValue.Integer(1))
+tight.end()
+nox.test.assert_eq_int(require_snapshot(tight).attributes.dropped_count, 1, "span budget bounds retained attribute bytes")
+
+invalid_parent: bool = False
+try:
+    remote.trace_id.value = "00000000000000000000000000000000"
+    tracer.start_recording_span("invalid-parent", TelemetryContext(remote), SpanKind.Internal)
+except TelemetryError as error:
+    invalid_parent = True
+nox.test.assert_true(invalid_parent, "recording revalidates the input parent ID")
