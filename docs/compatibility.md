@@ -225,6 +225,25 @@ Both new regressions ran on QBE and LLVM on macOS ARM64, Linux x64,
 Linux ARM64 and Windows x64. Independent Prometheus conformance also passed.
 Trace exporters and Collector conformance remain deferred.
 
+## Local trace exporter evidence
+
+NOX 2.2.38 QBE and LLVM built and ran the trace exporter regression and
+the updated `hello_traces.nox` example on macOS ARM64.
+`NOXC="$(command -v noxc)" bash scripts/run-ci-core.sh` passed on both
+backends with 19 unit files per backend. The regression
+checks one-shot SDK export, defensive copies, count and shared byte
+limits, sanitized diagnostics, exact allowlisted JSON, sink recovery and
+same-instance reentrancy. The NOX checker rejects using one name for
+different match-payload types across arms. The minimal example is recorded
+under [`NOX-TYPE-003`](nox-limitations.md#nox-type-003--match-arms-share-the-checker-scope-for-payload-bindings).
+
+[CI run #21](https://github.com/mburakmmm/pulse/actions/runs/45132965158)
+passed all nine jobs for `18b6be8e080e6c5654d592df212214e758c4c26b`.
+The trace exporter and example passed under QBE and LLVM on macOS ARM64,
+Linux x64, Linux ARM64 and Windows x64. The independent Prometheus 3.16.0
+gate passed on Linux x64. Local trace JSON is diagnostic output. OTLP
+encoding and Collector conformance remain deferred.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.

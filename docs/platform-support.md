@@ -7,10 +7,10 @@ compiler and both required backends.
 ## Current matrix
 
 NOX 2.2.38 passed all required jobs in
-[CI run #20](https://github.com/mburakmmm/pulse/actions/runs/45131489631)
-on commit `f31f1f7de9517b1e1944abb85543abe0bfb8a6eb`. Each core job
-includes tracing lifecycle, details, metadata and cancellation tests and the
-compiling tracing example.
+[CI run #21](https://github.com/mburakmmm/pulse/actions/runs/45132965158)
+on commit `18b6be8e080e6c5654d592df212214e758c4c26b`. Each core job
+includes tracing lifecycle, metadata, cancellation, local exporter tests
+and the compiling tracing example.
 
 | Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|
