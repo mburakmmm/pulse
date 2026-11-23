@@ -314,6 +314,7 @@ Bağımlılık: `v0.1.0`; metrics yalnız diagnostics için opsiyonel.
 - [x] Parent ended olsa da child aynı trace ID ile başlıyor.
 - [x] `examples/hello_traces.nox` derlenen örneği.
 - [x] İlk tracing dilimi [CI run #18](https://github.com/mburakmmm/pulse/actions/runs/45118374787) ile dört platformda QBE ve LLVM üzerinde doğrulandı.
+- [x] Status, event ve link dilimi [CI run #19](https://github.com/mburakmmm/pulse/actions/runs/45119476289) ile dört platformda QBE ve LLVM üzerinde doğrulandı. Yeni NOX sınırlaması gözlemlenmedi.
 
 Çıkış kapısı:
 

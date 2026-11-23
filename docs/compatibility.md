@@ -192,6 +192,21 @@ The lifecycle test and tracing example ran under QBE and LLVM on macOS ARM64,
 Linux x64, Linux ARM64 and Windows x64. The independent Prometheus 3.16.0
 conformance job passed on Linux x64.
 
+## Span details evidence
+
+On NOX 2.2.38, the `tracing_details_test.nox` fixture builds and runs
+under QBE and LLVM. It checks status precedence and descriptions, wall and
+explicit event times, insertion order, malformed links, no-op and ended span
+behavior, defensive copies, sensitive keys, per-record limits and the shared
+span byte budget. The fixture also runs as part of `bash scripts/run-ci-core.sh`.
+No new NOX compiler or runtime limitation was observed in this slice.
+
+[CI run #19](https://github.com/mburakmmm/pulse/actions/runs/45119476289)
+passed all nine jobs for `100724067f329bf586b85986965a5336d49b16b4`.
+The span details regression passed under QBE and LLVM on macOS ARM64,
+Linux x64, Linux ARM64 and Windows x64. The independent Prometheus 3.16.0
+job passed on Linux x64. Trace exporter conformance remains deferred.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.
