@@ -169,6 +169,29 @@ The shared-provider and scrape gates passed on QBE and LLVM on macOS ARM64,
 Linux x64, Linux ARM64 and Windows x64. Independent Prometheus conformance
 passed on Linux x64. OTLP Collector coverage remains deferred.
 
+## Recording tracing evidence — 2026-11-23
+
+`NOXC="$(command -v noxc)" bash scripts/run-ci-core.sh` passed locally on
+macOS ARM64 with QBE and LLVM on NOX 2.2.38, source commit
+`7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a`. The compiler build identity was
+verified before testing. Each backend passed 15 unit files, the two privacy
+test files and both compiling examples.
+
+`tests/unit/tracing_lifecycle_test.nox` checks parent ID validation, local
+child identity, ended parent context, idempotent end, one-shot snapshot
+delivery, defensive attribute copies, drop counts and clock regression.
+The recording path has a single-owner contract. The
+[NOX limitation register](nox-limitations.md) tracks the top-level optional
+narrowing reproducer. Collector conformance remains deferred. The independent
+promtool check ran in CI. The local run exercised the real scrape without
+promtool because the binary was unavailable.
+
+[CI run #18](https://github.com/mburakmmm/pulse/actions/runs/45118374787)
+passed all nine jobs for `57f023d898eb1f72461e23665547e36683c494a2`.
+The lifecycle test and tracing example ran under QBE and LLVM on macOS ARM64,
+Linux x64, Linux ARM64 and Windows x64. The independent Prometheus 3.16.0
+conformance job passed on Linux x64.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.
