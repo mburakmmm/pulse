@@ -147,3 +147,17 @@ def snapshot_attributes(values: dict[str, AttributeValue], limits: AttributeLimi
         owned_bytes += entry_bytes
 
     return AttributeSet(entries, dropped, owned_bytes)
+
+def snapshot_attribute_entries(attributes: AttributeSet, limits: AttributeLimits) -> AttributeSet:
+    values: dict[str, AttributeValue] = {}
+    examined: int = 0
+    for entry in attributes.entries:
+        if examined >= limits.max_attributes:
+            break
+        examined += 1
+        if entry.key not in values:
+            values[entry.key] = entry.value
+    recorded: AttributeSet = snapshot_attributes(values, limits, True)
+    recorded.dropped_count += len(attributes.entries) - len(values)
+    recorded.dropped_count += min(max(0, attributes.dropped_count), 9223372036854775807 - recorded.dropped_count)
+    return recorded

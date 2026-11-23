@@ -13,7 +13,7 @@ live outside that layer. The current compiling surface contains:
   `TelemetryContext` replacement via `with_span`, and `empty_context`;
 - `api.metrics`: `Counter`, `UpDownCounter`, `Histogram`, `Meter`,
   `MeterProvider` contracts and no-op variants;
-- `api.tracing`: `Span`, `SpanKind`, `SpanStatus`, `SpanEvent`,
+- `api.tracing`: `Span`, `SpanKind`, `SpanStatus`, `ExceptionKind`, `SpanEvent`,
   `SpanLink`, `SpanSnapshot`, `Tracer`, `TracerProvider` and no-op
   variants.
 
@@ -40,6 +40,8 @@ span.end()
 
 For recording spans, see [tracing core](tracing.md) and
 [`hello_traces.nox`](../examples/hello_traces.nox).
+Recording providers accept explicit Resource metadata. `Span.record_exception`
+records a caller-selected safe type and omits raw exception data.
 
 The Phase 2 recording slice rejects negative Counter additions, detects signed
 64-bit overflow/underflow, supports signed UpDownCounter changes and implements

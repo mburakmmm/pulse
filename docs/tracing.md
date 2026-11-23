@@ -58,6 +58,32 @@ the estimated span byte budget. The estimate includes fixed charges for
 records and their retained string and attribute bytes. Ended and no-op
 spans ignore all detail operations.
 
-Resource metadata, specialized exception capture, sampling and exporters
-remain open. Status and event semantics follow the
+Status and event semantics follow the
 [pinned OpenTelemetry trace API](https://github.com/open-telemetry/opentelemetry-specification/blob/18c5c1706e346fec3bdb5e135a6e3a78f461e586/specification/trace/api.md).
+
+## Resource and safe exception records
+
+Supply an optional `Resource` to `RecordingTracerProvider` or
+`new_recording_tracer_provider`. For layered configuration use
+`resource_from_layers`, which gives explicit configuration priority over
+environment and safe defaults. An omitted Resource is empty. The provider
+copies and filters Resource data at configuration time. Each snapshot owns
+independent Resource and scope copies. Their retained attribute bytes count
+toward the span budget. Metadata that cannot fit rejects span creation.
+Use dedicated service metadata values and keep the tracer's internal state
+read-only.
+
+`record_exception(ExceptionKind.ValueError)` adds an `exception` event
+with only `exception.type`. The caller classifies a caught error as
+`ValueError`, `CancelledError` or generic `Exception`. The method accepts
+no raw exception, message, argument or stack trace. It does not assign span
+status. If the event cannot retain the type within its limits, it is dropped
+and counted. This explicit method follows the event name and type key in the
+[pinned exception conventions](https://github.com/open-telemetry/semantic-conventions/blob/fb30ca17193b551473b1f43c315482918ab6987c/docs/exceptions/exceptions-spans.md).
+
+End spans in `finally` around the work they describe. Early returns, caught
+errors and cancellation delivered while awaiting a task are covered by tests.
+Cancelling a task that waits on an empty channel can deadlock on the pinned
+runtime. Use an explicit wakeup path for those workers. See
+[`NOX-ASYNC-001`](nox-limitations.md#nox-async-001--cancelling-a-task-waiting-on-an-empty-channel-can-deadlock).
+Sampling and exporters remain open.

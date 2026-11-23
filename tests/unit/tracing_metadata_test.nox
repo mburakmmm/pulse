@@ -1,0 +1,110 @@
+import nox.test
+from api.context import empty_context
+from api.tracing import ExceptionKind, Span, SpanSnapshot, SpanStatus, Tracer
+from core.attributes import AttributeEntry, AttributeSet, AttributeValue
+from core.clock import TestClock
+from core.errors import TelemetryError
+from core.ids import SequenceIdGenerator
+from core.limits import AttributeLimits, RecordLimits, default_attribute_limits, default_record_limits
+from core.resource import Resource, resource_from_layers
+from core.scope import InstrumentationScope
+from tracing.provider import RecordingTracer, RecordingTracerProvider
+
+def take(span: Span) -> SpanSnapshot:
+    snapshot: SpanSnapshot | None = span.take_snapshot()
+    if snapshot is not None:
+        return snapshot
+    raise TelemetryError("expected an ended span")
+
+def fail_operation(span: Span) -> None:
+    try:
+        raise ValueError("credential-sentinel in exception args")
+    except ValueError as error:
+        span.record_exception(ExceptionKind.ValueError)
+    finally:
+        span.end()
+
+def finish_early(span: Span) -> int:
+    try:
+        return 7
+    finally:
+        span.end()
+
+limits: AttributeLimits = default_attribute_limits()
+clock: TestClock = TestClock(100, 50)
+raw_values: list[int] = [3]
+input_resource: Resource = Resource(AttributeSet([AttributeEntry("service.name", AttributeValue.Text("billing")), AttributeEntry("safe.values", AttributeValue.IntegerArray(raw_values)), AttributeEntry("authorization", AttributeValue.Text("resource-secret"))], 2, 0))
+provider: RecordingTracerProvider = RecordingTracerProvider(clock, SequenceIdGenerator(0, 0), limits, default_record_limits(), input_resource)
+raw_values[0] = 9
+input_resource.attributes.entries[0].value = AttributeValue.Text("changed")
+tracer: Tracer = provider.get_tracer("billing.scope", "1", "schema")
+first: Span = tracer.start_span("decode", empty_context())
+fail_operation(first)
+first.record_exception(ExceptionKind.Exception)
+snapshot: SpanSnapshot = take(first)
+nox.test.assert_eq_int(snapshot.resource.attributes.len(), 2, "resource omits the sensitive attribute")
+nox.test.assert_eq_int(snapshot.resource.attributes.dropped_count, 3, "resource preserves and adds drops")
+nox.test.assert_eq_str(snapshot.resource.attributes.entries[1].key, "service.name", "service identity is retained")
+match snapshot.resource.attributes.entries[1].value:
+    case AttributeValue.Text(service):
+        nox.test.assert_eq_str(service, "billing", "provider owns a resource copy")
+    case _:
+        nox.test.assert_true(False, "service name must be text")
+match snapshot.resource.attributes.entries[0].value:
+    case AttributeValue.IntegerArray(values):
+        nox.test.assert_eq_int(values[0], 3, "resource arrays are detached from caller input")
+        values[0] = 12
+    case _:
+        nox.test.assert_true(False, "expected resource array")
+nox.test.assert_eq_str(snapshot.scope.name, "billing.scope", "scope identity accompanies resource")
+nox.test.assert_eq_int(len(snapshot.events), 1, "only live exception event is retained")
+nox.test.assert_eq_str(snapshot.events[0].name, "exception", "pinned exception event name")
+nox.test.assert_eq_int(snapshot.events[0].attributes.len(), 1, "exception captures no message, arguments or stack")
+nox.test.assert_eq_str(snapshot.events[0].attributes.entries[0].key, "exception.type", "only exception type is emitted")
+match snapshot.events[0].attributes.entries[0].value:
+    case AttributeValue.Text(kind):
+        nox.test.assert_eq_str(kind, "ValueError", "exception type is fixed and independent of error text")
+    case _:
+        nox.test.assert_true(False, "exception type must be text")
+match snapshot.status:
+    case SpanStatus.Unset:
+        pass
+    case _:
+        nox.test.assert_true(False, "exception event does not implicitly change span status")
+
+following: Span = tracer.start_span("next", empty_context())
+nox.test.assert_eq_int(finish_early(following), 7, "finally preserves early result")
+later: SpanSnapshot = take(following)
+match later.resource.attributes.entries[0].value:
+    case AttributeValue.IntegerArray(values):
+        nox.test.assert_eq_int(values[0], 3, "mutating a returned snapshot cannot change a later resource")
+    case _:
+        nox.test.assert_true(False, "expected resource array")
+
+caller_scope: InstrumentationScope = InstrumentationScope("custom", None, None, {"scope.safe": AttributeValue.Boolean(True)}, limits)
+custom: RecordingTracer = RecordingTracer(caller_scope, clock, SequenceIdGenerator(0, 0), limits, default_record_limits())
+caller_scope.name = "changed"
+custom_span: Span = custom.start_span("scoped", empty_context())
+custom_span.end()
+custom_snapshot: SpanSnapshot = take(custom_span)
+nox.test.assert_eq_str(custom_snapshot.scope.name, "custom", "caller scope is detached")
+nox.test.assert_eq_int(custom_snapshot.scope.attributes.len(), 1, "scope attributes survive")
+nox.test.assert_eq_int(custom_snapshot.resource.attributes.len(), 0, "unconfigured resource is empty")
+
+tight: RecordLimits = RecordLimits(1, 1, 1, 1, 1, 1, 330, 1)
+tight_provider: RecordingTracerProvider = RecordingTracerProvider(clock, SequenceIdGenerator(0, 0), limits, tight, resource_from_layers({}, {}, {"service.name": AttributeValue.Text("billing")}, limits))
+tight_span: Span = tight_provider.get_tracer("s", None, None).start_span("x", empty_context())
+tight_span.record_exception(ExceptionKind.Exception)
+tight_span.end()
+tight_snapshot: SpanSnapshot = take(tight_span)
+nox.test.assert_eq_int(tight_snapshot.dropped_events, 1, "exception without space for its type is counted as dropped")
+nox.test.assert_eq_int(len(tight_snapshot.events), 0, "exception event cannot be retained without its safe type")
+
+metadata_limits: RecordLimits = RecordLimits(1, 1, 1, 1, 1, 1, 260, 1)
+metadata_provider: RecordingTracerProvider = RecordingTracerProvider(clock, SequenceIdGenerator(0, 0), limits, metadata_limits, input_resource)
+metadata_rejected: bool = False
+try:
+    metadata_provider.get_tracer("s", None, None).start_span("x", empty_context())
+except TelemetryError as error:
+    metadata_rejected = True
+nox.test.assert_true(metadata_rejected, "resource metadata is charged before admitting a span")

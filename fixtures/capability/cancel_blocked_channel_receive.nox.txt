@@ -1,0 +1,18 @@
+async def worker(ready: Channel[int], pending: Channel[int]) -> int:
+    await ready.send(1)
+    return await pending.recv()
+
+async def run_probe() -> None:
+    ready: Channel[int] = Channel[int](1)
+    pending: Channel[int] = Channel[int](1)
+    work: Task[int] = spawn worker(ready, pending)
+    signal: int = await ready.recv()
+    work.cancel()
+    try:
+        outcome: int = await work
+        print("unexpected normal completion", outcome)
+    except CancelledError as error:
+        print("cancelled")
+
+probe: Task[None] = spawn run_probe()
+await probe

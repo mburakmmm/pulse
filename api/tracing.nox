@@ -1,6 +1,7 @@
 from api.context import SpanContext, TelemetryContext
 from core.attributes import AttributeSet, AttributeValue
 from core.ids import SpanId
+from core.resource import Resource
 from core.scope import InstrumentationScope
 
 enum SpanKind:
@@ -14,6 +15,11 @@ enum SpanStatus:
     Unset
     Error
     Ok
+
+enum ExceptionKind:
+    Exception
+    ValueError
+    CancelledError
 
 class SpanEvent:
     name: str
@@ -39,6 +45,7 @@ class SpanSnapshot:
     context: SpanContext
     parent_span_id: SpanId | None
     scope: InstrumentationScope
+    resource: Resource
     start_time_ns: int
     end_time_ns: int
     duration_ns: int
@@ -56,6 +63,7 @@ class SpanSnapshot:
         self.context = context
         self.parent_span_id = parent_span_id
         self.scope = scope
+        self.resource = Resource(AttributeSet([], 0, 0))
         self.start_time_ns = start_time_ns
         self.end_time_ns = end_time_ns
         self.duration_ns = duration_ns
@@ -88,6 +96,10 @@ class Span:
         return
 
     def add_link(self, context: SpanContext, attributes: dict[str, AttributeValue] | None = None) -> None:
+
+        return
+
+    def record_exception(self, kind: ExceptionKind) -> None:
 
         return
 

@@ -207,6 +207,19 @@ The current audit uses an isolated official archive verified before extraction.
   on both backends.
 ## Active NOX design limits and capability boundaries
 
+### NOX-ASYNC-001 — Cancelling a task waiting on an empty channel can deadlock
+
+- Status: `OPEN-UPSTREAM` on NOX 2.2.38, commit
+  `7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a`.
+- Evidence: copy `fixtures/capability/cancel_blocked_channel_receive.nox.txt`
+  to a temporary `.nox` file. Build it using `noxc build --backend qbe`
+  and `noxc build --backend llvm`. On macOS ARM64 both executables exit
+  with code 1 and `deadlock detected — all tasks are blocked, none can make progress`.
+- Containment: design an explicit wakeup path for channel consumers and
+  avoid using `Task.cancel()` as their only shutdown signal. The tracing
+  cancellation regression exercises a worker waiting on another task.
+  Its `finally` closes the span before cancellation reaches the owner.
+
 ### NOX-TYPE-002 — Top-level raising guard does not narrow an optional
 
 - Status: `DESIGN-LIMIT` on NOX 2.2.38.

@@ -1,11 +1,12 @@
 import nox.strings
 from api.context import SpanContext
-from api.tracing import Span, SpanEvent, SpanKind, SpanLink, SpanSnapshot, SpanStatus
-from core.attributes import AttributeSet, AttributeValue, estimated_attribute_value_bytes, is_sensitive_key, snapshot_attribute_value, snapshot_attributes
+from api.tracing import ExceptionKind, Span, SpanEvent, SpanKind, SpanLink, SpanSnapshot, SpanStatus
+from core.attributes import AttributeSet, AttributeValue, estimated_attribute_value_bytes, is_sensitive_key, snapshot_attribute_entries, snapshot_attribute_value, snapshot_attributes
 from core.clock import Clock
 from core.errors import TelemetryError
 from core.ids import SpanId, TraceId, is_lower_hex
 from core.limits import AttributeLimits, RecordLimits, default_record_limits
+from core.resource import Resource, snapshot_resource
 from core.scope import InstrumentationScope
 
 def copy_span_context(context: SpanContext) -> SpanContext:
@@ -32,6 +33,7 @@ class RecordingSpan(Span):
     context: SpanContext
     parent_span_id: SpanId | None
     scope: InstrumentationScope
+    resource: Resource | None
     clock: Clock
     limits: AttributeLimits
     content_byte_limit: int
@@ -53,12 +55,13 @@ class RecordingSpan(Span):
     ended: bool
     taken: bool
 
-    def __init__(self, name: str, kind: SpanKind, context: SpanContext, parent_span_id: SpanId | None, scope: InstrumentationScope, clock: Clock, limits: AttributeLimits, attribute_byte_limit: int, record_limits: RecordLimits | None = None) -> None:
+    def __init__(self, name: str, kind: SpanKind, context: SpanContext, parent_span_id: SpanId | None, scope: InstrumentationScope, clock: Clock, limits: AttributeLimits, attribute_byte_limit: int, record_limits: RecordLimits | None = None, resource: Resource | None = None) -> None:
         self.name = name
         self.kind = kind
         self.context = context
         self.parent_span_id = parent_span_id
         self.scope = scope
+        self.resource = resource
         self.clock = clock
         self.limits = limits
         self.content_byte_limit = attribute_byte_limit
@@ -157,6 +160,24 @@ class RecordingSpan(Span):
 
     def add_event(self, name: str, attributes: dict[str, AttributeValue] | None = None, time_ns: int | None = None) -> None:
 
+        self.append_event(name, attributes, time_ns, False)
+
+    def record_exception(self, kind: ExceptionKind) -> None:
+
+        if self.ended:
+            return
+        type_name: str = "Exception"
+        match kind:
+            case ExceptionKind.ValueError:
+                type_name = "ValueError"
+            case ExceptionKind.CancelledError:
+                type_name = "CancelledError"
+            case _:
+                pass
+        self.append_event("exception", {"exception.type": AttributeValue.Text(type_name)}, None, True)
+
+    def append_event(self, name: str, attributes: dict[str, AttributeValue] | None, time_ns: int | None, require_attribute: bool) -> None:
+
         if self.ended:
             return
         name_bytes: int = nox.strings.byte_len(name)
@@ -174,6 +195,9 @@ class RecordingSpan(Span):
             observed_ns = max(0, self.clock.wall_time_ns())
         max_bytes: int = min(self.limits.max_total_bytes, min(self.record_limits.max_event_attribute_bytes, self.remaining_bytes() - fixed_bytes))
         recorded: AttributeSet = snapshot_detail_attributes(attributes, self.limits, self.record_limits.max_event_attributes, max_bytes)
+        if require_attribute and recorded.len() == 0:
+            self.dropped_events = min(self.dropped_events, 9223372036854775806) + 1
+            return
         self.events.append(SpanEvent(name, observed_ns, recorded))
         self.detail_bytes += fixed_bytes + recorded.estimated_bytes
 
@@ -211,7 +235,9 @@ class RecordingSpan(Span):
         attributes: AttributeSet = snapshot_attributes(self.values, self.limits, True)
         attributes.dropped_count = self.dropped_attributes
         scope: InstrumentationScope = InstrumentationScope(self.scope.name, self.scope.version, self.scope.schema_url, {}, self.limits)
+        scope.attributes = snapshot_attribute_entries(self.scope.attributes, self.limits)
         snapshot: SpanSnapshot = SpanSnapshot(self.name, self.kind, copy_span_context(self.context), self.parent_span_id, scope, self.start_time_ns, self.end_time_ns, self.duration_ns, attributes)
+        snapshot.resource = snapshot_resource(self.resource, self.limits)
         snapshot.status = self.status
         snapshot.status_description = self.status_description
         snapshot.events = self.events

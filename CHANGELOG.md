@@ -6,6 +6,10 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ### Added
 
+- Defensive Resource and instrumentation scope snapshots with shared span budget accounting.
+- Typed exception events that retain only `exception.type`, with early-return,
+  error and task-cancellation cleanup coverage.
+
 - OpenTelemetry span status precedence and bounded event and link snapshots
   with defensive copies, per-record drop counts and shared span byte limits.
 

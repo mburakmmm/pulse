@@ -306,11 +306,11 @@ Bağımlılık: `v0.1.0`; metrics yalnız diagnostics için opsiyonel.
 - [x] Clock anomaly deterministik davranışı.
 - [x] Span, event ve link count/byte sınırları, ortak bütçe ve dropped count.
 - [x] Event ve link attribute'ları kaydetme sırasında deep copy ve hassas anahtar filtresinden geçiyor.
-- [ ] Exception event privacy sanitizer; raw args/stack default yok.
-- [~] Snapshot scope taşıyor. Resource bağlantısı açık.
+- [x] Tip sınıflandırmalı exception event. Yalnız `exception.type` saklanıyor; mesaj, argüman veya stack kabul edilmiyor.
+- [x] Resource ve scope ayrı kopyalarla snapshot'a bağlanıyor ve span bütçesine dahil.
 - [ ] In-memory trace exporter ve simple deterministic assertions.
 - [ ] Console trace exporter; sanitized ve recursion-safe.
-- [ ] Early return/error/cancellation cleanup testleri.
+- [x] Early return, yakalanan hata ve task await cancellation için `finally` cleanup testleri. Boş channel recv'de NOX deadlock'u `NOX-ASYNC-001` olarak açık.
 - [x] Parent ended olsa da child aynı trace ID ile başlıyor.
 - [x] `examples/hello_traces.nox` derlenen örneği.
 - [x] İlk tracing dilimi [CI run #18](https://github.com/mburakmmm/pulse/actions/runs/45118374787) ile dört platformda QBE ve LLVM üzerinde doğrulandı.

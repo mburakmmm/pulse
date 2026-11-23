@@ -1,0 +1,38 @@
+import nox.test
+from api.context import empty_context
+from api.tracing import Span
+from core.clock import TestClock
+from core.ids import SequenceIdGenerator
+from core.limits import default_attribute_limits, default_record_limits
+from tracing.provider import RecordingTracerProvider
+
+async def step() -> int:
+    return 1
+
+async def wait_for_work(span: Span, ready: Channel[int]) -> None:
+    try:
+        await ready.send(1)
+        steps: int = 0
+        while steps < 10000:
+            work: Task[int] = spawn step()
+            steps += await work
+    finally:
+        span.end()
+
+async def verify_cancellation() -> None:
+    provider: RecordingTracerProvider = RecordingTracerProvider(TestClock(100, 50), SequenceIdGenerator(0, 0), default_attribute_limits(), default_record_limits())
+    span: Span = provider.get_tracer("cancel", None, None).start_span("operation", empty_context())
+    ready: Channel[int] = Channel[int](1)
+    work: Task[None] = spawn wait_for_work(span, ready)
+    nox.test.assert_eq_int(await ready.recv(), 1, "worker entered guarded section")
+    work.cancel()
+    cancelled: bool = False
+    try:
+        await work
+    except CancelledError as error:
+        cancelled = True
+    nox.test.assert_true(cancelled, "caller observes cancellation")
+    nox.test.assert_true(span.take_snapshot() is not None, "finally ends the span before cancellation reaches the caller")
+
+probe: Task[None] = spawn verify_cancellation()
+await probe

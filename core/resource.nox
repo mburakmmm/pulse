@@ -1,4 +1,4 @@
-from core.attributes import AttributeSet, AttributeValue, snapshot_attributes
+from core.attributes import AttributeSet, AttributeValue, snapshot_attribute_entries, snapshot_attributes
 from core.limits import AttributeLimits
 
 class Resource:
@@ -6,6 +6,11 @@ class Resource:
 
     def __init__(self, attributes: AttributeSet) -> None:
         self.attributes = attributes
+
+def snapshot_resource(resource: Resource | None, limits: AttributeLimits) -> Resource:
+    if resource is None:
+        return Resource(AttributeSet([], 0, 0))
+    return Resource(snapshot_attribute_entries(resource.attributes, limits))
 
 def resource_from_layers(safe_defaults: dict[str, AttributeValue], environment: dict[str, AttributeValue], explicit: dict[str, AttributeValue], limits: AttributeLimits) -> Resource:
     merged: dict[str, AttributeValue] = {}

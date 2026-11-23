@@ -1,10 +1,12 @@
 import nox.strings
 from api.context import SpanContext, TelemetryContext, TraceFlags
 from api.tracing import Span, SpanKind, Tracer, TracerProvider
+from core.attributes import snapshot_attribute_entries
 from core.clock import Clock, SystemClock
 from core.errors import TelemetryError
 from core.ids import SecureSpanIdSource, SpanId, SpanIdSource, TraceId
 from core.limits import AttributeLimits, RecordLimits
+from core.resource import Resource, snapshot_resource
 from core.scope import InstrumentationScope
 from tracing.span import RecordingSpan
 
@@ -19,13 +21,16 @@ class RecordingTracer(Tracer):
     ids: SpanIdSource
     attribute_limits: AttributeLimits
     record_limits: RecordLimits
+    resource: Resource
 
-    def __init__(self, scope: InstrumentationScope, clock: Clock, ids: SpanIdSource, attribute_limits: AttributeLimits, record_limits: RecordLimits) -> None:
-        self.scope = scope
+    def __init__(self, scope: InstrumentationScope, clock: Clock, ids: SpanIdSource, attribute_limits: AttributeLimits, record_limits: RecordLimits, resource: Resource | None = None) -> None:
+        self.scope = InstrumentationScope(scope.name, scope.version, scope.schema_url, {}, attribute_limits)
+        self.scope.attributes = snapshot_attribute_entries(scope.attributes, attribute_limits)
         self.clock = clock
         self.ids = ids
         self.attribute_limits = attribute_limits
         self.record_limits = record_limits
+        self.resource = snapshot_resource(resource, attribute_limits)
 
     def start_span(self, name: str, parent: TelemetryContext) -> Span:
 
@@ -51,9 +56,10 @@ class RecordingTracer(Tracer):
         if parent_span_id is not None and parent_span_id.value == span_id.value:
             raise TelemetryError("span ID source returned the parent span ID")
         fixed_bytes: int = 256 + name_bytes + nox.strings.byte_len(tracestate) + nox.strings.byte_len(self.scope.name) + optional_byte_len(self.scope.version) + optional_byte_len(self.scope.schema_url)
+        fixed_bytes += self.scope.attributes.estimated_bytes + self.resource.attributes.estimated_bytes
         if fixed_bytes > self.record_limits.max_span_bytes:
             raise TelemetryError("span metadata exceeds max_span_bytes")
-        return RecordingSpan(name, kind, SpanContext(trace_id, span_id, flags, tracestate, False), parent_span_id, self.scope, self.clock, self.attribute_limits, self.record_limits.max_span_bytes - fixed_bytes, self.record_limits)
+        return RecordingSpan(name, kind, SpanContext(trace_id, span_id, flags, tracestate, False), parent_span_id, self.scope, self.clock, self.attribute_limits, self.record_limits.max_span_bytes - fixed_bytes, self.record_limits, self.resource)
 
     def trace_id_for(self, parent: SpanContext | None) -> TraceId:
 
@@ -66,12 +72,14 @@ class RecordingTracerProvider(TracerProvider):
     ids: SpanIdSource
     attribute_limits: AttributeLimits
     record_limits: RecordLimits
+    resource: Resource
 
-    def __init__(self, clock: Clock, ids: SpanIdSource, attribute_limits: AttributeLimits, record_limits: RecordLimits) -> None:
+    def __init__(self, clock: Clock, ids: SpanIdSource, attribute_limits: AttributeLimits, record_limits: RecordLimits, resource: Resource | None = None) -> None:
         self.clock = clock
         self.ids = ids
         self.attribute_limits = attribute_limits
         self.record_limits = record_limits
+        self.resource = snapshot_resource(resource, attribute_limits)
 
     def get_tracer(self, name: str, version: str | None, schema_url: str | None) -> Tracer:
 
@@ -82,7 +90,7 @@ class RecordingTracerProvider(TracerProvider):
         if nox.strings.byte_len(name) > 1024 or optional_byte_len(version) > 1024 or optional_byte_len(schema_url) > 1024:
             raise TelemetryError("tracer scope identity exceeds 1024 bytes per field")
         scope: InstrumentationScope = InstrumentationScope(name, version, schema_url, {}, self.attribute_limits)
-        return RecordingTracer(scope, self.clock, self.ids, self.attribute_limits, self.record_limits)
+        return RecordingTracer(scope, self.clock, self.ids, self.attribute_limits, self.record_limits, self.resource)
 
-def new_recording_tracer_provider(attribute_limits: AttributeLimits, record_limits: RecordLimits) -> RecordingTracerProvider:
-    return RecordingTracerProvider(SystemClock(), SecureSpanIdSource(), attribute_limits, record_limits)
+def new_recording_tracer_provider(attribute_limits: AttributeLimits, record_limits: RecordLimits, resource: Resource | None = None) -> RecordingTracerProvider:
+    return RecordingTracerProvider(SystemClock(), SecureSpanIdSource(), attribute_limits, record_limits, resource)
