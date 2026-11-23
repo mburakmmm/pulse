@@ -207,6 +207,24 @@ The span details regression passed under QBE and LLVM on macOS ARM64,
 Linux x64, Linux ARM64 and Windows x64. The independent Prometheus 3.16.0
 job passed on Linux x64. Trace exporter conformance remains deferred.
 
+## Trace metadata and cancellation evidence
+
+The metadata regression builds and runs on NOX 2.2.38 QBE and LLVM and verifies
+Resource/scope copies, sensitive metadata filtering, shared byte accounting,
+type-only exception events and cleanup on failure or early return. The
+`NOXC="$(command -v noxc)" bash scripts/run-ci-core.sh` suite passed locally
+on macOS ARM64 for both backends. The
+task-await cancellation regression completed 20 consecutive local runs per
+backend with `NOX_POOL_WORKERS=4`. The empty-channel cancellation reproducer
+exits with the runtime deadlock diagnostic on both backends. See
+[`NOX-ASYNC-001`](nox-limitations.md#nox-async-001--cancelling-a-task-waiting-on-an-empty-channel-can-deadlock).
+
+[CI run #20](https://github.com/mburakmmm/pulse/actions/runs/45131489631)
+passed all nine jobs for `f31f1f7de9517b1e1944abb85543abe0bfb8a6eb`.
+Both new regressions ran on QBE and LLVM on macOS ARM64, Linux x64,
+Linux ARM64 and Windows x64. Independent Prometheus conformance also passed.
+Trace exporters and Collector conformance remain deferred.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.

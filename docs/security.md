@@ -1,14 +1,18 @@
 # Security and privacy baseline
 
-Status: Phase 3 active. Bounded metrics collection and pure in-memory, console
-and Prometheus rendering slices exist; no network listener or OTLP exporter is
-implemented.
+Phase 4 adds local trace snapshots to bounded metrics and Prometheus rendering.
+Applications own their listeners. OTLP export remains open.
 
 ## Default-deny data policy
 
 Pulse must not capture request/response bodies, Authorization or Cookie headers, API keys, passwords, DSNs, SQL bind values, result rows, raw query strings, user IDs, email addresses, IP addresses, health data or stack arguments by default.
 
 Automatic instrumentation uses allowlists. Redaction, dropping, hashing, masking or truncation occurs before data enters a queue. Hashing personal data is not described as anonymization.
+
+Tracing filters Resource and scope attributes, including metadata supplied
+through a direct `Resource` constructor. `record_exception` stores a
+predefined type and accepts no raw error message, arguments or stack trace.
+Applications supply their own safe values for general-purpose attributes.
 
 ## Trust boundaries
 
