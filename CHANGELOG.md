@@ -4,9 +4,6 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ## [Unreleased]
 
-- Pin NOX 2.2.70 and add portable regressions for match bindings, field context
-  managers and cancellation of a blocked channel receiver.
-
 ### Added
 
 - Bounded in-memory trace snapshots and allowlisted JSON console summaries with
@@ -115,6 +112,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
   validation of the received body.
 
 ### Changed
+
+- Pin NOX 2.2.70 and add portable regressions for match bindings, field context
+  managers and cancellation of a blocked channel receiver.
 
 - Pin CI and contributor builds to NOX 2.2.38 and its exact release commit.
 - Bind the real Prometheus scrape fixture explicitly to IPv4 loopback.
