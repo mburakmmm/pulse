@@ -17,8 +17,8 @@ Compiler workarounds must be documented, narrowly scoped and reproducible.
 
 ## Development setup
 
-Use the official NOX `2.2.38` release pinned to source commit
-`7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a`. Keep it isolated if your system
+Use the official NOX `2.2.70` release pinned to source commit
+`4dc061f8c8443f8575092c2652d1109b6f4697e9`. Keep it isolated if your system
 uses another NOX version.
 
 ```sh
@@ -28,7 +28,7 @@ noxc version --build-info
 bash scripts/run-ci-core.sh
 ```
 
-The output must identify `noxc 2.2.38` and the pinned commit. The core script
+The output must identify `noxc 2.2.70` and the pinned commit. The core script
 runs both QBE and LLVM paths, source/module checks, unit/property/security/golden
 tests, stress tests, examples and the downstream package-import probe.
 

@@ -9,6 +9,7 @@ bash scripts/check-private-abi.sh
 
 for backend in llvm qbe; do
   bash scripts/run-smoke.sh "$backend"
+  bash scripts/run-nox-framework-regressions.sh "$backend"
   bash scripts/run-phase1-tests.sh "$backend"
   bash scripts/run-phase2-tests.sh "$backend"
   bash scripts/run-phase3-tests.sh "$backend"

@@ -82,9 +82,8 @@ and counted. This explicit method follows the event name and type key in the
 [pinned exception conventions](https://github.com/open-telemetry/semantic-conventions/blob/fb30ca17193b551473b1f43c315482918ab6987c/docs/exceptions/exceptions-spans.md).
 
 End spans in `finally` around the work they describe. Early returns, caught
-errors and cancellation delivered while awaiting a task are covered by tests.
-Cancelling a task that waits on an empty channel can deadlock on the pinned
-runtime. Use an explicit wakeup path for those workers. See
+errors and cancellation during both task-await and channel receive are covered
+by tests. NOX 2.2.63 fixed the blocked receive wakeup. See
 [`NOX-ASYNC-001`](nox-limitations.md#nox-async-001--cancelling-a-task-waiting-on-an-empty-channel-can-deadlock).
 Local in-memory and console exporters are available. See the
 [trace exporter contract](exporter-support.md#trace-exporter-contract) and

@@ -4,9 +4,10 @@ Pulse separates a configured CI target from a verified support claim. A target
 is marked verified only after its workflow has completed against the pinned NOX
 compiler and both required backends.
 
-## Current matrix
+## Matrix evidence
 
-NOX 2.2.38 passed all required jobs in
+The configured pin is NOX 2.2.70. The following completed matrix used
+NOX 2.2.38 and is historical evidence. NOX 2.2.38 passed all required jobs in
 [CI run #21](https://github.com/mburakmmm/pulse/actions/runs/45132965158)
 on commit `18b6be8e080e6c5654d592df212214e758c4c26b`. Each core job
 includes tracing lifecycle, metadata, cancellation, local exporter tests

@@ -1,20 +1,19 @@
 # NOX compatibility audit
 
-The current compiler pin is NOX 2.2.38. See the
-[upgrade audit](nox-upgrade-analysis-2.2.38.md) for current local evidence and
+The current compiler pin is NOX 2.2.70. See the
+[upgrade audit](nox-upgrade-analysis-2.2.70.md) for current local evidence and
 the [platform matrix](platform-support.md) for remote evidence.
 
 ## Selected baseline
 
 | Item | Value | Evidence |
 |---|---|---|
-| Published NOX release | `2.2.38` | Official `v2.2.38` release |
-| Exact source commit | `7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a` | Release tag and compiler build identity |
+| Published NOX release | `2.2.70` | Official `v2.2.70` release |
+| Exact source commit | `4dc061f8c8443f8575092c2652d1109b6f4697e9` | Release tag and compiler build identity |
 | Compiler build identity | same commit | `noxc version --build-info` |
-| Audited compiler SHA-256 | `26b63bdefef53584f87c34bc8b427197fc29ade1428317a7568028c960a87dce` | Isolated macOS ARM64 binary |
-| Release archive SHA-256 | `7e973be6020fb908fed3d5194b87bff59ce5b4a0194cb81dee78fd7ff6abfcca` | Official macOS ARM64 archive checksum |
+| Audited compiler SHA-256 | `902f7c439b861282c1f7ce50b301e531c3842a079e09e53fa2a8a4ecd2a10acb` | Installed macOS ARM64 binary |
 | Compiler toolchain | Zig `0.16.0`, `aarch64-macos`, `ReleaseFast` | build-info output |
-| Test installation | Isolated archive | System installation untouched |
+| Test installation | Existing compiler locally, checksum-verified release archives in CI | System installation untouched |
 | Profile | `hosted` | Required for clock, network, filesystem and secure entropy |
 | Locally tested backends | LLVM and QBE | 10-file smoke suite plus capability audits |
 | CI targets | macOS ARM64, Linux x64, Linux ARM64, Windows x64 | See platform matrix for the tested revision |
@@ -59,17 +58,18 @@ the [platform matrix](platform-support.md) for remote evidence.
   explicit even though the old teardown leak is fixed.
 - Fiber stacks are 192 KiB. Protobuf/propagation parsers are iterative and bounded.
 - The optional float, imported enum iteration and pass-only formatter regressions
-  pass on 2.2.38. The limitation register retains the original reproducers.
+  pass on 2.2.70. The limitation register retains the original reproducers.
 - Redirected `nox.terminal.write_raw()` has an exact-byte regression on the core
   matrix. Golden helpers continue to use portable `print`.
 - `nox.http.request` buffers bodies. Pulse enforces request/response payload caps,
   positive deadlines and a credential-safe redirect policy.
 - `nox.http.configure(bind_address="127.0.0.1")` selects IPv4 loopback before
   serving. The application owns its listener and access controls.
-- Top-level `nox.http.serve()` can continue to subsequent statements before
-  handling requests. Handler teardown requires an explicit quiescence barrier.
-- `with self.field as value` passes type checking but fails executable codegen.
-  Pulse uses explicit `try/finally` for metric gate release.
+- `nox.http.serve(port, handler, max_connections)` counts accepted connections.
+  Handler teardown requires quiescence. The graceful shutdown path uses a
+  configured drain deadline.
+- NOX 2.2.63 fixes match arm bindings, field context managers and cancellation
+  while awaiting a channel receive. The portable suite runs all three probes.
 - gRPC permits one active call/stream per connection and has no client-side read
   timeout. OTLP/gRPC remains optional until those lifecycle constraints are tested.
 - No Zig/NNI glue is approved for the initial primitives; current required runtime

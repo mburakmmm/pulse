@@ -90,8 +90,9 @@ aggregation.
 - OpenMetrics is unsupported.
 - The real HTTP fixture serves a detached snapshot from the opt-in provider.
   The worker test renders a snapshot after recording starts and before writers
-  can finish. On NOX 2.2.38, top-level `serve()` is not a join barrier. Confirm
-  handler quiescence before releasing an application-owned provider.
+  can finish. NOX counts accepted connections when `serve()` receives a
+  positional connection limit. Confirm handler quiescence before releasing
+  an application-owned provider.
 
 ## Evidence
 

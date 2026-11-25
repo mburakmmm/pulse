@@ -4,6 +4,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ## [Unreleased]
 
+- Pin NOX 2.2.70 and add portable regressions for match bindings, field context
+  managers and cancellation of a blocked channel receiver.
+
 ### Added
 
 - Bounded in-memory trace snapshots and allowlisted JSON console summaries with

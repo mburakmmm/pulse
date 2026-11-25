@@ -19,11 +19,15 @@ async def wait_for_work(span: Span, ready: Channel[int]) -> None:
     finally:
         span.end()
 
-async def verify_cancellation() -> None:
-    provider: RecordingTracerProvider = RecordingTracerProvider(TestClock(100, 50), SequenceIdGenerator(0, 0), default_attribute_limits(), default_record_limits())
-    span: Span = provider.get_tracer("cancel", None, None).start_span("operation", empty_context())
-    ready: Channel[int] = Channel[int](1)
-    work: Task[None] = spawn wait_for_work(span, ready)
+async def wait_on_channel(span: Span, ready: Channel[int], pending: Channel[int]) -> None:
+    try:
+        await ready.send(1)
+        value: int = await pending.recv()
+        nox.test.assert_true(False, "the empty channel must not return a value")
+    finally:
+        span.end()
+
+async def assert_cancelled(span: Span, work: Task[None], ready: Channel[int]) -> None:
     nox.test.assert_eq_int(await ready.recv(), 1, "worker entered guarded section")
     work.cancel()
     cancelled: bool = False
@@ -33,6 +37,22 @@ async def verify_cancellation() -> None:
         cancelled = True
     nox.test.assert_true(cancelled, "caller observes cancellation")
     nox.test.assert_true(span.take_snapshot() is not None, "finally ends the span before cancellation reaches the caller")
+    nox.test.assert_true(span.take_snapshot() is None, "cancellation yields at most one snapshot")
+
+async def verify_cancellation() -> None:
+    provider: RecordingTracerProvider = RecordingTracerProvider(TestClock(100, 50), SequenceIdGenerator(0, 0), default_attribute_limits(), default_record_limits())
+    span: Span = provider.get_tracer("cancel", None, None).start_span("operation", empty_context())
+    ready: Channel[int] = Channel[int](1)
+    work: Task[None] = spawn wait_for_work(span, ready)
+    task_check: Task[None] = spawn assert_cancelled(span, work, ready)
+    await task_check
+
+    receiver: Span = provider.get_tracer("cancel", None, None).start_span("channel receive", empty_context())
+    channel_ready: Channel[int] = Channel[int](1)
+    pending: Channel[int] = Channel[int](1)
+    receiving: Task[None] = spawn wait_on_channel(receiver, channel_ready, pending)
+    channel_check: Task[None] = spawn assert_cancelled(receiver, receiving, channel_ready)
+    await channel_check
 
 probe: Task[None] = spawn verify_cancellation()
 await probe

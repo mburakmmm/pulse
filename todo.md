@@ -310,7 +310,7 @@ Bağımlılık: `v0.1.0`; metrics yalnız diagnostics için opsiyonel.
 - [x] Resource ve scope ayrı kopyalarla snapshot'a bağlanıyor ve span bütçesine dahil.
 - [x] Bellek içi trace exporter, span/byte sınırı ve bağımsız snapshot kopyaları.
 - [x] Konsol trace exporter, alan allowlist'i, byte sınırı ve yeniden giriş koruması.
-- [x] Early return, yakalanan hata ve task await cancellation için `finally` cleanup testleri. Boş channel recv'de NOX deadlock'u `NOX-ASYNC-001` olarak açık.
+- [x] Early return, yakalanan hata, task await ve boş channel receive iptalinde `finally` cleanup testleri. `NOX-ASYNC-001` 2.2.70 ile doğrulandı.
 - [x] Parent ended olsa da child aynı trace ID ile başlıyor.
 - [x] `examples/hello_traces.nox` derlenen örneği.
 - [x] İlk tracing dilimi [CI run #18](https://github.com/mburakmmm/pulse/actions/runs/45118374787) ile dört platformda QBE ve LLVM üzerinde doğrulandı.
@@ -668,7 +668,7 @@ Bu liste her PR/commit için uygulanır:
 
 | Risk | Etki | Azaltma / karar kapısı | Durum |
 |---|---|---|---|
-| NOX API'leri plan metninden farklı olabilir | Compile/runtime hatası | 2.2.38 exact build-info pin + compiling smoke | Azaltıldı / upgrade başına audit |
+| NOX API'leri plan metninden farklı olabilir | Compile/runtime hatası | 2.2.70 exact build-info pin + compiling smoke | Azaltıldı / upgrade başına audit |
 | Formatter regresyonu generic veya binary kaynak semantiğini bozabilir | Kamu API kaynakları bozulur | check→fmt→check capability fixtures | Kapatıldı / regresyon kapısı aktif |
 | Pass-only class formatter gövdeyi siliyordu (`NOX-FMT-004`) | Format sonrası geçersiz kaynak | Pozitif check → format → check regresyonu | 2.2.38'de kapalı |
 | Optional float class state codegen olmuyordu (`NOX-CODEGEN-001`) | Histogram empty min/max temsili build'i durdurur | Pozitif QBE ve LLVM build regresyonu | 2.2.38'de kapalı |
@@ -777,5 +777,13 @@ Commit/tag:
 - [x] Concurrent provider ve scrape kapıları [CI run #17](https://github.com/mburakmmm/pulse/actions/runs/45024714272) ile dört platformda QBE ve LLVM üzerinde geçti. Dokuz CI işi de başarılı.
 - [ ] Canlı HTTP handler sahipliği ve join bilgisi `NOX-HTTP-005` kapsamında açık. Gerçek HTTP fixture bağımsız snapshot kullanıyor.
 - Kanıtlar [uyumluluk denetimi](docs/nox-upgrade-analysis-2.2.38.md) ve [NOX limitasyon kaydı](docs/nox-limitations.md) içinde.
+
+#### NOX 2.2.70 uyumluluk dilimi — 2026-11-25
+
+- [x] NOX pini `2.2.70` ve tam kaynak commit'ine taşındı.
+- [x] Üç upstream düzeltmesi için pozitif QBE/LLVM fixture'ları çekirdek CI'a bağlandı.
+- [x] Task-await ve boş channel-receive cancellation yollarında span cleanup doğrulandı.
+- [x] Üst düzey Optional ve bağlantı limitli HTTP `serve` davranışı tasarım sınırı olarak kayıtlı.
+- [ ] Yeni pinin çapraz platform CI sonucu kaydedilecek.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.
 - Commit/tag: uygulama commit'i `8d01f51e6d1a6adb816c0e8cf5c24ac4830f17ec`; tag yok.

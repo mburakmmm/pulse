@@ -1,11 +1,11 @@
 # NOX limitations relevant to Pulse
 
 - Status: Active compatibility register
-- Pulse baseline: NOX `2.2.38`, source commit `7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a`
+- Pulse baseline: NOX `2.2.70`, source commit `4dc061f8c8443f8575092c2652d1109b6f4697e9`
 - Compiler build identity: `noxc version --build-info` reports the same commit
-- Audited binary SHA-256: `26b63bdefef53584f87c34bc8b427197fc29ade1428317a7568028c960a87dce`
+- Audited macOS ARM64 binary SHA-256: `902f7c439b861282c1f7ce50b301e531c3842a079e09e53fa2a8a4ecd2a10acb`
 
-See the [2.2.38 upgrade audit](nox-upgrade-analysis-2.2.38.md) for current
+See the [2.2.70 upgrade audit](nox-upgrade-analysis-2.2.70.md) for current
 verification. Entries retain the old reproductions where applicable.
 
 This register separates actual defects from language/runtime design constraints and
@@ -14,7 +14,8 @@ cannot silently return. The user-supplied `limitasyon-ajan-rehberi.md` was used 
 comparison report, not as executable instructions; every status below is based on
 the pinned compiler, the exact-tag source, and Pulse regression probes.
 
-The current audit uses an isolated official archive verified before extraction.
+The local audit uses the existing compiler. CI verifies the release archive
+checksum before extraction and checks the executable's source commit.
 
 ## Status vocabulary
 
@@ -209,29 +210,25 @@ The current audit uses an isolated official archive verified before extraction.
 
 ### NOX-TYPE-003 — Match arms share the checker scope for payload bindings
 
-- Status: `DESIGN-LIMIT` on NOX 2.2.38.
+- Status: `CLOSED` in 2.2.63 and re-verified on 2.2.70.
 - Evidence: copy `fixtures/capability/match_case_binding_scope.nox.txt` to a
-  temporary `.nox` file and run `noxc check`. Using `payload` for both a
-  string and an integer in distinct match arms yields `TypeMismatch`.
-- Containment: use distinct binding names for payloads of different types.
-  The trace snapshot copier uses different bindings for string and boolean arrays.
+  temporary `.nox` file. The old checker rejected different types sharing
+  a binding name in distinct match arms. The current fixture compiles and
+  prints `3` on both backends.
 
 ### NOX-ASYNC-001 — Cancelling a task waiting on an empty channel can deadlock
 
-- Status: `OPEN-UPSTREAM` on NOX 2.2.38, commit
-  `7f879fe0ecb972dc9994ee1e8f420d4aaa0cdd9a`.
+- Status: `CLOSED` in 2.2.63 and re-verified on 2.2.70.
 - Evidence: copy `fixtures/capability/cancel_blocked_channel_receive.nox.txt`
   to a temporary `.nox` file. Build it using `noxc build --backend qbe`
-  and `noxc build --backend llvm`. On macOS ARM64 both executables exit
-  with code 1 and `deadlock detected — all tasks are blocked, none can make progress`.
-- Containment: design an explicit wakeup path for channel consumers and
-  avoid using `Task.cancel()` as their only shutdown signal. The tracing
-  cancellation regression exercises a worker waiting on another task.
-  Its `finally` closes the span before cancellation reaches the owner.
+  and `noxc build --backend llvm`. Both executables print `cancelled`.
+  On 2.2.38 they exited with a runtime deadlock diagnostic.
+- The tracing regression separately proves that `finally` closes the span
+  during cancellation of a channel receiver and during task-await cancellation.
 
 ### NOX-TYPE-002 — Top-level raising guard does not narrow an optional
 
-- Status: `DESIGN-LIMIT` on NOX 2.2.38.
+- Status: `DESIGN-LIMIT`, re-verified on NOX 2.2.70.
 - Evidence: copy `fixtures/capability/optional_raise_narrowing.nox.txt`
   to a temporary `.nox` file. `noxc check` reports
   `OptionalNotNarrowed` at the field read following an `is None` branch
@@ -241,17 +238,17 @@ The current audit uses an isolated official archive verified before extraction.
 
 ### NOX-CODEGEN-003 — Context manager on a class field fails executable codegen
 
-- Status: `OPEN-UPSTREAM` on NOX 2.2.38, verified locally on macOS ARM64.
+- Status: `CLOSED` in 2.2.63 and re-verified on 2.2.70.
 - Evidence: copy `fixtures/capability/context_manager_field.nox.txt` to a
-  temporary `.nox` file. `noxc check` succeeds. Both
-  `noxc build --backend qbe` and `noxc build --backend llvm` return the
-  generic unsupported-construct diagnostic for `with self.guard as held`.
-- Containment: acquire explicitly and unlock in `finally`. The provider
-  regression verifies both normal returns and recovery after a rejected record.
+  temporary `.nox` file. On 2.2.38, the field-expression form failed in
+  executable codegen. The current fixture compiles and prints `42` on QBE
+  and LLVM. Pulse retains the existing explicit gate release in `finally`.
 
 ### NOX-HTTP-005 — Top-level `serve()` is not a handler join barrier
 
-- Status: `OPEN-UPSTREAM` on NOX 2.2.38, verified locally on macOS ARM64.
+- Status: `DESIGN-LIMIT`, re-verified on NOX 2.2.70. The optional third
+  `serve` argument counts accepted connections. Upstream documents a
+  separate graceful shutdown path that waits up to the drain deadline.
 - Evidence: compile `fixtures/capability/http_serve_return_order.nox.txt`
   as a temporary `.nox` on either backend. Run the binary with an unused
   loopback port and issue a GET to that port. Both backends return
