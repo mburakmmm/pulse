@@ -336,6 +336,7 @@ Bağımlılık: `v0.4.0`.
 - [x] Yeni sürümlerde bilinen prefix okunuyor. Çıkış her zaman version 00.
 - [x] Extract edilen context remote, sampled bit korunuyor.
 - [x] Injection varsayılan olarak mevcut başlığı koruyor; aynı başlığın farklı case'leri çakışma sayılıyor.
+- [x] İlk traceparent dilimi [CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875) ile dört platformda doğrulandı.
 - [ ] Bounded, ordered ve validated `tracestate`.
 - [ ] Baggage parse/format, percent encode/decode ve duplicate policy.
 - [ ] Baggage key/value/entry/header limits.
@@ -784,6 +785,6 @@ Commit/tag:
 - [x] Üç upstream düzeltmesi için pozitif QBE/LLVM fixture'ları çekirdek CI'a bağlandı.
 - [x] Task-await ve boş channel-receive cancellation yollarında span cleanup doğrulandı.
 - [x] Üst düzey Optional ve bağlantı limitli HTTP `serve` davranışı tasarım sınırı olarak kayıtlı.
-- [ ] Yeni pinin çapraz platform CI sonucu kaydedilecek.
+- [x] Yeni pinin çapraz platform CI sonucu [CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875) ile tamamlandı. Dokuz iş başarılı.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.
 - Commit/tag: uygulama commit'i `8d01f51e6d1a6adb816c0e8cf5c24ac4830f17ec`; tag yok.

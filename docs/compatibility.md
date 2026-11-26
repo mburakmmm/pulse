@@ -244,6 +244,23 @@ Linux x64, Linux ARM64 and Windows x64. The independent Prometheus 3.16.0
 gate passed on Linux x64. Local trace JSON is diagnostic output. OTLP
 encoding and Collector conformance remain deferred.
 
+## Traceparent and project hook evidence
+
+The traceparent regression builds and runs under QBE and LLVM with the
+checksum-verified NOX 2.2.70 release on macOS ARM64. It checks version handling,
+invalid headers, sampled-bit normalization, remote context, duplicate header
+rejection and overwrite behavior. Tracestate and baggage stay in Phase 5.
+
+The project hook policy passed its Python unit tests and direct checks with
+RTK 1.2.1. Codex hook discovery and activation are separate from testing a
+handler directly. See [agent tooling](agent-tooling.md) for trust review.
+
+[CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875)
+passed all nine jobs for `30844e3675cda184dc2d5c766ed6b18e45104f32`.
+The traceparent and NOX framework regressions passed under QBE and LLVM
+on macOS ARM64, Linux x64, Linux ARM64 and Windows x64. The Unix capability
+jobs also passed the hook policy suite.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.

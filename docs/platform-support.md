@@ -6,12 +6,11 @@ compiler and both required backends.
 
 ## Matrix evidence
 
-The configured pin is NOX 2.2.70. The following completed matrix used
-NOX 2.2.38 and is historical evidence. NOX 2.2.38 passed all required jobs in
-[CI run #21](https://github.com/mburakmmm/pulse/actions/runs/45132965158)
-on commit `18b6be8e080e6c5654d592df212214e758c4c26b`. Each core job
-includes tracing lifecycle, metadata, cancellation, local exporter tests
-and the compiling tracing example.
+NOX 2.2.70 passed all required jobs in
+[CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875)
+on commit `30844e3675cda184dc2d5c766ed6b18e45104f32`. Each core job
+includes tracing, local exporter and traceparent tests and the NOX framework
+regressions. The Unix capability jobs include hook policy verification.
 
 | Target | Core suite | Extended capability audit | Remote evidence |
 |---|---|---|---|

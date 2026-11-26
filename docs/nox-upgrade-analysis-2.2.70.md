@@ -45,6 +45,10 @@ conformance and the remaining capability jobs. The macOS ARM64 core job
 was canceled, so the aggregate gate failed. The cross-platform audit
 requires a subsequent complete run.
 
+[CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875)
+supplies that complete run. All nine jobs passed, including both backends
+on all four core targets.
+
 The prior [2.2.38 audit](nox-upgrade-analysis-2.2.38.md) remains historical
 evidence. Runtime design constraints and pending Collector tests stay in the
 [limitation register](nox-limitations.md).
