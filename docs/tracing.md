@@ -89,3 +89,23 @@ Local in-memory and console exporters are available. See the
 [trace exporter contract](exporter-support.md#trace-exporter-contract) and
 [`hello_traces.nox`](../examples/hello_traces.nox). Sampling, processors and
 OTLP export remain open.
+
+## Traceparent propagation
+
+`tracing.traceparent` parses W3C Trace Context 2021 `traceparent` values
+and returns a remote `SpanContext`. It requires lowercase hexadecimal
+fields and nonzero IDs. Version `00` is exactly 55 bytes, and `ff` is
+invalid. For newer versions Pulse reads the known prefix and ignores
+extensions after a dash. The entire input is capped at 512 bytes. The
+formatter outputs version `00` and only emits the sampled bit.
+
+`extract_traceparent(headers)` looks up the header case-insensitively.
+`inject_traceparent(context, headers, overwrite=False)` keeps existing
+headers unless explicitly asked to replace a single matching entry. It
+preserves the spelling when replacing an entry. Both operations reject
+ambiguous case-variant duplicates. The carrier is limited to 256 entries.
+An invalid or absent header returns no parent. Injection of an invalid
+context raises `TelemetryError` before mutation.
+
+This slice covers `traceparent`. Tracestate and baggage remain open.
+See the [pinned W3C specification](https://www.w3.org/TR/2021/REC-trace-context-1-20211123/).

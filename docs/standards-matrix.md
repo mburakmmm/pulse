@@ -8,7 +8,7 @@ Status: Standards selected on 2026-11-07; NOX baseline refreshed and locally ver
 | OpenTelemetry specification | `v1.62.0`, `18c5c1706e346fec3bdb5e135a6e3a78f461e586` | API/SDK semantics and Prometheus unit translation | Pinned; metric-name unit table/rate/annotation rules implemented |
 | OTLP protocol/protobuf | `v1.11.1`, `b3f75588eb23c5fca62264edd05d382de49beb1a` | Traces and metrics encoding | Pinned; schema checksum pending |
 | OpenTelemetry semantic conventions | `v1.45.0`, `fb30ca17193b551473b1f43c315482918ab6987c` | HTTP/DB/resource attributes | Pinned |
-| W3C Trace Context | Recommendation, 23 November 2021 | `traceparent`, `tracestate` | Pinned; fixtures pending |
+| W3C Trace Context | Recommendation, 23 November 2021 | `traceparent`, `tracestate` | Traceparent parser, formatter and header adapter tested. Tracestate pending. |
 | W3C Baggage | Candidate Recommendation Snapshot, 30 May 2024 | Baggage propagation | Pinned with maturity disclosed; fixtures pending |
 | Prometheus text exposition | `0.0.4` | Metrics renderer | Pinned |
 | Prometheus validation tool | `v3.16.0`, `e2e28adeee2c5883d000fc82aca6008cfbf7e96d` | Independent text parser | Pinned; checksum-verified promtool golden gate passes |

@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/hooks/codex_policy.py\" rules", "timeout": 10}]}
+    ],
+    "SubagentStart": [
+      {"hooks": [{"type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/hooks/codex_policy.py\" rules", "timeout": 10}]}
+    ],
+    "PostCompact": [
+      {"hooks": [{"type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/hooks/codex_policy.py\" compact", "timeout": 10}]}
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|Grep|Glob|Read|mcp__.*__(read_file|list_directory|search_files))$",
+        "hooks": [{"type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/hooks/codex_policy.py\" pre", "timeout": 15}]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Bash|Grep|Glob|Read|mcp__.*__(read_file|list_directory|search_files))$",
+        "hooks": [{"type": "command", "command": "python3 \"$(git rev-parse --show-toplevel)/scripts/hooks/codex_policy.py\" post", "timeout": 10}]
+      }
+    ]
+  }
+}

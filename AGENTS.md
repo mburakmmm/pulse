@@ -10,6 +10,14 @@
 
 ---
 
+## Agent tool discipline
+
+Use RTK for supported terminal commands in Pulse. Use `rtk bypass` when
+condensed output is unusable or verification requires exact bytes. Keep
+searches and reads targeted. Use the project graph when an index is available.
+These rules apply to root and delegated Codex agents. The project hooks and
+their trust setup are documented in [agent tooling](docs/agent-tooling.md).
+
 ## 0. Mission
 
 Build **Pulse**, the framework-independent observability library for NOX. Its original role is a Prometheus-client-like metrics/performance library; extend it to production-grade **OpenTelemetry-compatible traces, metrics and exporters**, with a clean bridge to **Obsidian** structured logging.

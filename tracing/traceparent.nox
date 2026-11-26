@@ -1,0 +1,86 @@
+import nox.bytes
+import nox.strings
+from api.context import SpanContext, TraceFlags
+from core.errors import TelemetryError
+from core.ids import SpanId, TraceId, hex_nibble, is_lower_hex
+
+def is_hex_byte(value: int) -> bool:
+    return value >= 48 and value <= 57 or value >= 97 and value <= 102
+
+def read_hex_pair(header: str, offset: int) -> int:
+    first: int = nox.strings.byte_at(header, offset)
+    second: int = nox.strings.byte_at(header, offset + 1)
+    if not is_hex_byte(first) or not is_hex_byte(second):
+        return -1
+    return hex_nibble(first) * 16 + hex_nibble(second)
+
+def read_identifier(header: str, offset: int, width: int) -> str:
+    bytes: list[int] = []
+    for index in range(offset, offset + width):
+        bytes.append(nox.strings.byte_at(header, index))
+    return nox.bytes.str_from_list(bytes)
+
+def parse_traceparent(header: str) -> SpanContext | None:
+    length: int = nox.strings.byte_len(header)
+    if length < 55 or length > 512:
+        return None
+    if nox.strings.byte_at(header, 2) != 45 or nox.strings.byte_at(header, 35) != 45 or nox.strings.byte_at(header, 52) != 45:
+        return None
+    version: int = read_hex_pair(header, 0)
+    if version < 0 or version == 255:
+        return None
+    if length > 55 and (version == 0 or nox.strings.byte_at(header, 55) != 45):
+        return None
+    flag_byte: int = read_hex_pair(header, 53)
+    if flag_byte < 0:
+        return None
+    trace_id: str = read_identifier(header, 3, 32)
+    parent_id: str = read_identifier(header, 36, 16)
+    if not is_lower_hex(trace_id, 16) or not is_lower_hex(parent_id, 8):
+        return None
+    flags: TraceFlags = TraceFlags.Default
+    if flag_byte % 2 == 1:
+        flags = TraceFlags.Sampled
+    return SpanContext(TraceId(trace_id), SpanId(parent_id), flags, "", True)
+
+def format_traceparent(context: SpanContext) -> str:
+    trace_id: str = context.trace_id.value
+    span_id: str = context.span_id.value
+    if not is_lower_hex(trace_id, 16) or not is_lower_hex(span_id, 8):
+        raise TelemetryError("invalid traceparent identifiers")
+    flags: str = "00"
+    match context.trace_flags:
+        case TraceFlags.Sampled:
+            flags = "01"
+        case _:
+            pass
+    return "00-" + trace_id + "-" + span_id + "-" + flags
+
+def extract_traceparent(headers: dict[str, str]) -> SpanContext | None:
+    if len(headers) > 256:
+        return None
+    found: str = ""
+    for key in headers:
+        if nox.strings.eq_ignore_case(key, "traceparent"):
+            if found != "":
+                return None
+            found = key
+    if found == "":
+        return None
+    return parse_traceparent(headers[found])
+
+def inject_traceparent(context: SpanContext, headers: dict[str, str], overwrite: bool = False) -> bool:
+    if len(headers) > 256:
+        return False
+    found: str = ""
+    for key in headers:
+        if nox.strings.eq_ignore_case(key, "traceparent"):
+            if not overwrite or found != "":
+                return False
+            found = key
+    if found == "":
+        if len(headers) == 256:
+            return False
+        found = "traceparent"
+    headers[found] = format_traceparent(context)
+    return True

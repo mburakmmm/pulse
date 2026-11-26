@@ -159,6 +159,10 @@ jobs:
           test "$(noxc --version 2>&1)" = "noxc ${NOX_VERSION#v}"
           noxc version --build-info | grep -Fx "commit: ${NOX_COMMIT}"
 
+      - name: Verify Codex hook policy
+        shell: bash
+        run: python3 -m unittest discover -s scripts/hooks -p 'test_*.py'
+
       - name: Runtime divergence audit
         shell: bash
         run: |

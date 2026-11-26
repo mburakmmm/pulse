@@ -330,12 +330,12 @@ Amaç: Güvenilmeyen taşıyıcılarda standart uyumlu, bounded ve açık contex
 
 Bağımlılık: `v0.4.0`.
 
-- [ ] Case-insensitive carrier interface; caller header spelling korunumu.
-- [ ] `traceparent` strict parser ve lowercase formatter.
-- [ ] Version, separator, length, hex, flags ve all-zero kontrolleri.
-- [ ] Unknown version davranışı pinned W3C spec'e uygun.
-- [ ] Remote/local context ve sampled flag korunumu.
-- [ ] Inject overwrite politikası açık ve default-safe.
+- [x] `traceparent` için case-insensitive header adapter ve caller header spelling korunumu.
+- [x] `traceparent` strict parser ve lowercase formatter.
+- [x] Version, separator, length, hex, flags ve all-zero kontrolleri.
+- [x] Yeni sürümlerde bilinen prefix okunuyor. Çıkış her zaman version 00.
+- [x] Extract edilen context remote, sampled bit korunuyor.
+- [x] Injection varsayılan olarak mevcut başlığı koruyor; aynı başlığın farklı case'leri çakışma sayılıyor.
 - [ ] Bounded, ordered ve validated `tracestate`.
 - [ ] Baggage parse/format, percent encode/decode ve duplicate policy.
 - [ ] Baggage key/value/entry/header limits.

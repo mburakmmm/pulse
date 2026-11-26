@@ -6,6 +6,9 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ### Added
 
+- Bounded W3C `traceparent` parsing, formatting and case-insensitive header injection.
+- Pulse-scoped Codex hooks for RTK enforcement, graph-aware discovery and subagent guidance.
+
 - Bounded in-memory trace snapshots and allowlisted JSON console summaries with
   typed failures, defensive reads and one-shot ended-span export.
 

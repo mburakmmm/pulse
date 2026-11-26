@@ -1,0 +1,6 @@
+.git/
+.nox/
+artifacts/
+graphify-out/
+__pycache__/
+nox-lang-v*/

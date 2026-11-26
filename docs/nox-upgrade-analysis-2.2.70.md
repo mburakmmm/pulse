@@ -40,7 +40,10 @@ test also passed 20 repeated runs per backend with `NOX_POOL_WORKERS=4`.
 [CI run #22](https://github.com/mburakmmm/pulse/actions/runs/45588887236)
 targets all four platforms at Pulse commit
 `4921d3f619a191b57a515e236e13747df82de426`. Windows x64 core and the Linux
-ARM64 capability job passed. The run link tracks the remaining matrix jobs.
+ARM64 capability job passed alongside the Linux core jobs, Prometheus
+conformance and the remaining capability jobs. The macOS ARM64 core job
+was canceled, so the aggregate gate failed. The cross-platform audit
+requires a subsequent complete run.
 
 The prior [2.2.38 audit](nox-upgrade-analysis-2.2.38.md) remains historical
 evidence. Runtime design constraints and pending Collector tests stay in the

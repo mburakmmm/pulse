@@ -1,0 +1,53 @@
+import nox.strings
+import nox.test
+from api.context import SpanContext, TraceFlags
+from core.errors import TelemetryError
+from core.ids import SpanId, TraceId
+from tracing.traceparent import extract_traceparent, format_traceparent, inject_traceparent, parse_traceparent
+
+trace_id: str = "4bf92f3577b34da6a3ce929d0e0e4736"
+span_id: str = "00f067aa0ba902b7"
+identifiers: str = trace_id + "-" + span_id
+sampled: str = "00-" + identifiers + "-01"
+
+def assert_parses(header: str, expected: str) -> None:
+    context: SpanContext | None = parse_traceparent(header)
+    if context is not None:
+        nox.test.assert_true(context.remote, "wire context is remote")
+        nox.test.assert_eq_str(format_traceparent(context), expected, "normalized version 00 wire value")
+    else:
+        nox.test.assert_true(False, "expected W3C wire value to parse")
+
+assert_parses(sampled, sampled)
+assert_parses("00-" + identifiers + "-02", "00-" + identifiers + "-00")
+assert_parses("00-" + identifiers + "-ff", sampled)
+assert_parses("01-" + identifiers + "-03-uninterpreted", sampled)
+assert_parses("01-" + identifiers + "-01-" + nox.strings.repeat("x", 456), sampled)
+assert_parses("fe-" + identifiers + "-02", "00-" + identifiers + "-00")
+
+invalid: list[str] = ["", sampled + "-extra", "ff-" + identifiers + "-01", "G0-" + identifiers + "-01", "00_" + identifiers + "-01", "00-" + trace_id + "_" + span_id + "-01", "00-" + identifiers + "_01", "00-" + identifiers + "-0", "00-" + identifiers + "-g1", "00-" + trace_id.upper() + "-" + span_id + "-01", "00-" + nox.strings.repeat("0", 32) + "-" + span_id + "-01", "00-" + trace_id + "-" + nox.strings.repeat("0", 16) + "-01", "01-" + identifiers + "-01suffix", sampled + " ", " " + sampled, "01-" + identifiers + "-01-" + nox.strings.repeat("x", 457)]
+for value in invalid:
+    nox.test.assert_true(parse_traceparent(value) is None, "malformed header is rejected")
+
+local_context: SpanContext = SpanContext(TraceId(trace_id), SpanId(span_id), TraceFlags.Default, "", False)
+assert_parses(format_traceparent(local_context), "00-" + identifiers + "-00")
+headers: dict[str, str] = {"TraceParent": sampled, "Authorization": "opaque"}
+nox.test.assert_true(extract_traceparent(headers) is not None, "header matching ignores casing")
+nox.test.assert_true(not inject_traceparent(local_context, headers), "default injection refuses to overwrite")
+nox.test.assert_eq_str(headers["TraceParent"], sampled, "refusal leaves the original unchanged")
+nox.test.assert_true(inject_traceparent(local_context, headers, True), "explicit overwrite succeeds")
+nox.test.assert_eq_str(headers["TraceParent"], format_traceparent(local_context), "overwrite preserves header spelling")
+nox.test.assert_eq_str(headers["Authorization"], "opaque", "unrelated headers are left alone")
+headers["traceparent"] = sampled
+nox.test.assert_true(extract_traceparent(headers) is None, "case-variant duplicate headers are ambiguous")
+nox.test.assert_true(not inject_traceparent(local_context, headers, True), "duplicates cannot be overwritten")
+empty: dict[str, str] = {}
+nox.test.assert_true(inject_traceparent(local_context, empty), "a missing header can be added")
+nox.test.assert_true("traceparent" in empty, "new header uses canonical spelling")
+local_context.span_id.value = "0000000000000000"
+invalid_format: bool = False
+try:
+    format_traceparent(local_context)
+except TelemetryError as error:
+    invalid_format = True
+nox.test.assert_true(invalid_format, "formatter validates caller-edited identifiers")
