@@ -249,7 +249,7 @@ encoding and Collector conformance remain deferred.
 The traceparent regression builds and runs under QBE and LLVM with the
 checksum-verified NOX 2.2.70 release on macOS ARM64. It checks version handling,
 invalid headers, sampled-bit normalization, remote context, duplicate header
-rejection and overwrite behavior. Tracestate and baggage stay in Phase 5.
+rejection and overwrite behavior.
 
 The project hook policy passed its Python unit tests and direct checks with
 RTK 1.2.1. Codex hook discovery and activation are separate from testing a
@@ -260,6 +260,18 @@ passed all nine jobs for `30844e3675cda184dc2d5c766ed6b18e45104f32`.
 The traceparent and NOX framework regressions passed under QBE and LLVM
 on macOS ARM64, Linux x64, Linux ARM64 and Windows x64. The Unix capability
 jobs also passed the hook policy suite.
+
+## Tracestate evidence
+
+The paired W3C propagator and bounded tracestate parser passed regression tests
+under QBE and LLVM on macOS ARM64 with the checksum-verified NOX 2.2.70 release.
+The tests cover grammar, ordering, limits, preservation of a valid parent on
+invalid state, duplicate fields and atomic injection on carrier overflow.
+
+[CI run #24](https://github.com/mburakmmm/pulse/actions/runs/46146922607)
+passed all nine jobs for `ba5faccf1204a527fcb6c9b920eace5ac76f58fe`.
+The portable suite exercised QBE and LLVM on macOS ARM64, Linux x64,
+Linux ARM64 and Windows x64.
 
 ## Remaining audit work
 

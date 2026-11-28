@@ -338,6 +338,7 @@ Bağımlılık: `v0.4.0`.
 - [x] Injection varsayılan olarak mevcut başlığı koruyor; aynı başlığın farklı case'leri çakışma sayılıyor.
 - [x] İlk traceparent dilimi [CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875) ile dört platformda doğrulandı.
 - [x] Bounded, ordered ve validated `tracestate`. Geçersiz state parent'ı düşürmez. İki başlık birlikte aktarılır.
+- [x] `tracestate` [CI run #24](https://github.com/mburakmmm/pulse/actions/runs/46146922607) ile dört platformda QBE ve LLVM üzerinde doğrulandı. Dokuz iş başarılı.
 - [ ] Baggage parse/format, percent encode/decode ve duplicate policy.
 - [ ] Baggage key/value/entry/header limits.
 - [ ] Trust boundary için baggage disable/sanitize politikası.
