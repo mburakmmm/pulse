@@ -60,7 +60,7 @@ def normalize_tracestate(header: str) -> str | None:
     normalized: list[str] = []
     for raw in members:
         member: str = trim_member(raw)
-        if member == "":
+        if nox.strings.byte_len(member) == 0:
             continue
         pair: list[str] = nox.strings.split(member, "=")
         if len(pair) != 2:

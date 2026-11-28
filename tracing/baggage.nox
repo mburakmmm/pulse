@@ -1,0 +1,187 @@
+import nox.bytes
+import nox.strings
+from core.ids import hex_nibble
+from tracing.tracestate import trim_member
+
+class BaggageProperty:
+    key: str
+    value: str | None
+
+    def __init__(self, key: str, value: str | None) -> None:
+        self.key = key
+        self.value = value
+
+class BaggageEntry:
+    key: str
+    value: str
+    properties: list[BaggageProperty]
+
+    def __init__(self, key: str, value: str, properties: list[BaggageProperty]) -> None:
+        self.key = key
+        self.value = value
+        self.properties = properties
+
+def valid_token(key: str) -> bool:
+    length: int = nox.strings.byte_len(key)
+    if length == 0 or length > 8192:
+        return False
+    for index in range(length):
+        byte: int = nox.strings.byte_at(key, index)
+        if byte >= 48 and byte <= 57 or byte >= 65 and byte <= 90 or byte >= 97 and byte <= 122:
+            continue
+        if byte < 33 or byte > 126 or not nox.strings.contains("!#$%&'*+-.^`_|~", nox.strings.char_from_byte(byte)):
+            return False
+    return True
+
+def is_baggage_octet(byte: int) -> bool:
+    return byte >= 33 and byte <= 126 and byte != 34 and byte != 44 and byte != 59 and byte != 92
+
+def percent_nibble(byte: int) -> int:
+    if byte >= 65 and byte <= 70:
+        return byte - 55
+    if byte >= 48 and byte <= 57 or byte >= 97 and byte <= 102:
+        return hex_nibble(byte)
+    return -1
+
+def utf8_width(lead: int) -> int:
+    if lead < 128:
+        return 1
+    if lead >= 194 and lead <= 223:
+        return 2
+    if lead >= 224 and lead <= 239:
+        return 3
+    if lead >= 240 and lead <= 244:
+        return 4
+    return 0
+
+def valid_second_byte(lead: int, byte: int) -> bool:
+    # Reject overlong encodings, surrogate code points and values above U+10FFFF.
+    return not (lead == 224 and byte < 160 or lead == 237 and byte > 159 or lead == 240 and byte < 144 or lead == 244 and byte > 143)
+
+def repair_utf8(raw: list[int]) -> str:
+    repaired: list[int] = []
+    index: int = 0
+    while index < len(raw):
+        lead: int = raw[index]
+        width: int = utf8_width(lead)
+        consumed: int = 1
+        while consumed < width and index + consumed < len(raw):
+            byte: int = raw[index + consumed]
+            if byte < 128 or byte > 191 or consumed == 1 and not valid_second_byte(lead, byte):
+                break
+            consumed += 1
+        if consumed == width:
+            for part in range(index, index + width):
+                repaired.append(raw[part])
+        else:
+            repaired.append(239)
+            repaired.append(191)
+            repaired.append(189)
+        index += consumed
+    return nox.bytes.str_from_list(repaired)
+
+def decode_baggage_value(wire: str) -> str | None:
+    length: int = nox.strings.byte_len(wire)
+    decoded: list[int] = []
+    index: int = 0
+    while index < length:
+        byte: int = nox.strings.byte_at(wire, index)
+        if not is_baggage_octet(byte):
+            return None
+        if byte == 37:
+            if index + 2 >= length:
+                return None
+            high: int = percent_nibble(nox.strings.byte_at(wire, index + 1))
+            low: int = percent_nibble(nox.strings.byte_at(wire, index + 2))
+            if high < 0 or low < 0:
+                return None
+            decoded.append(high * 16 + low)
+            index += 3
+        else:
+            decoded.append(byte)
+            index += 1
+    return repair_utf8(decoded)
+
+def encode_baggage_value(value: str) -> str:
+    encoded: list[int] = []
+    digits: str = "0123456789ABCDEF"
+    for index in range(nox.strings.byte_len(value)):
+        byte: int = nox.strings.byte_at(value, index)
+        if is_baggage_octet(byte) and byte != 37:
+            encoded.append(byte)
+        else:
+            encoded.append(37)
+            encoded.append(nox.strings.byte_at(digits, byte // 16))
+            encoded.append(nox.strings.byte_at(digits, byte % 16))
+    return nox.bytes.str_from_list(encoded)
+
+def parse_baggage_field(field: str, value_required: bool) -> BaggageProperty | None:
+    pair: list[str] = nox.strings.splitn(field, "=", 2)
+    key: str = trim_member(pair[0])
+    if not valid_token(key):
+        return None
+    if len(pair) == 1:
+        if value_required:
+            return None
+        return BaggageProperty(key, None)
+    decoded: str | None = decode_baggage_value(trim_member(pair[1]))
+    if decoded is None:
+        return None
+    return BaggageProperty(key, decoded)
+
+def parse_baggage(header: str) -> list[BaggageEntry] | None:
+    entries: list[BaggageEntry] = []
+    if nox.strings.byte_len(header) > 8192:
+        return None
+    if nox.strings.byte_len(trim_member(header)) == 0:
+        return entries
+    members: list[str] = nox.strings.split(header, ",")
+    if len(members) > 64:
+        return None
+    for member in members:
+        fields: list[str] = nox.strings.split(member, ";")
+        primary: BaggageProperty | None = parse_baggage_field(fields[0], True)
+        if primary is None:
+            return None
+        value: str | None = primary.value
+        if value is None:
+            return None
+        properties: list[BaggageProperty] = []
+        for index in range(1, len(fields)):
+            property: BaggageProperty | None = parse_baggage_field(fields[index], False)
+            if property is None:
+                return None
+            properties.append(property)
+        entries.append(BaggageEntry(primary.key, value, properties))
+    return entries
+
+def format_baggage(entries: list[BaggageEntry]) -> str | None:
+    if len(entries) > 64:
+        return None
+    parts: list[str] = []
+    size: int = 0
+    for entry in entries:
+        if not valid_token(entry.key) or nox.strings.byte_len(entry.value) > 8192 or len(entry.properties) > 8192:
+            return None
+        if size > 0:
+            parts.append(",")
+            size += 1
+        pair: str = entry.key + "=" + encode_baggage_value(entry.value)
+        size += nox.strings.byte_len(pair)
+        if size > 8192:
+            return None
+        parts.append(pair)
+        for property in entry.properties:
+            if not valid_token(property.key):
+                return None
+            field: str = ";" + property.key
+            value: str | None = property.value
+            if value is not None:
+                if nox.strings.byte_len(value) > 8192:
+                    return None
+                field = field + "=" + encode_baggage_value(value)
+            size += nox.strings.byte_len(field)
+            if size > 8192:
+                return None
+            parts.append(field)
+    return nox.strings.join(parts, "")

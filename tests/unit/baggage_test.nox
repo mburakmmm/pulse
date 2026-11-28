@@ -1,0 +1,82 @@
+import nox.strings
+import nox.test
+from core.errors import TelemetryError
+from tracing.baggage import BaggageEntry, BaggageProperty, format_baggage, parse_baggage
+from tracing.propagators import extract_baggage, inject_baggage
+
+def parsed(wire: str) -> list[BaggageEntry]:
+    entries: list[BaggageEntry] | None = parse_baggage(wire)
+    if entries is not None:
+        return entries
+    raise TelemetryError("expected valid baggage")
+
+def formatted(entries: list[BaggageEntry]) -> str:
+    wire: str | None = format_baggage(entries)
+    if wire is not None:
+        return wire
+    raise TelemetryError("expected encodable baggage")
+
+def property_value(property: BaggageProperty) -> str:
+    value: str | None = property.value
+    if value is not None:
+        return value
+    raise TelemetryError("expected a valued property")
+
+wire: str = "  route = EU%20west;flag;note = a=b;empty=,route=other,empty=,bang!=%25+ "
+entries: list[BaggageEntry] = parsed(wire)
+nox.test.assert_eq_int(len(entries), 4, "ordered duplicates are preserved by the codec")
+nox.test.assert_eq_str(entries[0].key, "route", "token whitespace is removed")
+nox.test.assert_eq_str(entries[0].value, "EU west", "escaped whitespace is decoded")
+nox.test.assert_true(entries[0].properties[0].value is None, "bare property has no value")
+nox.test.assert_eq_str(property_value(entries[0].properties[1]), "a=b", "equal signs within values are data")
+nox.test.assert_eq_str(property_value(entries[0].properties[2]), "", "empty property value differs from absent")
+nox.test.assert_eq_str(formatted(entries), "route=EU%20west;flag;note=a=b;empty=,route=other,empty=,bang!=%25+", "canonical formatting retains metadata and ordering")
+nox.test.assert_eq_int(len(parsed("\t ")), 0, "empty carrier value represents no baggage")
+
+for sample in ["", "abc=123+", "Amélie 😀", "x,y;z %", "\"quote\"\\\n\r\t" + chr(0)]:
+    object_entries: list[BaggageEntry] = [BaggageEntry("test", sample, [BaggageProperty("meta", sample)])]
+    serialized: str = formatted(object_entries)
+    roundtrip: BaggageEntry = parsed(serialized)[0]
+    nox.test.assert_eq_int(nox.strings.byte_len(roundtrip.value), nox.strings.byte_len(sample), "round-trip keeps the byte length")
+    for index in range(nox.strings.byte_len(sample)):
+        nox.test.assert_eq_int(nox.strings.byte_at(roundtrip.value, index), nox.strings.byte_at(sample, index), "percent round-trip keeps each byte")
+        nox.test.assert_eq_int(nox.strings.byte_at(property_value(roundtrip.properties[0]), index), nox.strings.byte_at(sample, index), "property values round-trip")
+    nox.test.assert_eq_str(formatted(parsed(serialized)), serialized, "canonical form is idempotent")
+
+nox.test.assert_eq_str(parsed("k=%e2%82,%7E=+")[0].value, "�", "truncated UTF-8 is repaired by maximal subpart")
+nox.test.assert_eq_str(parsed("k=%ED%A0%80%80%F4%90%80%80")[0].value, "��������", "surrogate and out-of-range UTF-8 are repaired")
+nox.test.assert_eq_str(parsed("k=%C3%A9%2C%3B")[0].value, "é,;", "escaped separators are data")
+
+for bad in [",", "a", "=x", "a=x,", "a=x,,b=y", "a=x;", "a=x;=y", "a=x;bad key", "a= x y", "a=x\r\n", "a=é", "a=x\\y", "a=%", "a=%3", "a=%ZZ", chr(0) + "=x"]:
+    nox.test.assert_true(parse_baggage(bad) is None, "invalid syntax is rejected")
+
+max_value: str = nox.strings.repeat("v", 8190)
+max_wire: str = "k=" + max_value
+nox.test.assert_eq_int(nox.strings.byte_len(formatted(parsed(max_wire))), 8192, "8192-byte header round-trips")
+nox.test.assert_true(parse_baggage(max_wire + "v") is None, "oversize header is rejected")
+nox.test.assert_true(format_baggage([BaggageEntry("k", max_value + "v", [])]) is None, "oversize wire output is rejected")
+max_key: str = nox.strings.repeat("k", 8191)
+nox.test.assert_eq_int(nox.strings.byte_len(formatted(parsed(max_key + "="))), 8192, "key can use the remaining wire budget")
+max_members: str = nox.strings.repeat("k=v,", 63) + "k=v"
+nox.test.assert_eq_int(len(parsed(max_members)), 64, "64 members fit even with duplicate keys")
+nox.test.assert_true(parse_baggage(max_members + ",k=v") is None, "65 members are rejected")
+
+incoming: dict[str, str] = {"BAGGAGE": wire}
+nox.test.assert_true(extract_baggage(incoming) is not None, "header name is case-insensitive")
+incoming["baggage"] = "secret=opaque"
+nox.test.assert_true(extract_baggage(incoming) is None, "ambiguous field order is rejected")
+outgoing: dict[str, str] = {"Baggage": "old=value", "baggage": "more=value", "Authorization": "unchanged"}
+nox.test.assert_true(inject_baggage(entries, outgoing), "default policy strips pre-existing baggage")
+nox.test.assert_true("baggage" not in outgoing and "Baggage" not in outgoing, "disabled propagation removes every spelling")
+nox.test.assert_true(inject_baggage(entries, outgoing, ["route"]), "an explicit destination allowlist enables forwarding")
+nox.test.assert_eq_str(outgoing["baggage"], "route=EU%20west", "forwarding strips properties and keeps first allowed key")
+nox.test.assert_eq_str(outgoing["Authorization"], "unchanged", "other headers are preserved")
+nox.test.assert_true(inject_baggage(entries, outgoing, ["Route"]), "allowlist keys are case-sensitive")
+nox.test.assert_true("baggage" not in outgoing, "nonmatching destination policy removes stale baggage")
+nox.test.assert_true(not inject_baggage(entries, outgoing, ["route" + chr(0) + "x"]), "invalid allowlist tokens are rejected before comparison")
+
+full: dict[str, str] = {}
+for index in range(256):
+    full["h" + str(index)] = "v"
+nox.test.assert_true(not inject_baggage(entries, full, ["route"]), "carrier count is enforced")
+nox.test.assert_eq_int(len(full), 256, "capacity failure leaves carrier intact")

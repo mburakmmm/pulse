@@ -27,6 +27,22 @@ checksum before extraction and checks the executable's source commit.
 
 ## Regressions re-evaluated on the current pin
 
+### NOX-STR-001 — String equality treats NUL as end of string
+
+- Status: `OPEN-UPSTREAM` on the Pulse pin 2.2.70. The isolated reproducer
+  passes on the installed NOX 2.2.107
+  (`37e80cf9f0e273da4f612da0bb1f1c01c9473c6f`).
+- Evidence: copy `fixtures/capability/nul_string_comparison.nox.txt` to a
+  temporary `.nox` file, build with `noxc build --backend qbe` and repeat
+  with `--backend llvm`. On macOS ARM64, both 2.2.70 executables report
+  byte length `3` followed by `True` for equality to an empty string.
+  Both 2.2.107 executables report `3` followed by `False`.
+- Pulse containment: inspect byte length when recognizing empty W3C header
+  members and reject NUL bytes in tokens before comparing baggage keys.
+  The Baggage and tracestate regressions cover NUL-prefixed members.
+- Close when: the compiler pin advances and both backends pass the probe in
+  the supported platform matrix.
+
 ### NOX-FMT-004 — Formatter removes the body of a pass-only class
 
 - Status: `CLOSED` on 2.2.38. The check → format → check regression passes.

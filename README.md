@@ -34,7 +34,7 @@ is now in `v0.3.0`, beginning with a bounded Prometheus text renderer.
 | In-memory and console metric exporters | Experimental, bounded and tested on QBE + LLVM |
 | Prometheus exposition | Experimental text 0.0.4 renderer with pinned unit suffixes + pure scrape handler; real QBE/LLVM HTTP integration and promtool 3.16.0 pass, listener remains application-owned |
 | Tracing | Experimental parent context, span kinds, status, events, links and bounded local snapshots |
-| W3C propagation | Experimental `traceparent` and bounded `tracestate` propagation. Baggage planned. |
+| W3C propagation | Experimental `traceparent`, bounded `tracestate`, and opt-in Baggage forwarding by destination allowlist. |
 | OTLP/HTTP traces and metrics | Planned for `v0.7.0`–`v0.8.0` |
 | Concurrent recording provider | Experimental bounded gate, consistent snapshots and explicit post-join close |
 

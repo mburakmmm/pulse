@@ -1,0 +1,5 @@
+import nox.strings
+
+value: str = chr(0) + "=x"
+print(nox.strings.byte_len(value))
+print(value == "")

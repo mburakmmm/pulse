@@ -339,9 +339,10 @@ Bağımlılık: `v0.4.0`.
 - [x] İlk traceparent dilimi [CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875) ile dört platformda doğrulandı.
 - [x] Bounded, ordered ve validated `tracestate`. Geçersiz state parent'ı düşürmez. İki başlık birlikte aktarılır.
 - [x] `tracestate` [CI run #24](https://github.com/mburakmmm/pulse/actions/runs/46146922607) ile dört platformda QBE ve LLVM üzerinde doğrulandı. Dokuz iş başarılı.
-- [ ] Baggage parse/format, percent encode/decode ve duplicate policy.
-- [ ] Baggage key/value/entry/header limits.
-- [ ] Trust boundary için baggage disable/sanitize politikası.
+- [x] Baggage parse/format, percent encode/decode ve duplicate policy. Codec sırayı korur, hedefe iletim ilk izinli değeri kullanır.
+- [x] Baggage 64 üye ve 8192 bayt sınırı. Anahtar ve değerler ortak bayt bütçesine tabidir.
+- [x] Trust boundary için varsayılan kapalı iletim ve hedefe özel anahtar allowlist'i. Üye properties iletilmez.
+- [x] NUL karşılaştırması [NOX-STR-001](docs/nox-limitations.md#nox-str-001--string-equality-treats-nul-as-end-of-string) olarak kaydedildi. 2.2.70'te yeniden üretildi, yerel 2.2.107'de iki backend geçti.
 - [ ] Malformed/oversized headers fuzz ve security testleri.
 - [ ] Resmî W3C fixtures ve parse(format(x)) property testi.
 - [ ] İki eşzamanlı istekte context cross-contamination testi.

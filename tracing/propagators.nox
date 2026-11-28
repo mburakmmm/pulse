@@ -1,5 +1,6 @@
 import nox.strings
 from api.context import SpanContext
+from tracing.baggage import BaggageEntry, format_baggage, parse_baggage, valid_token
 from tracing.traceparent import extract_traceparent, format_traceparent
 from tracing.tracestate import normalize_tracestate
 
@@ -39,9 +40,11 @@ def inject_trace_context(context: SpanContext, headers: dict[str, str], overwrit
     state: str = ""
     if normalized is not None:
         state = normalized
-    if parent_key != "" and headers[parent_key] == parent:
-        # A pass-through parent must keep its original tracestate.
-        return True
+    if parent_key != "":
+        previous_parent: str = headers[parent_key]
+        if nox.strings.byte_len(previous_parent) == nox.strings.byte_len(parent) and previous_parent == parent:
+            # A pass-through parent must keep its original tracestate.
+            return True
     final_size: int = len(headers)
     if parent_key == "":
         final_size += 1
@@ -60,4 +63,46 @@ def inject_trace_context(context: SpanContext, headers: dict[str, str], overwrit
     elif state_key != "":
         del headers[state_key]
     headers[parent_key] = parent
+    return True
+
+def extract_baggage(headers: dict[str, str]) -> list[BaggageEntry] | None:
+    if len(headers) > 256:
+        return None
+    key: str | None = find_header(headers, "baggage")
+    if key is None:
+        return None
+    if key == "":
+        return []
+    return parse_baggage(headers[key])
+
+def inject_baggage(entries: list[BaggageEntry], headers: dict[str, str], allowed_keys: list[str] | None = None) -> bool:
+    if len(headers) > 256:
+        return False
+    existing: list[str] = []
+    for key in headers:
+        if nox.strings.eq_ignore_case(key, "baggage"):
+            existing.append(key)
+    wire: str = ""
+    if allowed_keys is not None and len(allowed_keys) > 0:
+        if len(entries) > 64 or len(allowed_keys) > 64:
+            return False
+        for key in allowed_keys:
+            if not valid_token(key):
+                return False
+        selected: list[BaggageEntry] = []
+        seen: dict[str, bool] = {}
+        for entry in entries:
+            if entry.key in allowed_keys and entry.key not in seen:
+                selected.append(BaggageEntry(entry.key, entry.value, []))
+                seen[entry.key] = True
+        formatted: str | None = format_baggage(selected)
+        if formatted is None:
+            return False
+        wire = formatted
+    if wire != "" and len(headers) - len(existing) >= 256:
+        return False
+    for key in existing:
+        del headers[key]
+    if wire != "":
+        headers["baggage"] = wire
     return True

@@ -125,6 +125,34 @@ overwrite preserves header spelling, rejects ambiguous entries, and removes
 stale tracestate if a new parent has no valid state. A byte-identical
 traceparent leaves existing state untouched, including its original spacing.
 The operation checks carrier capacity before writing. This SDK does not log
-opaque state values. Baggage remains open.
+opaque state values.
 
 See the [pinned W3C specification](https://www.w3.org/TR/2021/REC-trace-context-1-20211123/#tracestate-header).
+
+## W3C Baggage
+
+`tracing.baggage.parse_baggage(header)` decodes an ordered list of
+`BaggageEntry` values with optional properties. The codec preserves duplicate
+entries, property order, and the distinction between a bare property and an
+empty property value. Malformed syntax or percent escapes reject the header.
+Invalid UTF-8 in decoded values is replaced with U+FFFD.
+`format_baggage(entries)` validates tokens and emits an ASCII header.
+Both operations enforce 64 members and 8192 wire bytes. Keys and values share
+that byte budget. Formatting fails if percent encoding would exceed it.
+
+`tracing.propagators.extract_baggage(headers)` returns an empty list for an
+absent header and `None` for malformed or ambiguous input. Combine repeated
+physical header lines in wire order before constructing the dictionary.
+
+Call `inject_baggage(entries, outgoing_headers)` for an untrusted destination.
+This removes every spelling of an existing Baggage header. For a trusted
+destination, pass a case-sensitive list of approved keys as the third argument.
+Only the first entry for each allowed key is forwarded. Properties are removed
+because they can carry additional untrusted data. The caller must also approve
+the values for that destination before forwarding. If injection returns
+`False`, the carrier is unchanged and should not be sent.
+
+Baggage is handled explicitly, independently of trace-context extraction.
+Pulse does not automatically copy it into metrics, span attributes, or logs.
+
+See the [pinned W3C Baggage Candidate Recommendation Snapshot](https://www.w3.org/TR/2024/CR-baggage-20240530/).

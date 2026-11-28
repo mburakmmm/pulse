@@ -30,6 +30,7 @@ nox.test.assert_true(normalize_tracestate(nox.strings.repeat(",", 31)) is not No
 bad: list[str] = ["a=x,a=y", "A=x", "9simple=x", "a@2sys=x", "a@@sys=x", "a@=x", "@sys=x", "a =x", "a=", "=x", "a=x=y", "a=x=", "a=x\ty", "a=x\n", "a=é", nox.strings.repeat(",", 32), nox.strings.repeat("k", 257) + "=v", "a=" + nox.strings.repeat("v", 257), nox.strings.repeat("9", 242) + "@s=v", "a@" + nox.strings.repeat("s", 15) + "=v"]
 for value in bad:
     nox.test.assert_true(normalize_tracestate(value) is None, "invalid member or bound is rejected")
+nox.test.assert_true(normalize_tracestate("a=x," + chr(0) + "=bad") is None, "NUL-prefixed members are not empty")
 
 wire: str = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 headers: dict[str, str] = {"TraceParent": wire, "TraceState": "a=x, b=y", "Authorization": "opaque"}
@@ -38,6 +39,10 @@ context: SpanContext = SpanContext(TraceId("4bf92f3577b34da6a3ce929d0e0e4736"), 
 nox.test.assert_true(not inject_trace_context(context, headers), "existing propagation headers are protected")
 nox.test.assert_true(inject_trace_context(context, headers, True), "unchanged parent can pass through")
 nox.test.assert_eq_str(headers["TraceState"], "a=x, b=y", "pass-through leaves original state bytes unchanged")
+headers["TraceParent"] = wire + chr(0) + "suffix"
+nox.test.assert_true(inject_trace_context(context, headers, True), "a binary suffix prevents pass-through")
+nox.test.assert_eq_int(nox.strings.byte_len(headers["TraceParent"]), 55, "explicit overwrite removes the binary suffix")
+nox.test.assert_eq_str(headers["TraceState"], "new=state", "new state is written with the corrected parent")
 context.span_id = SpanId("00f067aa0ba902b8")
 nox.test.assert_true(inject_trace_context(context, headers, True), "explicit overwrite succeeds")
 nox.test.assert_eq_str(headers["TraceState"], "new=state", "header spelling is preserved")

@@ -7,6 +7,7 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 ### Added
 
 - Bounded W3C tracestate validation and paired trace-context extraction and injection.
+- Bounded W3C Baggage codec and explicit outbound allowlists with forwarding disabled by default.
 
 - Bounded W3C `traceparent` parsing, formatting and case-insensitive header injection.
 - Pulse-scoped Codex hooks for RTK enforcement, graph-aware discovery and subagent guidance.
