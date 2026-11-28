@@ -791,3 +791,9 @@ Commit/tag:
 - [x] Yeni pinin çapraz platform CI sonucu [CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875) ile tamamlandı. Dokuz iş başarılı.
 - Manifest/release: manifest hâlâ yayımlanmış taban `0.2.0`; `v0.3.0` tag/release artefaktı yok.
 - Commit/tag: uygulama commit'i `8d01f51e6d1a6adb816c0e8cf5c24ac4830f17ec`; tag yok.
+
+#### NOX 2.2.107 limitasyon denetimi — 2026-11-28
+
+- [x] Kurulu derleyici, son yayımlanan tag ve kaynak commit eşleştirildi. macOS ARM64 üzerinde LLVM ve QBE yetenek denetimleri geçti.
+- [x] NUL karşılaştırması 2.2.77 kaynak düzeltmesine bağlandı ve 2.2.107 üzerinde kapalı olarak doğrulandı. 2.2.70 CI pini için önlem korunuyor.
+- [x] Hosted QBE zamanlayıcısı, worker girişine göre modül durumu ve devam eden tasarım sınırları [limitasyon kaydında](docs/nox-limitations.md) güncellendi.

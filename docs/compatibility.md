@@ -1,7 +1,7 @@
 # NOX compatibility audit
 
 The current compiler pin is NOX 2.2.70. See the
-[upgrade audit](nox-upgrade-analysis-2.2.70.md) for current local evidence and
+[pin migration audit](nox-upgrade-analysis-2.2.70.md) for baseline evidence and
 the [platform matrix](platform-support.md) for remote evidence.
 
 ## Selected baseline
@@ -46,17 +46,19 @@ the [platform matrix](platform-support.md) for remote evidence.
 
 ## Active design constraints and fallbacks
 
-- QBE scheduling is cooperative. Pulse uses synchronous or explicitly polled
-  export there and does not advertise background parallelism.
+- Hosted QBE and LLVM support the M:N worker pool. Pulse still requires
+  separate lifecycle and portability verification for background exporters.
 - Both backends pass the targeted class, nested-dictionary and TaskLocal transfer
   probes. The shared provider uses the public scalar atomic handle and
   explicit post-join cleanup. See the provider concurrency gate in
   `scripts/run-phase2-tests.sh`.
-- Mutable module state is worker-local. Providers, readers and contexts are passed
-  explicitly; there is no module-global current span.
+- Module state is worker-local in `serve_multicore*` and `nox.thread.pool_run`.
+  Plain hosted tasks can share heap-backed module values. Providers, readers
+  and contexts are passed explicitly.
 - TaskLocal values are not inherited by spawned tasks. Parent context handoff is
   explicit even though the old teardown leak is fixed.
-- Fiber stacks are 192 KiB. Protobuf/propagation parsers are iterative and bounded.
+- Default hosted fiber stacks are 192 KiB. Protobuf and propagation parsers
+  are iterative and bounded.
 - The optional float, imported enum iteration and pass-only formatter regressions
   pass on 2.2.70. The limitation register retains the original reproducers.
 - Redirected `nox.terminal.write_raw()` has an exact-byte regression on the core
@@ -289,6 +291,31 @@ before comparing them.
 passed all nine jobs for `826e996b0ac4b8147436b4a2bd6da929a8e994c7`.
 The portable suite passed on QBE and LLVM across macOS ARM64, Linux x64,
 Linux ARM64 and Windows x64.
+
+## Latest release audit — NOX 2.2.107
+
+On 2026-11-28, the installed macOS ARM64 compiler reported the
+[latest published release](https://github.com/mburakmmm/nox-lang/releases/tag/v2.2.107)
+version and the exact tag commit `37e80cf9f0e273da4f612da0bb1f1c01c9473c6f`.
+The installed executable SHA-256 was
+`020e9a9e335c89231873b6047950e8ba28f7c6267814be326b3622adc7bd53a7`.
+The [2.2.70–2.2.107 comparison](https://github.com/mburakmmm/nox-lang/compare/v2.2.70...v2.2.107)
+identifies the NUL fix in the 2.2.77 tag. The hosted QBE and module-state
+corrections reflect behavior that predates the current Pulse pin.
+
+| Check | Local result |
+|---|---|
+| `run-smoke.sh`, `run-nox-framework-regressions.sh` | QBE and LLVM passed. Smoke includes TaskLocal child isolation. |
+| `run-type-capability-audit.sh`, `run-backend-transfer-audit.sh` | QBE and LLVM passed, including historical formatter/codegen fixtures and class/TaskLocal transfer. |
+| `run-runtime-capability-audit.sh`, `run-http-capability-audit.sh` | QBE and LLVM passed, including embedded binary bytes, NaN, binary HTTP, timeout and untrusted TLS rejection. |
+| `nul_string_comparison.nox.txt` | Both backends reported `3 / False` on 2.2.107 and `3 / True` on 2.2.70. |
+| `optional_raise_narrowing.nox.txt` and `TaskLocal[int]` | `noxc check` reports `OptionalNotNarrowed` and `TypeMismatch` respectively on 2.2.107. |
+| `http_serve_return_order.nox.txt` | Both 2.2.107 backends returned `serve-returned` over loopback. |
+| Upstream `divergence_pool_run.nox` and `mn_shared_list.nox` | Both backends passed on both pins. The shared-list output matches the upstream golden with four configured workers. |
+
+This is local macOS ARM64 evidence. The four-platform CI matrix is still
+pinned to 2.2.70. The [NOX limitation register](nox-limitations.md) records the
+remaining design boundaries and the containment used with that pin.
 
 ## Remaining audit work
 

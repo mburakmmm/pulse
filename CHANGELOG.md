@@ -4,6 +4,11 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 ## [Unreleased]
 
+### Changed
+
+- Re-audited the NOX limitation register against 2.2.107 and corrected the
+  hosted QBE scheduler, module-state scope and upstream status of NUL comparison.
+
 ### Added
 
 - Bounded W3C tracestate validation and paired trace-context extraction and injection.

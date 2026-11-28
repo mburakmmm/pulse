@@ -2,11 +2,13 @@
 
 - Status: Active compatibility register
 - Pulse baseline: NOX `2.2.70`, source commit `4dc061f8c8443f8575092c2652d1109b6f4697e9`
+- Latest published NOX audited: `2.2.107` on 2026-11-28, source commit `37e80cf9f0e273da4f612da0bb1f1c01c9473c6f`
 - Compiler build identity: `noxc version --build-info` reports the same commit
 - Audited macOS ARM64 binary SHA-256: `902f7c439b861282c1f7ce50b301e531c3842a079e09e53fa2a8a4ecd2a10acb`
 
-See the [2.2.70 upgrade audit](nox-upgrade-analysis-2.2.70.md) for current
-verification. Entries retain the old reproductions where applicable.
+See the [2.2.107 local verification](compatibility.md#latest-release-audit--nox-22107)
+and the [2.2.70 pin migration](nox-upgrade-analysis-2.2.70.md). Entries retain
+the original reproducers and identify any behavior specific to the CI pin.
 
 This register separates actual defects from language/runtime design constraints and
 Pulse-only audit work. A closed historical item remains here so an older workaround
@@ -19,19 +21,28 @@ checksum before extraction and checks the executable's source commit.
 
 ## Status vocabulary
 
-- `OPEN-UPSTREAM`: reproducible defect in the pinned compiler.
+- `OPEN-UPSTREAM`: confirmed defect that still reproduces on the latest audited release.
 - `DESIGN-LIMIT`: intentional behavior Pulse must design around.
 - `AUDIT-PENDING`: public support exists or is claimed, but the required Pulse
   interoperability or platform evidence is incomplete.
-- `CLOSED`: the fixing capability is pinned and the relevant Pulse regression passes.
+- `CLOSED`: the defect or capability gap is resolved upstream. An entry states
+  separately whether Pulse's compiler pin includes the fix.
+
+## Upstream triage for 2.2.107
+
+**No registered compiler defect currently reproduces as an open upstream bug.**
+The top-level optional guard still fails with `OptionalNotNarrowed`. The
+connection-limited HTTP server still returns before the handler, and TaskLocal
+still isolates children and rejects bare scalar types. These are recorded as
+design boundaries below. The gRPC read deadline is a capability gap if Pulse
+needs a hard client-side deadline for a future exporter.
 
 ## Regressions re-evaluated on the current pin
 
 ### NOX-STR-002 — String equality treats NUL as end of string
 
-- Status: `OPEN-UPSTREAM` on the Pulse pin 2.2.70. The isolated reproducer
-  passes on the installed NOX 2.2.107
-  (`37e80cf9f0e273da4f612da0bb1f1c01c9473c6f`).
+- Status: `CLOSED` upstream in the [v2.2.77 tag commit](https://github.com/mburakmmm/nox-lang/commit/3509c4a37d6dd7f5f8286724e3ebaac320c1cbad).
+  Re-verified locally on 2.2.107. Pulse's 2.2.70 pin still reproduces it.
 - Evidence: copy `fixtures/capability/nul_string_comparison.nox.txt` to a
   temporary `.nox` file, build with `noxc build --backend qbe` and repeat
   with `--backend llvm`. On macOS ARM64, both 2.2.70 executables report
@@ -40,8 +51,8 @@ checksum before extraction and checks the executable's source commit.
 - Pulse containment: inspect byte length when recognizing empty W3C header
   members and reject NUL bytes in tokens before comparing baggage keys.
   The Baggage and tracestate regressions cover NUL-prefixed members.
-- Close when: the compiler pin advances and both backends pass the probe in
-  the supported platform matrix.
+- Pulse can review removing the version-specific workaround after advancing
+  its pin and passing the probe on the supported platform matrix.
 
 ### NOX-FMT-004 — Formatter removes the body of a pass-only class
 
@@ -244,7 +255,7 @@ checksum before extraction and checks the executable's source commit.
 
 ### NOX-TYPE-002 — Top-level raising guard does not narrow an optional
 
-- Status: `DESIGN-LIMIT`, re-verified on NOX 2.2.70.
+- Status: `DESIGN-LIMIT`, re-verified on NOX 2.2.70 and 2.2.107.
 - Evidence: copy `fixtures/capability/optional_raise_narrowing.nox.txt`
   to a temporary `.nox` file. `noxc check` reports
   `OptionalNotNarrowed` at the field read following an `is None` branch
@@ -262,7 +273,7 @@ checksum before extraction and checks the executable's source commit.
 
 ### NOX-HTTP-005 — Top-level `serve()` is not a handler join barrier
 
-- Status: `DESIGN-LIMIT`, re-verified on NOX 2.2.70. The optional third
+- Status: `DESIGN-LIMIT`, re-verified on NOX 2.2.70 and 2.2.107. The optional third
   `serve` argument counts accepted connections. Upstream documents a
   separate graceful shutdown path that waits up to the drain deadline.
 - Evidence: compile `fixtures/capability/http_serve_return_order.nox.txt`
@@ -277,21 +288,30 @@ checksum before extraction and checks the executable's source commit.
 
 ### NOX-TASKLOCAL-002 — Spawned tasks do not inherit TaskLocal values
 
-- Status: `DESIGN-LIMIT`.
+- Status: `DESIGN-LIMIT`, reproduced on 2.2.107 with the two-backend
+  `tests/smoke/task_local_smoke_test.nox` gate.
 - Pulse behavior: pass immutable `TelemetryContext` explicitly. A scoped current-span
   convenience may be added only with explicit spawn handoff and cleanup tests.
 
 ### NOX-TASKLOCAL-003 — TaskLocal element types are restricted
 
-- Status: `DESIGN-LIMIT`.
+- Status: `DESIGN-LIMIT` on 2.2.107. `noxc check` rejects
+  `local: TaskLocal[int] = TaskLocal[int]()` with `TypeMismatch`.
+  Supported payloads include classes, strings, lists and dictionaries.
 - Pulse behavior: if a convenience layer is added, store one typed context class;
   do not attempt primitive or scheduler-bound payload tricks.
 
-### NOX-QBE-001 — QBE scheduling is cooperative
+### NOX-QBE-001 — Hosted QBE previously had a single-threaded scheduler
 
-- Status: `DESIGN-LIMIT`.
-- Pulse behavior: exporter work is synchronous or explicitly cooperatively polled;
-  it is never marketed as background parallelism.
+- Status: `CLOSED` in [NOX 2.1.112](https://github.com/mburakmmm/nox-lang/blob/v2.2.107/CHANGELOG.md#21112)
+  for hosted targets. QBE and LLVM both support the M:N worker pool. Freestanding
+  targets and explicitly single-worker configurations remain cooperative.
+- Evidence: upstream `divergence_pool_run.nox` passes on 2.2.70 and 2.2.107
+  with `NOX_POOL_WORKERS=2` on QBE and LLVM. The
+  [tagged concurrency docs](https://github.com/mburakmmm/nox-lang/blob/v2.2.107/docs/language/concurrency.md#the-scheduler)
+  describe both backends.
+- Pulse behavior: background exporters still need bounded lifecycle and
+  portable behavior tests before being advertised.
 
 ### NOX-QBE-002 — QBE rejected audited class and TaskLocal transfers
 
@@ -306,27 +326,36 @@ checksum before extraction and checks the executable's source commit.
   failure and the bounded contention probe used in the follow-up.
 - Gate: `bash scripts/run-backend-transfer-audit.sh`.
 
-### NOX-MODULE-001 — Mutable module state is worker-local
+### NOX-MODULE-001 — Module state depends on the worker entry point
 
-- Status: `DESIGN-LIMIT`.
-- Pulse behavior: no module-global current span or aggregation map is assumed to be
-  process-global. Providers and ownership are explicit.
+- Status: `DESIGN-LIMIT`, narrowed to `serve_multicore*` and
+  `nox.thread.pool_run` worker entry points. Plain hosted tasks can share
+  heap-backed module values. Compound mutations still require synchronization.
+- Evidence: upstream `mn_shared_list.nox` matches golden output on 2.2.70 and
+  2.2.107 with four configured workers on QBE and LLVM. The
+  [tagged module docs](https://github.com/mburakmmm/nox-lang/blob/v2.2.107/docs/language/modules.md#module-level-state-and-the-multi-core-runtime)
+  describe the entry-point distinction.
+- Pulse behavior: providers and context ownership remain explicit.
 
 ### NOX-FS-001 — Filesystem paths are not confined
 
-- Status: `DESIGN-LIMIT`.
-- Pulse behavior: file exporter destinations are canonicalized and checked against
-  configured roots before opening; untrusted paths are rejected.
+- Status: `DESIGN-LIMIT` in [2.2.107's filesystem API](https://github.com/mburakmmm/nox-lang/blob/v2.2.107/docs/stdlib/fs.md).
+  Applications can opt into `nox.path.safe_join` for path validation.
+- Pulse requirement: a future file exporter must validate destinations against
+  configured roots before opening files.
 
-### NOX-FIBER-001 — Fiber stacks are fixed at 192 KiB
+### NOX-FIBER-001 — The default hosted fiber stack is 192 KiB
 
-- Status: `DESIGN-LIMIT`.
+- Status: `DESIGN-LIMIT` confirmed by [2.2.107's runtime source](https://github.com/mburakmmm/nox-lang/blob/v2.2.107/runtime/async_rt/fiber.zig).
+  Internal workers may use explicitly sized stacks.
 - Pulse behavior: parsers and encoders are iterative and enforce message/depth limits.
   Compression is whole-buffer and therefore receives explicit payload bounds.
 
 ### NOX-HTTP-001 — `nox.http.request` is buffered and method-bounded
 
-- Status: `DESIGN-LIMIT`.
+- Status: `DESIGN-LIMIT`, verified by the 2.2.107 QBE and LLVM HTTP audits.
+  The restriction describes `request`; the public API also offers
+  `stream` and `stream_upload` for chunked I/O.
 - Pulse behavior: OTLP/HTTP uses POST, positive timeouts, bounded payloads and an
   explicit redirect/credential policy. Export failures never log full headers/body.
 
@@ -351,7 +380,10 @@ checksum before extraction and checks the executable's source commit.
 
 ### NOX-GRPC-001 — gRPC client has one active call per connection
 
-- Status: `DESIGN-LIMIT`.
+- Status: `DESIGN-LIMIT` in the [2.2.107 gRPC client contract](https://github.com/mburakmmm/nox-lang/blob/v2.2.107/docs/stdlib/grpc.md).
+  The connection handles one call at a time and `timeout_ms` asks the
+  server to enforce a deadline. An independent client-side read timeout
+  remains unavailable in this API.
 - Pulse behavior: any future OTLP/gRPC exporter owns its connection lifecycle,
   bounds concurrent connections and uses server-enforced deadlines; it must not
   imply a client-side read deadline that the runtime does not provide.
@@ -378,6 +410,7 @@ failing probe distinguishes a compiler/runtime limitation from a Pulse defect.
 | Phase 2 — metrics core | `NOX-CODEGEN-001`, `NOX-CODEGEN-002` | Explicit histogram presence flag; concrete snapshot helpers; expected-failure fixtures plus two-backend positive tests |
 | Phase 3 — Prometheus MVP slices | `NOX-IO-001`, `NOX-HTTP-004`; no new compiler/runtime issue in allowlisted `target_info` or pinned unit translation | Pure renderer/handler and unit table/rate/annotation logic pass QBE + LLVM across the [run #13 matrix](https://github.com/mburakmmm/pulse/actions/runs/44791381303); redirected `write_raw` has an expected-failure probe; listener ownership stays with the application because public NOX cannot bind loopback explicitly |
 | Phase 3 — NOX 2.2.38 baseline | Formatter, two codegen cases, audited QBE transfer and explicit bind API restrictions lifted | Positive regressions on QBE and LLVM. Windows redirected output requires exact bytes. Shared metric-provider safety remains Pulse audit work. |
+| Phase 5 — W3C Baggage | `NOX-STR-002` on 2.2.70, fixed upstream and verified on 2.2.107 | NUL comparison fixture and byte-length based header validation |
 
 Future phases append a row or explicitly record “no new NOX limitation observed”
 with the exact capability and behavioral commands used for that conclusion.
