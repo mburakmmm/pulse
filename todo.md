@@ -354,7 +354,7 @@ Bağımlılık: `v0.4.0`.
 
 Çıkış kapısı:
 
-- [ ] W3C fixture/fuzz/property testleri geçiyor.
+- [x] W3C fixture/fuzz/property testleri [CI run #26](https://github.com/mburakmmm/pulse/actions/runs/46173369982) ile dört platformda geçti. Yerel 2.2.107 denetimi de iki backend'de başarılı.
 - [ ] İki concurrent request farklı trace ID'lerle tamamen izole.
 - [ ] Baggage metrics label veya unrelated destination'a sızmıyor.
 

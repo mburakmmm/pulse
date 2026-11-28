@@ -292,6 +292,24 @@ passed all nine jobs for `826e996b0ac4b8147436b4a2bd6da929a8e994c7`.
 The portable suite passed on QBE and LLVM across macOS ARM64, Linux x64,
 Linux ARM64 and Windows x64.
 
+## W3C propagation conformance evidence
+
+The curated W3C fixtures run with the unit suite. The property suite adds
+384 seeded cases for round-trips and canonicalization. The fuzz suite adds
+704 seeded cases covering arbitrary wire bytes, raw control bytes and
+padding that exceeds the raw header caps. See the
+[fixture provenance](../fixtures/w3c/README.md) for the selected cases.
+
+[CI run #26](https://github.com/mburakmmm/pulse/actions/runs/46173369982)
+passed all nine jobs for `e761cddc3ce712f4cc631c47dce8e3692111fddd` on
+NOX 2.2.70. The core matrix exercised QBE and LLVM on four platforms.
+The same fixtures, property tests and fuzz cases passed on both backends
+with NOX 2.2.107 on macOS ARM64.
+
+The [optional elif narrowing issue](nox-limitations.md#nox-type-004--an-elif-guard-does-not-narrow-an-optional-argument)
+reproduces with `noxc check` on 2.2.70 and 2.2.107. The fixture runner
+uses a nested guard that compiles on both versions.
+
 ## Latest release audit — NOX 2.2.107
 
 On 2026-11-28, the installed macOS ARM64 compiler reported the
