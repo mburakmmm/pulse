@@ -107,5 +107,24 @@ ambiguous case-variant duplicates. The carrier is limited to 256 entries.
 An invalid or absent header returns no parent. Injection of an invalid
 context raises `TelemetryError` before mutation.
 
-This slice covers `traceparent`. Tracestate and baggage remain open.
-See the [pinned W3C specification](https://www.w3.org/TR/2021/REC-trace-context-1-20211123/).
+Use `tracing.propagators.extract_trace_context(headers)` and
+`inject_trace_context(context, headers, overwrite=False)` to propagate
+`traceparent` and `tracestate` together.
+
+Tracestate accepts up to 512 wire bytes and 32 list members. It validates
+simple keys and tenant-qualified keys, rejects duplicate keys, and preserves
+member order and opaque value bytes. Empty members and surrounding HTTP
+spaces or tabs are removed. Repeated physical header lines can be provided
+as one comma-joined value in wire order. Case-variant dictionary entries
+have ambiguous order and are discarded during extraction.
+
+Malformed or oversized tracestate is discarded as a whole while a valid
+traceparent is still usable. Tracestate without a valid parent is ignored.
+Pair injection preserves both existing headers by default. Explicit
+overwrite preserves header spelling, rejects ambiguous entries, and removes
+stale tracestate if a new parent has no valid state. A byte-identical
+traceparent leaves existing state untouched, including its original spacing.
+The operation checks carrier capacity before writing. This SDK does not log
+opaque state values. Baggage remains open.
+
+See the [pinned W3C specification](https://www.w3.org/TR/2021/REC-trace-context-1-20211123/#tracestate-header).

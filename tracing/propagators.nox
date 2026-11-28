@@ -1,0 +1,63 @@
+import nox.strings
+from api.context import SpanContext
+from tracing.traceparent import extract_traceparent, format_traceparent
+from tracing.tracestate import normalize_tracestate
+
+def find_header(headers: dict[str, str], name: str) -> str | None:
+    found: str = ""
+    for key in headers:
+        if nox.strings.eq_ignore_case(key, name):
+            if found != "":
+                return None
+            found = key
+    return found
+
+def extract_trace_context(headers: dict[str, str]) -> SpanContext | None:
+    parent: SpanContext | None = extract_traceparent(headers)
+    if parent is None:
+        return None
+    key: str | None = find_header(headers, "tracestate")
+    if key is not None and key != "":
+        state: str | None = normalize_tracestate(headers[key])
+        if state is not None:
+            parent.tracestate = state
+    return parent
+
+def inject_trace_context(context: SpanContext, headers: dict[str, str], overwrite: bool = False) -> bool:
+    if len(headers) > 256:
+        return False
+    existing_parent: str | None = find_header(headers, "traceparent")
+    existing_state: str | None = find_header(headers, "tracestate")
+    if existing_parent is None or existing_state is None:
+        return False
+    parent_key: str = existing_parent
+    state_key: str = existing_state
+    if not overwrite and (parent_key != "" or state_key != ""):
+        return False
+    parent: str = format_traceparent(context)
+    normalized: str | None = normalize_tracestate(context.tracestate)
+    state: str = ""
+    if normalized is not None:
+        state = normalized
+    if parent_key != "" and headers[parent_key] == parent:
+        # A pass-through parent must keep its original tracestate.
+        return True
+    final_size: int = len(headers)
+    if parent_key == "":
+        final_size += 1
+    if state_key == "" and state != "":
+        final_size += 1
+    elif state_key != "" and state == "":
+        final_size -= 1
+    if final_size > 256:
+        return False
+    if parent_key == "":
+        parent_key = "traceparent"
+    if state != "":
+        if state_key == "":
+            state_key = "tracestate"
+        headers[state_key] = state
+    elif state_key != "":
+        del headers[state_key]
+    headers[parent_key] = parent
+    return True

@@ -337,7 +337,7 @@ Bağımlılık: `v0.4.0`.
 - [x] Extract edilen context remote, sampled bit korunuyor.
 - [x] Injection varsayılan olarak mevcut başlığı koruyor; aynı başlığın farklı case'leri çakışma sayılıyor.
 - [x] İlk traceparent dilimi [CI run #23](https://github.com/mburakmmm/pulse/actions/runs/45762058875) ile dört platformda doğrulandı.
-- [ ] Bounded, ordered ve validated `tracestate`.
+- [x] Bounded, ordered ve validated `tracestate`. Geçersiz state parent'ı düşürmez. İki başlık birlikte aktarılır.
 - [ ] Baggage parse/format, percent encode/decode ve duplicate policy.
 - [ ] Baggage key/value/entry/header limits.
 - [ ] Trust boundary için baggage disable/sanitize politikası.

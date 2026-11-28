@@ -1,0 +1,61 @@
+import nox.strings
+import nox.test
+from api.context import SpanContext, TraceFlags
+from core.errors import TelemetryError
+from core.ids import SpanId, TraceId
+from tracing.propagators import extract_trace_context, inject_trace_context
+from tracing.tracestate import normalize_tracestate
+
+def normalized(raw: str) -> str:
+    state: str | None = normalize_tracestate(raw)
+    if state is not None:
+        return state
+    raise TelemetryError("expected valid tracestate")
+
+def extracted(headers: dict[str, str]) -> SpanContext:
+    result: SpanContext | None = extract_trace_context(headers)
+    if result is not None:
+        return result
+    raise TelemetryError("expected valid traceparent")
+
+nox.test.assert_eq_str(normalized(" rojo=00f067aa0ba902b7 ,\t, 9tenant@system=opaque value\t"), "rojo=00f067aa0ba902b7,9tenant@system=opaque value", "empty members and OWS are removed without reordering")
+nox.test.assert_eq_str(normalized("a=  x"), "a=  x", "spaces inside an opaque value are preserved")
+nox.test.assert_eq_str(normalized(" ,\t, "), "", "empty tracestate is valid")
+max_wire: str = nox.strings.repeat("k", 255) + "=" + nox.strings.repeat("v", 256)
+nox.test.assert_eq_int(nox.strings.byte_len(normalized(max_wire)), 512, "512-byte state fits")
+nox.test.assert_true(normalize_tracestate(max_wire + " ") is None, "513-byte state is rejected")
+nox.test.assert_true(normalize_tracestate(nox.strings.repeat("k", 256) + "=v") is not None, "256-byte key fits")
+nox.test.assert_true(normalize_tracestate(nox.strings.repeat("9", 241) + "@" + nox.strings.repeat("s", 14) + "=v") is not None, "maximum multi-tenant key fits")
+nox.test.assert_true(normalize_tracestate(nox.strings.repeat(",", 31)) is not None, "32 list members fit")
+bad: list[str] = ["a=x,a=y", "A=x", "9simple=x", "a@2sys=x", "a@@sys=x", "a@=x", "@sys=x", "a =x", "a=", "=x", "a=x=y", "a=x=", "a=x\ty", "a=x\n", "a=é", nox.strings.repeat(",", 32), nox.strings.repeat("k", 257) + "=v", "a=" + nox.strings.repeat("v", 257), nox.strings.repeat("9", 242) + "@s=v", "a@" + nox.strings.repeat("s", 15) + "=v"]
+for value in bad:
+    nox.test.assert_true(normalize_tracestate(value) is None, "invalid member or bound is rejected")
+
+wire: str = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+headers: dict[str, str] = {"TraceParent": wire, "TraceState": "a=x, b=y", "Authorization": "opaque"}
+nox.test.assert_eq_str(extracted(headers).tracestate, "a=x,b=y", "case insensitive extraction")
+context: SpanContext = SpanContext(TraceId("4bf92f3577b34da6a3ce929d0e0e4736"), SpanId("00f067aa0ba902b7"), TraceFlags.Sampled, "new=state", False)
+nox.test.assert_true(not inject_trace_context(context, headers), "existing propagation headers are protected")
+nox.test.assert_true(inject_trace_context(context, headers, True), "unchanged parent can pass through")
+nox.test.assert_eq_str(headers["TraceState"], "a=x, b=y", "pass-through leaves original state bytes unchanged")
+context.span_id = SpanId("00f067aa0ba902b8")
+nox.test.assert_true(inject_trace_context(context, headers, True), "explicit overwrite succeeds")
+nox.test.assert_eq_str(headers["TraceState"], "new=state", "header spelling is preserved")
+nox.test.assert_eq_str(headers["Authorization"], "opaque", "unrelated headers are untouched")
+headers["TraceState"] = "a=x,a=y"
+nox.test.assert_eq_str(extracted(headers).tracestate, "", "invalid state does not discard the parent")
+headers["tracestate"] = "other=z"
+nox.test.assert_eq_str(extracted(headers).tracestate, "", "case-variant ambiguity drops only state")
+nox.test.assert_true(not inject_trace_context(context, headers, True), "ambiguous carrier is not mutated")
+nox.test.assert_true(extract_trace_context({"tracestate": "a=x"}) is None, "state cannot create a parent")
+
+stale: dict[str, str] = {"TraceParent": wire, "TraceState": "old=value"}
+context.tracestate = "not valid"
+nox.test.assert_true(inject_trace_context(context, stale, True), "new parent can be injected without invalid state")
+nox.test.assert_true("TraceState" not in stale, "stale state is removed on explicit overwrite")
+fresh: dict[str, str] = {}
+for index in range(0, 255):
+    fresh["h" + str(index)] = "v"
+context.tracestate = "vendor=opaque"
+nox.test.assert_true(not inject_trace_context(context, fresh), "inject cannot exceed the carrier count")
+nox.test.assert_true("traceparent" not in fresh and "tracestate" not in fresh, "capacity failure is atomic")
