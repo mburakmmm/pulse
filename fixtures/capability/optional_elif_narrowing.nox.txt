@@ -1,0 +1,11 @@
+def load() -> str | None:
+    return "value"
+
+def consume(value: str) -> None:
+    print(value)
+
+value: str | None = load()
+if False:
+    pass
+elif value is not None:
+    consume(value)

@@ -30,8 +30,9 @@ checksum before extraction and checks the executable's source commit.
 
 ## Upstream triage for 2.2.107
 
-**No registered compiler defect currently reproduces as an open upstream bug.**
-The top-level optional guard still fails with `OptionalNotNarrowed`. The
+**`NOX-TYPE-004` still reproduces on 2.2.107.** An `elif` guard fails to
+narrow an optional argument. The separate top-level raising guard still
+fails with `OptionalNotNarrowed`. The
 connection-limited HTTP server still returns before the handler, and TaskLocal
 still isolates children and rejects bare scalar types. These are recorded as
 design boundaries below. The gRPC read deadline is a capability gap if Pulse
@@ -263,6 +264,17 @@ needs a hard client-side deadline for a future exporter.
 - Containment: keep the field access inside the `is not None` branch.
   The tracing test checks the parent ID inside that branch.
 
+### NOX-TYPE-004 — An elif guard does not narrow an optional argument
+
+- Status: `OPEN-UPSTREAM`, reproduced with `noxc check` on macOS ARM64
+  using both 2.2.70 and 2.2.107. The checker rejects the call to
+  `consume(str)` with `TypeMismatch` within `elif value is not None`.
+- Reproducer: copy `fixtures/capability/optional_elif_narrowing.nox.txt`
+  to a temporary `.nox` file and run `noxc check`. Replacing the `elif`
+  with an `else` containing an equivalent nested `if` passed on both
+  versions.
+- Containment: the W3C fixture runner uses the equivalent nested guard.
+
 ### NOX-CODEGEN-003 — Context manager on a class field fails executable codegen
 
 - Status: `CLOSED` in 2.2.63 and re-verified on 2.2.70.
@@ -411,6 +423,7 @@ failing probe distinguishes a compiler/runtime limitation from a Pulse defect.
 | Phase 3 — Prometheus MVP slices | `NOX-IO-001`, `NOX-HTTP-004`; no new compiler/runtime issue in allowlisted `target_info` or pinned unit translation | Pure renderer/handler and unit table/rate/annotation logic pass QBE + LLVM across the [run #13 matrix](https://github.com/mburakmmm/pulse/actions/runs/44791381303); redirected `write_raw` has an expected-failure probe; listener ownership stays with the application because public NOX cannot bind loopback explicitly |
 | Phase 3 — NOX 2.2.38 baseline | Formatter, two codegen cases, audited QBE transfer and explicit bind API restrictions lifted | Positive regressions on QBE and LLVM. Windows redirected output requires exact bytes. Shared metric-provider safety remains Pulse audit work. |
 | Phase 5 — W3C Baggage | `NOX-STR-002` on 2.2.70, fixed upstream and verified on 2.2.107 | NUL comparison fixture and byte-length based header validation |
+| Phase 5 — W3C conformance vectors | `NOX-TYPE-004` on 2.2.70 and 2.2.107 | Direct checker reproducer and nested guard in the fixture runner |
 
 Future phases append a row or explicitly record “no new NOX limitation observed”
 with the exact capability and behavioral commands used for that conclusion.

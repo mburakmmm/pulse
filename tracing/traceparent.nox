@@ -1,8 +1,8 @@
-import nox.bytes
 import nox.strings
 from api.context import SpanContext, TraceFlags
 from core.errors import TelemetryError
 from core.ids import SpanId, TraceId, hex_nibble, is_lower_hex
+from tracing.header_values import read_header_bytes, trim_ows
 
 def is_hex_byte(value: int) -> bool:
     return value >= 48 and value <= 57 or value >= 97 and value <= 102
@@ -13,12 +13,6 @@ def read_hex_pair(header: str, offset: int) -> int:
     if not is_hex_byte(first) or not is_hex_byte(second):
         return -1
     return hex_nibble(first) * 16 + hex_nibble(second)
-
-def read_identifier(header: str, offset: int, width: int) -> str:
-    bytes: list[int] = []
-    for index in range(offset, offset + width):
-        bytes.append(nox.strings.byte_at(header, index))
-    return nox.bytes.str_from_list(bytes)
 
 def parse_traceparent(header: str) -> SpanContext | None:
     length: int = nox.strings.byte_len(header)
@@ -31,11 +25,15 @@ def parse_traceparent(header: str) -> SpanContext | None:
         return None
     if length > 55 and (version == 0 or nox.strings.byte_at(header, 55) != 45):
         return None
+    for index in range(56, length):
+        byte: int = nox.strings.byte_at(header, index)
+        if byte < 32 and byte != 9 or byte > 126 or byte == 44:
+            return None
     flag_byte: int = read_hex_pair(header, 53)
     if flag_byte < 0:
         return None
-    trace_id: str = read_identifier(header, 3, 32)
-    parent_id: str = read_identifier(header, 36, 16)
+    trace_id: str = read_header_bytes(header, 3, 32)
+    parent_id: str = read_header_bytes(header, 36, 16)
     if not is_lower_hex(trace_id, 16) or not is_lower_hex(parent_id, 8):
         return None
     flags: TraceFlags = TraceFlags.Default
@@ -67,7 +65,10 @@ def extract_traceparent(headers: dict[str, str]) -> SpanContext | None:
             found = key
     if found == "":
         return None
-    return parse_traceparent(headers[found])
+    raw: str = headers[found]
+    if nox.strings.byte_len(raw) > 512:
+        return None
+    return parse_traceparent(trim_ows(raw))
 
 def inject_traceparent(context: SpanContext, headers: dict[str, str], overwrite: bool = False) -> bool:
     if len(headers) > 256:

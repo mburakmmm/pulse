@@ -8,8 +8,14 @@ All notable changes to Pulse will be recorded here. The project is pre-release a
 
 - Re-audited the NOX limitation register against 2.2.107 and corrected the
   hosted QBE scheduler, module-state scope and upstream status of NUL comparison.
+- HTTP traceparent extraction accepts surrounding optional whitespace within
+  the raw byte limit and rejects control bytes and comma-combined fields in
+  future-version suffixes.
 
 ### Added
+
+- Adapted W3C propagation vectors and deterministic property and fuzz tests
+  for traceparent, tracestate and Baggage on QBE and LLVM.
 
 - Bounded W3C tracestate validation and paired trace-context extraction and injection.
 - Bounded W3C Baggage codec and explicit outbound allowlists with forwarding disabled by default.

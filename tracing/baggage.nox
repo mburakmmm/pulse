@@ -1,7 +1,7 @@
 import nox.bytes
 import nox.strings
 from core.ids import hex_nibble
-from tracing.tracestate import trim_member
+from tracing.header_values import trim_ows
 
 class BaggageProperty:
     key: str
@@ -117,14 +117,14 @@ def encode_baggage_value(value: str) -> str:
 
 def parse_baggage_field(field: str, value_required: bool) -> BaggageProperty | None:
     pair: list[str] = nox.strings.splitn(field, "=", 2)
-    key: str = trim_member(pair[0])
+    key: str = trim_ows(pair[0])
     if not valid_token(key):
         return None
     if len(pair) == 1:
         if value_required:
             return None
         return BaggageProperty(key, None)
-    decoded: str | None = decode_baggage_value(trim_member(pair[1]))
+    decoded: str | None = decode_baggage_value(trim_ows(pair[1]))
     if decoded is None:
         return None
     return BaggageProperty(key, decoded)
@@ -133,7 +133,7 @@ def parse_baggage(header: str) -> list[BaggageEntry] | None:
     entries: list[BaggageEntry] = []
     if nox.strings.byte_len(header) > 8192:
         return None
-    if nox.strings.byte_len(trim_member(header)) == 0:
+    if nox.strings.byte_len(trim_ows(header)) == 0:
         return entries
     members: list[str] = nox.strings.split(header, ",")
     if len(members) > 64:

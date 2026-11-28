@@ -99,7 +99,11 @@ invalid. For newer versions Pulse reads the known prefix and ignores
 extensions after a dash. The entire input is capped at 512 bytes. The
 formatter outputs version `00` and only emits the sampled bit.
 
-`extract_traceparent(headers)` looks up the header case-insensitively.
+`extract_traceparent(headers)` looks up the header case-insensitively and
+trims HTTP space or horizontal tab at the edges of the field after checking
+its raw byte limit. `parse_traceparent` expects a bare value.
+Future-version extension bytes are opaque within an ASCII field.
+Control bytes other than horizontal tab and comma-combined fields are rejected.
 `inject_traceparent(context, headers, overwrite=False)` keeps existing
 headers unless explicitly asked to replace a single matching entry. It
 preserves the spelling when replacing an entry. Both operations reject

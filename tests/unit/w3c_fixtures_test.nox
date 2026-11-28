@@ -1,0 +1,45 @@
+import nox.fs
+import nox.strings
+import nox.test
+from api.context import SpanContext
+from core.errors import TelemetryError
+from tracing.baggage import BaggageEntry, format_baggage, parse_baggage
+from tracing.traceparent import extract_traceparent, format_traceparent
+from tracing.tracestate import normalize_tracestate
+
+def vectors(path: str, columns: int) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in nox.strings.split(nox.fs.read_to_string(path), "\n"):
+        if line == "" or nox.strings.starts_with(line, "#"):
+            continue
+        fields: list[str] = nox.strings.split(nox.strings.trim_end(line), "\t")
+        nox.test.assert_eq_int(len(fields), columns, "W3C fixture columns")
+        rows.append(fields)
+    nox.test.assert_true(len(rows) > 0, "W3C fixture must contain cases")
+    return rows
+
+for row in vectors("fixtures/w3c/traceparent.tsv", 3):
+    context: SpanContext | None = extract_traceparent({"TrAcEpArEnT": row[1]})
+    if row[2] == "!":
+        nox.test.assert_true(context is None, row[0])
+    else:
+        if context is not None:
+            nox.test.assert_eq_str(format_traceparent(context), row[2], row[0])
+        else:
+            raise TelemetryError("expected valid traceparent: " + row[0])
+
+for row in vectors("fixtures/w3c/tracestate.tsv", 3):
+    state: str | None = normalize_tracestate(row[1])
+    if row[2] == "!":
+        nox.test.assert_true(state is None, row[0])
+    else:
+        nox.test.assert_true(state == row[2], row[0])
+
+for row in vectors("fixtures/w3c/baggage.tsv", 4):
+    baggage: list[BaggageEntry] | None = parse_baggage(row[1])
+    if baggage is not None:
+        nox.test.assert_true(len(baggage) > 0, row[0])
+        nox.test.assert_eq_str(baggage[0].value, row[3], row[0])
+        nox.test.assert_true(format_baggage(baggage) == row[2], row[0])
+    else:
+        raise TelemetryError("expected valid baggage: " + row[0])

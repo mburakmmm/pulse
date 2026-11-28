@@ -1,0 +1,4 @@
+# case	HTTP field value	expected normalized wire value, or !
+multivendor	rojo=00f067aa0ba902b7,congo=t61rcWkgMzE	rojo=00f067aa0ba902b7,congo=t61rcWkgMzE
+changed-order	congo=ucfJifl5GOE,rojo=00f067aa0ba902b7	congo=ucfJifl5GOE,rojo=00f067aa0ba902b7
+duplicate-key	congo=congosFirstPosition,rojo=rojosFirstPosition,congo=congosSecondPosition	!

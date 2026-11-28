@@ -33,6 +33,8 @@ local_context: SpanContext = SpanContext(TraceId(trace_id), SpanId(span_id), Tra
 assert_parses(format_traceparent(local_context), "00-" + identifiers + "-00")
 headers: dict[str, str] = {"TraceParent": sampled, "Authorization": "opaque"}
 nox.test.assert_true(extract_traceparent(headers) is not None, "header matching ignores casing")
+nox.test.assert_true(extract_traceparent({"traceparent": "\t " + sampled + " \t"}) is not None, "HTTP extraction removes surrounding OWS")
+nox.test.assert_true(extract_traceparent({"traceparent": "01-" + identifiers + "-01-ext," + sampled}) is None, "a combined duplicate traceparent is refused")
 nox.test.assert_true(not inject_traceparent(local_context, headers), "default injection refuses to overwrite")
 nox.test.assert_eq_str(headers["TraceParent"], sampled, "refusal leaves the original unchanged")
 nox.test.assert_true(inject_traceparent(local_context, headers, True), "explicit overwrite succeeds")

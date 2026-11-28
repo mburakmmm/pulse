@@ -1,0 +1,5 @@
+# case	HTTP field value	expected canonical wire value	first decoded value
+ascii	userId=alice,serverNode=DF%2028,isProduction=false	userId=alice,serverNode=DF%2028,isProduction=false	alice
+utf8	userId=Am%C3%A9lie,serverNode=DF%2028,isProduction=false	userId=Am%C3%A9lie,serverNode=DF%2028,isProduction=false	Amélie
+ows	userId = alice, serverNode = DF%2028, isProduction = false	userId=alice,serverNode=DF%2028,isProduction=false	alice
+properties	SomeKey=SomeValue;SomeProp,SomeKey2=SomeValue2;ValueProp=PropVal	SomeKey=SomeValue;SomeProp,SomeKey2=SomeValue2;ValueProp=PropVal	SomeValue

@@ -1,0 +1,50 @@
+import nox.bytes
+import nox.property
+import nox.strings
+from api.context import SpanContext
+from nox.property import Rng
+from tracing.baggage import BaggageEntry, format_baggage, parse_baggage
+from tracing.propagators import extract_baggage, extract_trace_context
+from tracing.traceparent import format_traceparent, parse_traceparent
+from tracing.tracestate import normalize_tracestate
+
+def arbitrary_headers(rng: Rng) -> bool:
+    header: str = nox.bytes.str_from_list(rng.int_list(300, 0, 255))
+    parent: SpanContext | None = parse_traceparent(header)
+    if parent is not None and nox.strings.byte_len(format_traceparent(parent)) != 55:
+        return False
+    state: str | None = normalize_tracestate(header)
+    if state is not None and normalize_tracestate(state) != state:
+        return False
+    entries: list[BaggageEntry] | None = parse_baggage(header)
+    if entries is not None:
+        encoded: str | None = format_baggage(entries)
+        if encoded is None or parse_baggage(encoded) is None:
+            return False
+    return True
+
+def control_byte_mutations(rng: Rng) -> bool:
+    wire: str = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    byte: int = rng.int_range(0, 30)
+    if byte >= 9:
+        byte += 1
+    control: str = nox.strings.char_from_byte(byte)
+    # Tabs are OWS at field boundaries, but cannot occur inside a value.
+    future: str = "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-option" + control + "x"
+    headers: dict[str, str] = {"traceparent": wire, "tracestate": "vendor=a" + control + "b", "baggage": "route=a" + control + "b"}
+    context: SpanContext | None = extract_trace_context(headers)
+    if context is None:
+        return False
+    return parse_traceparent(future) is None and nox.strings.byte_len(context.tracestate) == 0 and extract_baggage(headers) is None
+
+def oversized_fields(rng: Rng) -> bool:
+    extra: int = rng.int_range(1, 256)
+    wire: str = "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    parent: str = nox.strings.repeat(" ", 457 + extra) + wire
+    state: str = "vendor=value" + nox.strings.repeat(" ", 512 + extra)
+    baggage: str = "route=value" + nox.strings.repeat(" ", 8192 + extra)
+    return extract_trace_context({"traceparent": parent}) is None and normalize_tracestate(state) is None and parse_baggage(baggage) is None
+
+nox.property.check("arbitrary W3C header bytes", arbitrary_headers, 512, 51001, 300)
+nox.property.check("raw controls never survive into propagated context", control_byte_mutations, 128, 51002, 32)
+nox.property.check("raw byte caps apply before whitespace normalization", oversized_fields, 64, 51003, 256)

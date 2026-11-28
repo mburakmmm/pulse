@@ -1,17 +1,5 @@
 import nox.strings
-from tracing.traceparent import read_identifier
-
-def is_ows(byte: int) -> bool:
-    return byte == 32 or byte == 9
-
-def trim_member(member: str) -> str:
-    start: int = 0
-    end: int = nox.strings.byte_len(member)
-    while start < end and is_ows(nox.strings.byte_at(member, start)):
-        start += 1
-    while end > start and is_ows(nox.strings.byte_at(member, end - 1)):
-        end -= 1
-    return read_identifier(member, start, end - start)
+from tracing.header_values import trim_ows
 
 def is_lower_alpha(byte: int) -> bool:
     return byte >= 97 and byte <= 122
@@ -59,7 +47,7 @@ def normalize_tracestate(header: str) -> str | None:
     seen: dict[str, bool] = {}
     normalized: list[str] = []
     for raw in members:
-        member: str = trim_member(raw)
+        member: str = trim_ows(raw)
         if nox.strings.byte_len(member) == 0:
             continue
         pair: list[str] = nox.strings.split(member, "=")

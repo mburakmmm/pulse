@@ -1,0 +1,22 @@
+import nox.bytes
+import nox.strings
+
+def read_header_bytes(header: str, offset: int, width: int) -> str:
+    bytes: list[int] = []
+    for index in range(offset, offset + width):
+        bytes.append(nox.strings.byte_at(header, index))
+    return nox.bytes.str_from_list(bytes)
+
+def is_ows(byte: int) -> bool:
+    return byte == 32 or byte == 9
+
+def trim_ows(value: str) -> str:
+    start: int = 0
+    end: int = nox.strings.byte_len(value)
+    while start < end and is_ows(nox.strings.byte_at(value, start)):
+        start += 1
+    while end > start and is_ows(nox.strings.byte_at(value, end - 1)):
+        end -= 1
+    if start == 0 and end == nox.strings.byte_len(value):
+        return value
+    return read_header_bytes(value, start, end - start)

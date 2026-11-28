@@ -1,0 +1,47 @@
+import nox.property
+import nox.strings
+from api.context import SpanContext, TraceFlags
+from core.ids import SequenceIdGenerator
+from nox.property import Rng
+from tracing.baggage import BaggageEntry, BaggageProperty, format_baggage, parse_baggage
+from tracing.traceparent import format_traceparent, parse_traceparent
+from tracing.tracestate import normalize_tracestate
+
+def traceparent_roundtrip(rng: Rng) -> bool:
+    ids: SequenceIdGenerator = SequenceIdGenerator(rng.int_range(0, 1000000), rng.int_range(0, 1000000))
+    flags: TraceFlags = TraceFlags.Default
+    if rng.boolean():
+        flags = TraceFlags.Sampled
+    context: SpanContext = SpanContext(ids.next_trace_id(), ids.next_span_id(), flags, "", False)
+    wire: str = format_traceparent(context)
+    parsed: SpanContext | None = parse_traceparent(wire)
+    if parsed is None:
+        return False
+    return parsed.remote and parsed.trace_id.value == context.trace_id.value and parsed.span_id.value == context.span_id.value and parsed.trace_flags == flags
+
+def tracestate_roundtrip(rng: Rng) -> bool:
+    members: list[str] = []
+    for index in range(rng.int_range(1, 32)):
+        members.append("vendor" + str(index) + "=v" + str(rng.int_range(0, 999)))
+    canonical: str = nox.strings.join(members, ",")
+    wire: str = "\t" + nox.strings.join(members, " ,  ") + "\t"
+    if nox.strings.byte_len(wire) > 512:
+        return normalize_tracestate(wire) is None
+    return normalize_tracestate(wire) == canonical and normalize_tracestate(canonical) == canonical
+
+def baggage_roundtrip(rng: Rng) -> bool:
+    entries: list[BaggageEntry] = []
+    for index in range(rng.int_range(1, 12)):
+        value: str = rng.choice_str(["", "%", "é 😀", "a=b", "\t\r\n", chr(0) + "a"]) + str(rng.int_range(0, 99))
+        entries.append(BaggageEntry("key" + str(index % 4), value, [BaggageProperty("p", value), BaggageProperty("flag", None)]))
+    wire: str | None = format_baggage(entries)
+    if wire is None:
+        return False
+    parsed: list[BaggageEntry] | None = parse_baggage(wire)
+    if parsed is None:
+        return False
+    return len(entries) == len(parsed) and format_baggage(parsed) == wire
+
+nox.property.check("traceparent preserves IDs and sampled flag", traceparent_roundtrip, 128, 52001, 100)
+nox.property.check("tracestate normalization preserves ordered entries", tracestate_roundtrip, 128, 52002, 32)
+nox.property.check("baggage formatting round-trips", baggage_roundtrip, 128, 52003, 64)

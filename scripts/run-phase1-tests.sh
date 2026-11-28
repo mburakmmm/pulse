@@ -18,6 +18,7 @@ done < <(find api core sdk tracing -type f -name '*.nox' -print | sort)
 "$noxc_bin" test --backend "$backend" tests/unit
 "$noxc_bin" test --backend "$backend" tests/security
 "$noxc_bin" test --backend "$backend" tests/property
+"$noxc_bin" test --backend "$backend" tests/fuzz
 NOXC="$noxc_bin" bash scripts/run-golden-tests.sh "$backend"
 
-printf 'pulse phase1 tests: backend=%s modules=pass unit=pass security=pass property=pass golden=pass\n' "$backend"
+printf 'pulse phase1 tests: backend=%s modules=pass unit=pass security=pass property=pass fuzz=pass golden=pass\n' "$backend"

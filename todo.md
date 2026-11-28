@@ -344,8 +344,9 @@ Bağımlılık: `v0.4.0`.
 - [x] Trust boundary için varsayılan kapalı iletim ve hedefe özel anahtar allowlist'i. Üye properties iletilmez.
 - [x] NUL karşılaştırması [NOX-STR-002](docs/nox-limitations.md#nox-str-002--string-equality-treats-nul-as-end-of-string) olarak kaydedildi. 2.2.70'te yeniden üretildi, yerel 2.2.107'de iki backend geçti.
 - [x] Baggage [CI run #25](https://github.com/mburakmmm/pulse/actions/runs/46147965946) ile dört platformda QBE ve LLVM üzerinde doğrulandı. Dokuz iş başarılı.
-- [ ] Malformed/oversized headers fuzz ve security testleri.
-- [ ] Resmî W3C fixtures ve parse(format(x)) property testi.
+- [x] Malformed/oversized headers için deterministik fuzz ve güvenlik testleri. Ham byte, kontrol karakteri ve whitespace ile gizlenen limit aşımları kapsanıyor.
+- [x] Resmî W3C kaynaklarından uyarlanan fixture'lar ve parse/format round-trip property testleri CI test akışına bağlandı.
+- [x] `elif` dalında optional narrowing sorunu [NOX-TYPE-004](docs/nox-limitations.md#nox-type-004--an-elif-guard-does-not-narrow-an-optional-argument) olarak kaydedildi. 2.2.70 ve 2.2.107 ile tekrarlandı.
 - [ ] İki eşzamanlı istekte context cross-contamination testi.
 - [ ] İki NOX process arasında inject/extract testi (mümkünse).
 - [ ] Task-local kolaylığı yalnız Faz 0 kanıtı ve tüm isolation testleri varsa eklenir.
