@@ -27,7 +27,7 @@ checksum before extraction and checks the executable's source commit.
 
 ## Regressions re-evaluated on the current pin
 
-### NOX-STR-001 — String equality treats NUL as end of string
+### NOX-STR-002 — String equality treats NUL as end of string
 
 - Status: `OPEN-UPSTREAM` on the Pulse pin 2.2.70. The isolated reproducer
   passes on the installed NOX 2.2.107

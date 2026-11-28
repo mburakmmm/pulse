@@ -342,7 +342,8 @@ Bağımlılık: `v0.4.0`.
 - [x] Baggage parse/format, percent encode/decode ve duplicate policy. Codec sırayı korur, hedefe iletim ilk izinli değeri kullanır.
 - [x] Baggage 64 üye ve 8192 bayt sınırı. Anahtar ve değerler ortak bayt bütçesine tabidir.
 - [x] Trust boundary için varsayılan kapalı iletim ve hedefe özel anahtar allowlist'i. Üye properties iletilmez.
-- [x] NUL karşılaştırması [NOX-STR-001](docs/nox-limitations.md#nox-str-001--string-equality-treats-nul-as-end-of-string) olarak kaydedildi. 2.2.70'te yeniden üretildi, yerel 2.2.107'de iki backend geçti.
+- [x] NUL karşılaştırması [NOX-STR-002](docs/nox-limitations.md#nox-str-002--string-equality-treats-nul-as-end-of-string) olarak kaydedildi. 2.2.70'te yeniden üretildi, yerel 2.2.107'de iki backend geçti.
+- [x] Baggage [CI run #25](https://github.com/mburakmmm/pulse/actions/runs/46147965946) ile dört platformda QBE ve LLVM üzerinde doğrulandı. Dokuz iş başarılı.
 - [ ] Malformed/oversized headers fuzz ve security testleri.
 - [ ] Resmî W3C fixtures ve parse(format(x)) property testi.
 - [ ] İki eşzamanlı istekte context cross-contamination testi.

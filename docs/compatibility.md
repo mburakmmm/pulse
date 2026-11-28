@@ -273,6 +273,23 @@ passed all nine jobs for `ba5faccf1204a527fcb6c9b920eace5ac76f58fe`.
 The portable suite exercised QBE and LLVM on macOS ARM64, Linux x64,
 Linux ARM64 and Windows x64.
 
+## Baggage evidence
+
+The Baggage codec, carrier policy and trace-context regressions built and ran
+on macOS ARM64 with QBE and LLVM using the checksum-verified NOX 2.2.70 release.
+The tests cover percent encoding, malformed UTF-8, member and wire limits,
+ordered duplicates, and destination-specific filtering.
+
+The [NUL comparison reproducer](nox-limitations.md#nox-str-002--string-equality-treats-nul-as-end-of-string)
+fails the expected equality check on 2.2.70 and works on 2.2.107 on both backends.
+Pulse uses byte length for empty header members and validates allowlist tokens
+before comparing them.
+
+[CI run #25](https://github.com/mburakmmm/pulse/actions/runs/46147965946)
+passed all nine jobs for `826e996b0ac4b8147436b4a2bd6da929a8e994c7`.
+The portable suite passed on QBE and LLVM across macOS ARM64, Linux x64,
+Linux ARM64 and Windows x64.
+
 ## Remaining audit work
 
 - System-trusted TLS success and isolated hostname mismatch in the CI matrix.
